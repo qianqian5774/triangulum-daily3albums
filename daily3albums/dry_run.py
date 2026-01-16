@@ -6,12 +6,12 @@ from typing import Any, Optional
 
 from daily3albums.adapters import (
     LastFmTopAlbum,
-    MbBestMatch,
     MbReleaseGroupSummary,
     lastfm_tag_top_albums,
     musicbrainz_best_release_group_match,
     musicbrainz_best_release_group_match_debug,
     musicbrainz_normalize_mbid_to_release_group,
+    musicbrainz_normalize_mbid_to_release_group_debug,
 )
 
 
@@ -90,8 +90,24 @@ def _normalize_candidate(
     # 1) mbid 确定性链路：release-group -> release -> release-group
     if c.lastfm_mbid:
         rg: MbReleaseGroupSummary | None
-        rg, src = musicbrainz_normalize_mbid_to_release_group(broker, mb_user_agent=mb_user_agent, mbid=c.lastfm_mbid)
-        dbg.append(f"mbid_present=yes src={src} ok={'yes' if rg else 'no'}")
+        if mb_debug:
+            # 期望 adapters.musicbrainz_normalize_mbid_to_release_group_debug 返回:
+            # (rg: Optional[MbReleaseGroupSummary], src: str, debug_lines: list[str])
+            rg, src, debug_lines = musicbrainz_normalize_mbid_to_release_group_debug(
+                broker,
+                mb_user_agent=mb_user_agent,
+                mbid=c.lastfm_mbid,
+            )
+            dbg.append(f"mbid_present=yes src={src} ok={'yes' if rg else 'no'}")
+            dbg.extend(debug_lines)
+        else:
+            rg, src = musicbrainz_normalize_mbid_to_release_group(
+                broker,
+                mb_user_agent=mb_user_agent,
+                mbid=c.lastfm_mbid,
+            )
+            dbg.append(f"mbid_present=yes src={src} ok={'yes' if rg else 'no'}")
+
         if rg is not None:
             return (
                 Normalized(

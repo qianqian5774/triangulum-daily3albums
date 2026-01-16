@@ -194,8 +194,14 @@ class RequestBroker:
         key = self._cache_key(url)
         cached = self._cache_get(key)
         if cached:
-            self._log(f"CACHE HIT url={_redact_url(url)}")
-            return cached["body"]
+            status = int(cached.get("status", 0))
+            if 200 <= status <= 299:
+                self._log(f"CACHE HIT url={_redact_url(url)}")
+                return cached["body"]
+
+            # 负缓存（非 2xx）保持与首次请求一致：直接抛异常
+            self._log(f"CACHE HIT NEG status={status} url={_redact_url(url)}")
+            raise RuntimeError(f"HTTP {status} for {_redact_url(url)} (cached)")
 
         self._log(f"CACHE MISS url={_redact_url(url)}")
 
