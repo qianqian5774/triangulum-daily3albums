@@ -1,8 +1,12 @@
+# daily3albums/adapters.py
 from __future__ import annotations
 
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from typing import Any
 from urllib.parse import urlencode, quote_plus
+import re
+import unicodedata
 
 from daily3albums.request_broker import RequestBroker
 
@@ -31,7 +35,6 @@ def _pick_lastfm_image(images: Any, prefer_size: str = "extralarge") -> str | No
             continue
         if size == prefer_size:
             return url
-        # 兜底：记录最后一个非空
         best = url
     return best
 
@@ -72,8 +75,7 @@ def lastfm_tag_top_albums(
     if not isinstance(j, dict):
         return []
 
-    # 关键修复：兼容 topalbums 与 albums 两种返回
-    container = None
+    # 兼容 topalbums 与 albums 两种返回
     if isinstance(j.get("topalbums"), dict):
         container = j["topalbums"]
     elif isinstance(j.get("albums"), dict):
@@ -133,6 +135,11 @@ def lastfm_tag_top_albums(
     return out
 
 
+# -----------------------------
+# MusicBrainz: core structures
+# -----------------------------
+
+
 @dataclass
 class MbReleaseGroup:
     id: str
@@ -150,10 +157,21 @@ def musicbrainz_search_release_group(
     artist: str,
     limit: int = 5,
 ) -> list[MbReleaseGroup]:
+    """
+    保留原有严格搜索接口（probe-mb 也依赖它）。
+    """
     q = f'releasegroup:"{title}" AND artist:"{artist}"'
-    params = {"query": q, "fmt": "json", "limit": str(limit)}
-    url = "https://musicbrainz.org/ws/2/release-group?" + urlencode(params, quote_via=quote_plus)
+    return musicbrainz_search_release_group_by_query(broker, mb_user_agent=mb_user_agent, query=q, limit=limit)
 
+
+def musicbrainz_search_release_group_by_query(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    query: str,
+    limit: int = 10,
+) -> list[MbReleaseGroup]:
+    params = {"query": query, "fmt": "json", "limit": str(limit)}
+    url = "https://musicbrainz.org/ws/2/release-group?" + urlencode(params, quote_via=quote_plus)
     headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
     j = broker.get_json(url, headers=headers)
 
@@ -163,15 +181,29 @@ def musicbrainz_search_release_group(
         if not isinstance(rg, dict):
             continue
         rg_id = (rg.get("id") or "").strip()
+        if not rg_id:
+            continue
         rg_title = (rg.get("title") or "").strip()
 
-        ac = rg.get("artist-credit") or []
-        names: list[str] = []
-        if isinstance(ac, list):
-            for x in ac:
-                if isinstance(x, dict) and isinstance(x.get("name"), str):
-                    names.append(x["name"])
-        artist_credit = " / ".join(names) if names else artist
+        # MusicBrainz search results sometimes include only "artist-credit-phrase".
+        ac_phrase = rg.get("artist-credit-phrase")
+        artist_credit = (ac_phrase or "").strip() if isinstance(ac_phrase, str) else ""
+        if not artist_credit:
+            ac = rg.get("artist-credit") or []
+            names: list[str] = []
+            if isinstance(ac, list):
+                for x in ac:
+                    if not isinstance(x, dict):
+                        continue
+                    # 常见：{"name": "Brian Eno", "artist": {...}}
+                    if isinstance(x.get("name"), str) and x.get("name"):
+                        names.append(x["name"])
+                        continue
+                    # 兜底：{"artist": {"name": "Brian Eno", ...}}
+                    art = x.get("artist")
+                    if isinstance(art, dict) and isinstance(art.get("name"), str) and art.get("name"):
+                        names.append(art["name"])
+            artist_credit = " / ".join(names) if names else ""
 
         out.append(
             MbReleaseGroup(
@@ -184,3 +216,395 @@ def musicbrainz_search_release_group(
             )
         )
     return out
+
+
+@dataclass
+class MbReleaseGroupSummary:
+    id: str
+    first_release_date: str | None
+    primary_type: str | None
+
+
+def musicbrainz_get_release_group(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    rg_id: str,
+) -> MbReleaseGroupSummary | None:
+    """
+    通过 release-group id 直接获取 release-group。
+    成功返回 (id / first-release-date / primary-type)，失败返回 None。
+    """
+    rg_id = (rg_id or "").strip()
+    if not rg_id:
+        return None
+
+    url = f"https://musicbrainz.org/ws/2/release-group/{rg_id}?fmt=json"
+    headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
+    try:
+        j = broker.get_json(url, headers=headers)
+    except Exception:
+        return None
+
+    if not isinstance(j, dict):
+        return None
+    got_id = (j.get("id") or "").strip()
+    if not got_id:
+        return None
+
+    return MbReleaseGroupSummary(
+        id=got_id,
+        first_release_date=j.get("first-release-date") or None,
+        primary_type=j.get("primary-type") or None,
+    )
+
+def musicbrainz_get_release_group_debug(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    rg_id: str,
+) -> tuple[MbReleaseGroupSummary | None, str]:
+    """
+    Debug 版本：返回 (summary_or_none, status_str)。
+    status_str 主要用于 dry-run --mb-debug 的可解释输出。
+    """
+    rg_id = (rg_id or "").strip()
+    if not rg_id:
+        return None, "rg:skip-empty"
+
+    url = f"https://musicbrainz.org/ws/2/release-group/{rg_id}?fmt=json"
+    headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
+    try:
+        j = broker.get_json(url, headers=headers)
+    except Exception as e:
+        return None, f"rg:error:{type(e).__name__}"
+
+    if not isinstance(j, dict):
+        return None, "rg:bad-json"
+
+    got_id = (j.get("id") or "").strip()
+    if not got_id:
+        # 这通常意味着不是 rg endpoint 返回的结构
+        return None, "rg:missing-id"
+
+    return (
+        MbReleaseGroupSummary(
+            id=got_id,
+            first_release_date=j.get("first-release-date") or None,
+            primary_type=j.get("primary-type") or None,
+        ),
+        "rg:ok",
+    )
+
+
+@dataclass
+class MbReleaseSummary:
+    id: str
+    release_group_id: str | None
+
+
+def musicbrainz_get_release(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    release_id: str,
+) -> MbReleaseSummary | None:
+    """
+    通过 release id 获取 release，并取出 release-group id。
+    成功返回 (release_id / release_group_id)，失败返回 None。
+    """
+    release_id = (release_id or "").strip()
+    if not release_id:
+        return None
+
+    url = f"https://musicbrainz.org/ws/2/release/{release_id}?fmt=json"
+    headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
+    try:
+        j = broker.get_json(url, headers=headers)
+    except Exception:
+        return None
+
+    if not isinstance(j, dict):
+        return None
+    got_id = (j.get("id") or "").strip()
+    if not got_id:
+        return None
+
+    rg = j.get("release-group") or {}
+    rg_id = (rg.get("id") or "").strip() or None
+    return MbReleaseSummary(id=got_id, release_group_id=rg_id)
+
+def musicbrainz_get_release_debug(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    release_id: str,
+) -> tuple[MbReleaseSummary | None, str]:
+    """Debug 版本：返回 (summary_or_none, status_str)。"""
+    release_id = (release_id or "").strip()
+    if not release_id:
+        return None, "rel:skip-empty"
+
+    url = f"https://musicbrainz.org/ws/2/release/{release_id}?fmt=json"
+    headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
+    try:
+        j = broker.get_json(url, headers=headers)
+    except Exception as e:
+        return None, f"rel:error:{type(e).__name__}"
+
+    if not isinstance(j, dict):
+        return None, "rel:bad-json"
+
+    got_id = (j.get("id") or "").strip()
+    if not got_id:
+        return None, "rel:missing-id"
+
+    rg = j.get("release-group") or {}
+    rg_id = (rg.get("id") or "").strip() or None
+    if not rg_id:
+        return MbReleaseSummary(id=got_id, release_group_id=None), "rel:ok-no-rg"
+
+    return MbReleaseSummary(id=got_id, release_group_id=rg_id), "rel:ok"
+
+
+def musicbrainz_normalize_mbid_to_release_group(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    mbid: str,
+) -> tuple[MbReleaseGroupSummary | None, str]:
+    """
+    输入：mbid（可能是 release-group，也可能是 release）
+    输出：(release_group_summary_or_none, source)
+
+    source:
+      - "mbid:release-group"  直接命中 release-group
+      - "mbid:release->rg"    mbid 是 release，通过 release-group 归一
+      - "mbid:miss"           两条路都失败
+    """
+    mbid = (mbid or "").strip()
+    if not mbid:
+        return None, "mbid:miss"
+
+    # 1) 先把 mbid 当作 release-group 试一遍
+    rg = musicbrainz_get_release_group(broker, mb_user_agent=mb_user_agent, rg_id=mbid)
+    if rg is not None:
+        return rg, "mbid:release-group"
+
+    # 2) 再把 mbid 当作 release，取出 release-group 再查 rg
+    rel = musicbrainz_get_release(broker, mb_user_agent=mb_user_agent, release_id=mbid)
+    if rel is None or not rel.release_group_id:
+        return None, "mbid:miss"
+
+    rg2 = musicbrainz_get_release_group(broker, mb_user_agent=mb_user_agent, rg_id=rel.release_group_id)
+    if rg2 is not None:
+        return rg2, "mbid:release->rg"
+
+    return None, "mbid:miss"
+
+def musicbrainz_normalize_mbid_to_release_group_debug(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    mbid: str,
+) -> tuple[MbReleaseGroupSummary | None, str, list[str]]:
+    """
+    Debug 版本：返回 (rg_summary_or_none, source, debug_lines)。
+    目的：让你在 dry-run --mb-debug 时明确看到 mbid 路径到底卡在哪一步。
+    """
+    dbg: list[str] = []
+    mbid = (mbid or "").strip()
+    if not mbid:
+        return None, "mbid:miss", ["mbid:skip-empty"]
+
+    rg, rg_status = musicbrainz_get_release_group_debug(broker, mb_user_agent=mb_user_agent, rg_id=mbid)
+    dbg.append(f"mbid_try_rg status={rg_status}")
+    if rg is not None and rg_status == "rg:ok":
+        return rg, "mbid:release-group", dbg
+
+    rel, rel_status = musicbrainz_get_release_debug(broker, mb_user_agent=mb_user_agent, release_id=mbid)
+    dbg.append(f"mbid_try_release status={rel_status}")
+    if rel is None or not rel.release_group_id:
+        return None, "mbid:miss", dbg
+
+    rg2, rg2_status = musicbrainz_get_release_group_debug(
+        broker, mb_user_agent=mb_user_agent, rg_id=rel.release_group_id
+    )
+    dbg.append(f"release_group_from_release status={rg2_status}")
+    if rg2 is not None and rg2_status == "rg:ok":
+        return rg2, "mbid:release->rg", dbg
+
+    return None, "mbid:miss", dbg
+
+
+# -----------------------------
+# MusicBrainz: safer fallback search (clean + relaxed + scoring)
+# -----------------------------
+
+
+def _mb_norm_text(s: str) -> str:
+    s = unicodedata.normalize("NFKC", (s or "")).lower().strip()
+    s = re.sub(r"[\u200b-\u200f]", "", s)
+    s = re.sub(r"[’']", "", s)
+    # 保留：拉丁字母/数字/扩展拉丁、日文、中文；其余都当成空格
+    s = re.sub(r"[^a-z0-9\u00c0-\u024f\u3040-\u30ff\u4e00-\u9fff]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _clean_title(title: str) -> str:
+    t = unicodedata.normalize("NFKC", (title or "")).strip()
+    # 去掉末尾括号/方括号/花括号信息 (Remaster, Deluxe... 常见)
+    t = re.sub(r"\s*[\(\[\{].*?[\)\]\}]\s*$", "", t).strip()
+    # 去掉常见尾缀词（不追求全覆盖，只要稳定）
+    t = re.sub(r"\b(remaster(ed)?|deluxe|expanded|edition|anniversary|reissue|bonus)\b", "", t, flags=re.I)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _clean_artist(artist: str) -> str:
+    a = unicodedata.normalize("NFKC", (artist or "")).strip()
+    # 去掉 feat/ft 等后缀
+    a = re.split(r"\s+(feat\.|featuring|ft\.)\s+", a, maxsplit=1, flags=re.I)[0].strip()
+    a = re.sub(r"\s+", " ", a).strip()
+    return a
+
+
+def _ratio(a: str, b: str) -> float:
+    a2 = _mb_norm_text(a)
+    b2 = _mb_norm_text(b)
+    if not a2 or not b2:
+        return 0.0
+    return SequenceMatcher(None, a2, b2).ratio()
+
+
+@dataclass
+class MbBestMatch:
+    rg: MbReleaseGroup
+    confidence: float
+    method: str
+    query: str
+    title_sim: float
+    artist_sim: float
+    note: str
+
+
+def _score_release_group_candidate(
+    clean_title: str,
+    clean_artist: str,
+    rg: MbReleaseGroup,
+) -> tuple[float, float, float, str]:
+    title_sim = _ratio(clean_title, rg.title)
+    rg_artist = rg.artist_credit or ""
+    artist_sim = _ratio(clean_artist, rg_artist) if rg_artist else 0.0
+
+    conf = 0.72 * title_sim + 0.28 * artist_sim
+    note_parts: list[str] = []
+
+    pt = (rg.primary_type or "").lower()
+    if pt == "album":
+        conf += 0.05
+        note_parts.append("pt:album:+0.05")
+    elif pt in ("ep", "single"):
+        conf -= 0.10
+        note_parts.append(f"pt:{pt}:-0.10")
+
+    st = {x.lower() for x in (rg.secondary_types or [])}
+    if "compilation" in st:
+        conf -= 0.12
+        note_parts.append("st:compilation:-0.12")
+    if "live" in st:
+        conf -= 0.08
+        note_parts.append("st:live:-0.08")
+    if "remix" in st:
+        conf -= 0.06
+        note_parts.append("st:remix:-0.06")
+
+    return conf, title_sim, artist_sim, ",".join(note_parts)
+
+
+def musicbrainz_best_release_group_match(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    title: str,
+    artist: str,
+    limit: int = 10,
+) -> MbBestMatch | None:
+    best, _ = musicbrainz_best_release_group_match_debug(
+        broker, mb_user_agent=mb_user_agent, title=title, artist=artist, limit=limit
+    )
+    return best
+
+
+def musicbrainz_best_release_group_match_debug(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    title: str,
+    artist: str,
+    limit: int = 10,
+) -> tuple[MbBestMatch | None, list[str]]:
+    """
+    兜底：当没有可用 mbid 时，用文本搜索并做“最像的”选择。
+    原则：宁可返回 None，也不要误配。debug 会返回尝试过程，便于调参。
+    """
+    raw_title = (title or "").strip()
+    raw_artist = (artist or "").strip()
+    dbg: list[str] = []
+    if not raw_title or not raw_artist:
+        return None, ["skip:missing_title_or_artist"]
+
+    clean_title = _clean_title(raw_title)
+    clean_artist = _clean_artist(raw_artist)
+
+    if len(_mb_norm_text(clean_title)) < 3:
+        return None, ["skip:title_too_short"]
+
+    attempts: list[tuple[str, str]] = [
+        ("search:strict", f'releasegroup:"{raw_title}" AND artist:"{raw_artist}"'),
+        ("search:clean_strict", f'releasegroup:"{clean_title}" AND artist:"{clean_artist}"'),
+        ("search:clean_loose", f"releasegroup:{clean_title} AND artist:{clean_artist}"),
+        ("search:title_only", f"releasegroup:{clean_title}"),
+    ]
+
+    best: MbBestMatch | None = None
+
+    for method, q in attempts:
+        rgs = musicbrainz_search_release_group_by_query(broker, mb_user_agent=mb_user_agent, query=q, limit=limit)
+        dbg.append(f"{method}:results={len(rgs)} query={q}")
+        if not rgs:
+            continue
+
+        for rg in rgs[: min(len(rgs), 10)]:
+            conf, title_sim, artist_sim, note = _score_release_group_candidate(clean_title, clean_artist, rg)
+
+            if title_sim < 0.60:
+                continue
+
+            if method == "search:title_only":
+                # 最危险的路径：抬高门槛，防止同名误配
+                if artist_sim < 0.62:
+                    continue
+                if conf < 0.88:
+                    continue
+            else:
+                if artist_sim < 0.50:
+                    continue
+
+            cand = MbBestMatch(
+                rg=rg,
+                confidence=conf,
+                method=method,
+                query=q,
+                title_sim=title_sim,
+                artist_sim=artist_sim,
+                note=note,
+            )
+            if best is None or cand.confidence > best.confidence:
+                best = cand
+
+        if best is not None:
+            dbg.append(
+                f"best@{method}: conf={best.confidence:.3f} title_sim={best.title_sim:.3f} artist_sim={best.artist_sim:.3f} pt={best.rg.primary_type or ''} st={','.join(best.rg.secondary_types or [])}"
+            )
+            if best.confidence >= 0.92:
+                break
+
+    if best is None:
+        dbg.append("final:none")
+    else:
+        dbg.append(f"final:conf={best.confidence:.3f} via={best.method} note={best.note}")
+    return best, dbg
