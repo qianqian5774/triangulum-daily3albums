@@ -1,0 +1,21 @@
+﻿.venv/
+__pycache__/
+*.pyc
+
+# build / state
+_build/
+.state/
+.cache/
+*.sqlite
+*.sqlite-journal
+
+# secrets
+.env
+
+# OS
+.DS_Store
+
+# packaging artifacts
+*.egg-info/
+build/
+dist/

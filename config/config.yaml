@@ -1,0 +1,46 @@
+﻿schema_version: "1.0"
+output_schema_version: "1.0"
+
+timezone: "Asia/Taipei"
+random_seed_strategy: "date"
+
+history:
+  dedupe_same_rg_days: 60
+  dedupe_same_artist_days: 30
+
+normalizer:
+  min_confidence: 0.72
+  ambiguity_gap: 0.08
+  hard_ambiguity_policy: "quarantine"
+  top_k: 5
+  weights:
+    title: 0.25
+    artist: 0.25
+    year: 0.15
+    type: 0.15
+    evidence: 0.20
+
+global_exclusions:
+  allow_primary_types: ["Album"]
+  exclude_secondary_types: ["Compilation","Live","Remix","Soundtrack"]
+
+slots:
+  Headliner:
+    require_cover: true
+    weights: {Q:0.40, N:0.15, D:0.20, T:0.05, eps:0.20}
+  Lineage:
+    require_cover: true
+    weights: {Q:0.25, N:0.10, D:0.20, T:0.35, eps:0.10}
+  DeepCut:
+    require_cover: true
+    weights: {Q:0.30, N:0.20, D:0.35, T:0.05, eps:0.10}
+
+themes:
+  rotation: "daily"
+  items:
+    - name: "ambient drift"
+      seed_tags: ["ambient", "drone", "fourth world"]
+      adjacent_tags: ["minimalism", "electroacoustic", "new age"]
+    - name: "leftfield club"
+      seed_tags: ["uk bass", "leftfield", "electronic"]
+      adjacent_tags: ["breakbeat", "idm", "techno"]

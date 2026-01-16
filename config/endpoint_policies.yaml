@@ -1,0 +1,29 @@
+﻿hosts:
+  musicbrainz.org:
+    rate_limit_rps: 1
+    ttl_default: "30d"
+    negative_cache_ttl: "1h"
+    retry:
+      max_attempts: 5
+      base_delay_ms: 300
+      max_delay_ms: 8000
+      jitter: true
+
+  coverartarchive.org:
+    rate_limit_rps: 2
+    ttl_default: "7d"
+    negative_cache_ttl: "1h"
+
+  ws.audioscrobbler.com:
+    rate_limit_rps: 1
+    ttl_default: "24h"
+    negative_cache_ttl: "1h"
+    retry:
+      max_attempts: 4
+      base_delay_ms: 400
+      max_delay_ms: 6000
+      jitter: true
+
+endpoints:
+  lastfm.chart.*:
+    ttl: "6h"
