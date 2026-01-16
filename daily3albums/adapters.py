@@ -257,6 +257,7 @@ def musicbrainz_get_release_group(
         primary_type=j.get("primary-type") or None,
     )
 
+
 def musicbrainz_get_release_group_debug(
     broker: RequestBroker,
     mb_user_agent: str,
@@ -331,6 +332,7 @@ def musicbrainz_get_release(
     rg_id = (rg.get("id") or "").strip() or None
     return MbReleaseSummary(id=got_id, release_group_id=rg_id)
 
+
 def musicbrainz_get_release_debug(
     broker: RequestBroker,
     mb_user_agent: str,
@@ -396,6 +398,7 @@ def musicbrainz_normalize_mbid_to_release_group(
         return rg2, "mbid:release->rg"
 
     return None, "mbid:miss"
+
 
 def musicbrainz_normalize_mbid_to_release_group_debug(
     broker: RequestBroker,
@@ -524,7 +527,7 @@ def musicbrainz_best_release_group_match(
     artist: str,
     limit: int = 10,
 ) -> MbBestMatch | None:
-    best, _ = musicbrainz_best_release_group_match_debug(
+    best, _runner_up_conf, _ = musicbrainz_best_release_group_match_debug(
         broker, mb_user_agent=mb_user_agent, title=title, artist=artist, limit=limit
     )
     return best
@@ -536,22 +539,25 @@ def musicbrainz_best_release_group_match_debug(
     title: str,
     artist: str,
     limit: int = 10,
-) -> tuple[MbBestMatch | None, list[str]]:
+) -> tuple[MbBestMatch | None, float | None, list[str]]:
     """
     兜底：当没有可用 mbid 时，用文本搜索并做“最像的”选择。
-    原则：宁可返回 None，也不要误配。debug 会返回尝试过程，便于调参。
+    原则：宁可返回 None，也不要误配。
+    返回：(best_match_or_none, runner_up_conf_or_none, debug_lines)
+
+    runner_up_conf 用于“歧义护栏”：best 和第二名太接近时，直接拒绝。
     """
     raw_title = (title or "").strip()
     raw_artist = (artist or "").strip()
     dbg: list[str] = []
     if not raw_title or not raw_artist:
-        return None, ["skip:missing_title_or_artist"]
+        return None, None, ["skip:missing_title_or_artist"]
 
     clean_title = _clean_title(raw_title)
     clean_artist = _clean_artist(raw_artist)
 
     if len(_mb_norm_text(clean_title)) < 3:
-        return None, ["skip:title_too_short"]
+        return None, None, ["skip:title_too_short"]
 
     attempts: list[tuple[str, str]] = [
         ("search:strict", f'releasegroup:"{raw_title}" AND artist:"{raw_artist}"'),
@@ -560,7 +566,40 @@ def musicbrainz_best_release_group_match_debug(
         ("search:title_only", f"releasegroup:{clean_title}"),
     ]
 
-    best: MbBestMatch | None = None
+    top1: MbBestMatch | None = None
+    top2: MbBestMatch | None = None
+
+    def _push_top2(cand: MbBestMatch) -> None:
+        nonlocal top1, top2
+
+        # 关键：同一个 release-group 被不同 query 命中多次时，只保留分数最高的一次
+        if top1 is not None and cand.rg.id == top1.rg.id:
+            if cand.confidence > top1.confidence:
+                top1 = cand
+            return
+        if top2 is not None and cand.rg.id == top2.rg.id:
+            if cand.confidence > top2.confidence:
+                top2 = cand
+            return
+
+        if top1 is None:
+            top1 = cand
+            return
+
+        if cand.confidence > top1.confidence:
+            # 新第一名上位：原第一名如果和新第一名不是同一个 id，才下放为第二名
+            prev = top1
+            top1 = cand
+            if prev.rg.id != top1.rg.id:
+                top2 = prev
+            return
+
+        if top2 is None:
+            top2 = cand
+            return
+
+        if cand.confidence > top2.confidence:
+            top2 = cand
 
     for method, q in attempts:
         rgs = musicbrainz_search_release_group_by_query(broker, mb_user_agent=mb_user_agent, query=q, limit=limit)
@@ -593,18 +632,22 @@ def musicbrainz_best_release_group_match_debug(
                 artist_sim=artist_sim,
                 note=note,
             )
-            if best is None or cand.confidence > best.confidence:
-                best = cand
+            _push_top2(cand)
 
-        if best is not None:
+        if top1 is not None:
+            runner_conf = top2.confidence if top2 is not None else None
             dbg.append(
-                f"best@{method}: conf={best.confidence:.3f} title_sim={best.title_sim:.3f} artist_sim={best.artist_sim:.3f} pt={best.rg.primary_type or ''} st={','.join(best.rg.secondary_types or [])}"
+                f"best@{method}: conf={top1.confidence:.3f} runner={runner_conf if runner_conf is not None else 'none'} "
+                f"title_sim={top1.title_sim:.3f} artist_sim={top1.artist_sim:.3f} "
+                f"pt={top1.rg.primary_type or ''} st={','.join(top1.rg.secondary_types or [])}"
             )
-            if best.confidence >= 0.92:
+            if top1.confidence >= 0.92:
                 break
 
-    if best is None:
+    if top1 is None:
         dbg.append("final:none")
-    else:
-        dbg.append(f"final:conf={best.confidence:.3f} via={best.method} note={best.note}")
-    return best, dbg
+        return None, None, dbg
+
+    runner_up_conf = top2.confidence if (top2 is not None and top2.rg.id != top1.rg.id) else None
+    dbg.append(f"final:conf={top1.confidence:.3f} runner={runner_up_conf if runner_up_conf is not None else 'none'} via={top1.method} note={top1.note}")
+    return top1, runner_up_conf, dbg

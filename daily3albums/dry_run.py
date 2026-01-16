@@ -1,7 +1,8 @@
-# daily3albums/dry_run.py
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
 from daily3albums.adapters import (
@@ -77,12 +78,32 @@ def _score(c: Candidate, n: Optional[Normalized]) -> tuple[int, str]:
     return score, ",".join(reasons)
 
 
+def _extract_reject_reason(dbg: list[str]) -> str:
+    # 尽量给出一个人类可读的原因
+    for line in reversed(dbg):
+        if "search:rejected ambiguous" in line:
+            return "ambiguous"
+        if "search:rejected confidence" in line:
+            return "low_confidence"
+        if line.startswith("final:none") or "search:final=none" in line:
+            return "no_match"
+    return "none"
+
+
+def _write_quarantine_line(path: str, payload: dict[str, Any]) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
 def _normalize_candidate(
     broker,
     mb_user_agent: str,
     c: Candidate,
     mb_search_limit: int = 10,
     min_confidence: float = 0.80,
+    ambiguity_gap: float = 0.06,
     mb_debug: bool = False,
 ) -> tuple[Optional[Normalized], list[str]]:
     dbg: list[str] = []
@@ -91,8 +112,6 @@ def _normalize_candidate(
     if c.lastfm_mbid:
         rg: MbReleaseGroupSummary | None
         if mb_debug:
-            # 期望 adapters.musicbrainz_normalize_mbid_to_release_group_debug 返回:
-            # (rg: Optional[MbReleaseGroupSummary], src: str, debug_lines: list[str])
             rg, src, debug_lines = musicbrainz_normalize_mbid_to_release_group_debug(
                 broker,
                 mb_user_agent=mb_user_agent,
@@ -122,9 +141,10 @@ def _normalize_candidate(
     else:
         dbg.append("mbid_present=no")
 
-    # 2) 文本搜索兜底：需要过置信度阈值，否则宁缺毋滥
+    # 2) 文本搜索兜底：需要过置信度阈值 + 歧义护栏，否则宁缺毋滥
+    runner_up_conf: float | None = None
     if mb_debug:
-        match, dbg2 = musicbrainz_best_release_group_match_debug(
+        match, runner_up_conf, dbg2 = musicbrainz_best_release_group_match_debug(
             broker,
             mb_user_agent=mb_user_agent,
             title=c.title,
@@ -148,6 +168,15 @@ def _normalize_candidate(
     if match.confidence < min_confidence:
         dbg.append(f"search:rejected confidence={match.confidence:.3f} < min={min_confidence:.3f}")
         return None, dbg
+
+    if runner_up_conf is not None:
+        gap = float(match.confidence) - float(runner_up_conf)
+        if gap < float(ambiguity_gap):
+            dbg.append(
+                f"search:rejected ambiguous gap={gap:.3f} < ambiguity_gap={float(ambiguity_gap):.3f} "
+                f"best={float(match.confidence):.3f} runner={float(runner_up_conf):.3f}"
+            )
+            return None, dbg
 
     rg = match.rg
     return (
@@ -195,7 +224,9 @@ def run_dry_run(
     split_slots: bool = False,
     mb_search_limit: int = 10,
     min_confidence: float = 0.80,
+    ambiguity_gap: float = 0.06,
     mb_debug: bool = False,
+    quarantine_out: str | None = None,
 ) -> dict[str, Any]:
     if not env.lastfm_api_key:
         raise RuntimeError("Missing env LASTFM_API_KEY")
@@ -224,13 +255,29 @@ def run_dry_run(
             c,
             mb_search_limit=mb_search_limit,
             min_confidence=min_confidence,
+            ambiguity_gap=ambiguity_gap,
             mb_debug=mb_debug,
         )
         s, reason = _score(c, norm)
-        scored.append(Scored(c=c, n=norm, score=s, reason=reason, mb_debug=dbg))
+        item = Scored(c=c, n=norm, score=s, reason=reason, mb_debug=dbg)
+        scored.append(item)
+
+        # quarantine：只有最终没选出来的才写入
+        if quarantine_out and norm is None:
+            payload = {
+                "tag": tag,
+                "rank": c.lastfm_rank,
+                "artist": c.artist,
+                "title": c.title,
+                "lastfm_mbid": c.lastfm_mbid,
+                "image_url": c.image_url,
+                "reject_reason": _extract_reject_reason(dbg),
+                # 保留一份证据（不要太长，避免文件爆炸）
+                "debug_tail": dbg[-30:],
+            }
+            _write_quarantine_line(quarantine_out, payload)
 
     scored.sort(key=lambda x: x.score, reverse=True)
     top = scored[:topk]
-
     slots = _pick_slots(top) if split_slots else {}
     return {"candidates": candidates, "scored": scored, "top": top, "slots": slots}
