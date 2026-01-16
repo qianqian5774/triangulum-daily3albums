@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily 3 Albums · Archive</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
+    header { padding: 18px 20px; border-bottom: 1px solid #e6e6e6; }
+    header h1 { margin: 0; font-size: 18px; }
+    header .meta { margin-top: 6px; color: #666; font-size: 13px; }
+
+    .layout { display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 61px); }
+    aside { border-right: 1px solid #e6e6e6; padding: 14px; overflow: auto; }
+    main { padding: 16px 18px; overflow: auto; }
+
+    .search { width: 100%; box-sizing: border-box; padding: 10px 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; }
+    .list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .item {
+      padding: 10px 10px;
+      border: 1px solid #e2e2e2;
+      border-radius: 12px;
+      cursor: pointer;
+      background: #fff;
+    }
+    .item:hover { border-color: #cfcfcf; }
+    .item.active { border-color: #111; }
+    .date { font-weight: 700; font-size: 14px; margin: 0; }
+    .sub { color: #666; font-size: 12px; margin-top: 4px; }
+
+    .topline { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+    .badge { font-size: 12px; color: #666; }
+    .err { color: #b00020; white-space: pre-wrap; }
+
+    .grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; overflow: hidden; background: #fff; }
+    .cover { width: 100%; aspect-ratio: 1/1; object-fit: cover; background: #f2f2f2; display:block; }
+    .content { padding: 12px 12px 14px; }
+    .slot { font-size: 12px; color: #666; letter-spacing: .5px; }
+    .title { margin: 6px 0 2px; font-weight: 700; }
+    .artist { margin: 0; color: #333; }
+    .sub2 { margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; }
+
+    .hint { color: #666; font-size: 14px; margin-top: 10px; }
+    a { color: inherit; }
+    .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    .btn {
+      display: inline-block;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .btn:hover { border-color: #bbb; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid #e6e6e6; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Daily 3 Albums · Archive</h1>
+    <div class="meta" id="meta">loading...</div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <input id="q" class="search" placeholder="filter by date / theme / run_id..." />
+      <div class="list" id="list"></div>
+      <div class="hint" style="margin-top:12px;">
+        数据来自 <code>/data/index.json</code> 和 <code>/data/archive/YYYY-MM-DD.json</code>
+      </div>
+      <div class="row">
+        <a class="btn" href="/index.html">Today</a>
+        <a class="btn" href="/data/index.json" target="_blank" rel="noopener">Open index.json</a>
+      </div>
+    </aside>
+
+    <main>
+      <div class="topline">
+        <div>
+          <div style="font-weight:700;" id="dayTitle">Select a date</div>
+          <div class="badge" id="dayMeta"></div>
+        </div>
+        <div class="row" id="dayLinks" style="margin-top:0;"></div>
+      </div>
+
+      <div id="dayContent" class="hint">从左侧选择一个日期。</div>
+    </main>
+  </div>
+
+  <script>
+    const state = { items: [], filtered: [], activeDate: null };
+
+    function el(tag, cls) {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      return e;
+    }
+
+    function safe(v) { return (v === null || v === undefined) ? '' : String(v); }
+
+    function renderList() {
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      for (const it of state.filtered) {
+        const box = el('div', 'item' + (it.date === state.activeDate ? ' active' : ''));
+        const p1 = el('div'); p1.className = 'date'; p1.textContent = it.date;
+        const p2 = el('div'); p2.className = 'sub';
+        p2.textContent = 'theme: ' + safe(it.theme_of_day) + ' | run: ' + safe(it.run_id);
+        box.appendChild(p1);
+        box.appendChild(p2);
+        box.addEventListener('click', () => loadDay(it.date));
+        list.appendChild(box);
+      }
+    }
+
+    function applyFilter(q) {
+      q = (q || '').trim().toLowerCase();
+      if (!q) {
+        state.filtered = state.items.slice();
+      } else {
+        state.filtered = state.items.filter(it => {
+          const s = (safe(it.date) + ' ' + safe(it.theme_of_day) + ' ' + safe(it.run_id)).toLowerCase();
+          return s.includes(q);
+        });
+      }
+      renderList();
+    }
+
+    function cardForPick(p) {
+      const card = el('div', 'card');
+
+      const img = el('img', 'cover');
+      const cover = p.cover || {};
+      img.src = cover.optimized_cover_url || '/assets/placeholder.webp';
+      img.alt = (p.artist_credit || '') + ' - ' + (p.title || '');
+      card.appendChild(img);
+
+      const content = el('div', 'content');
+
+      const slot = el('div', 'slot');
+      slot.textContent = p.slot || '';
+      content.appendChild(slot);
+
+      const title = el('div', 'title');
+      title.textContent = p.title || '';
+      content.appendChild(title);
+
+      const artist = el('p', 'artist');
+      artist.textContent = p.artist_credit || '';
+      content.appendChild(artist);
+
+      const sub = el('div', 'sub2');
+      const y = p.first_release_year ? String(p.first_release_year) : '';
+      const t = p.primary_type ? String(p.primary_type) : '';
+      sub.textContent = [y, t, p.rg_mbid].filter(Boolean).join(' | ');
+      content.appendChild(sub);
+
+      card.appendChild(content);
+      return card;
+    }
+
+    async function loadDay(date) {
+      state.activeDate = date;
+      renderList();
+
+      const dayTitle = document.getElementById('dayTitle');
+      const dayMeta = document.getElementById('dayMeta');
+      const dayLinks = document.getElementById('dayLinks');
+      const dayContent = document.getElementById('dayContent');
+
+      dayTitle.textContent = date;
+      dayMeta.textContent = 'loading...';
+      dayLinks.innerHTML = '';
+      dayContent.innerHTML = '';
+
+      try {
+        const url = '/data/archive/' + date + '.json';
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('fetch ' + url + ' failed: ' + res.status);
+        const j = await res.json();
+
+        dayMeta.textContent = 'theme: ' + safe(j.theme_of_day) + ' | run: ' + safe(j.run_id);
+
+        const link1 = el('a', 'btn');
+        link1.href = url;
+        link1.target = '_blank';
+        link1.rel = 'noopener';
+        link1.textContent = 'Open day JSON';
+        dayLinks.appendChild(link1);
+
+        const link2 = el('a', 'btn');
+        link2.href = '/index.html';
+        link2.textContent = 'Back to Today';
+        dayLinks.appendChild(link2);
+
+        const picks = j.picks || [];
+        const grid = el('div', 'grid');
+        for (const p of picks) grid.appendChild(cardForPick(p));
+        dayContent.innerHTML = '';
+        dayContent.appendChild(grid);
+      } catch (e) {
+        dayContent.innerHTML = '<div class="err">' + String(e) + '</div>';
+        console.error(e);
+      }
+    }
+
+    async function main() {
+      const meta = document.getElementById('meta');
+      try {
+        const res = await fetch('/data/index.json', { cache: 'no-store' });
+        if (!res.ok) throw new Error('fetch /data/index.json failed: ' + res.status);
+        const j = await res.json();
+        const items = (j.items || []).slice();
+
+        // 兼容：items 里如果没有 theme_of_day/run_id，也不崩
+        state.items = items.map(x => ({
+          date: x.date,
+          run_id: x.run_id || '',
+          theme_of_day: x.theme_of_day || ''
+        }));
+
+        meta.textContent = 'items: ' + state.items.length;
+
+        // 默认全量 + 首条自动加载
+        state.filtered = state.items.slice();
+        renderList();
+
+        if (state.items.length > 0) {
+          loadDay(state.items[0].date);
+        } else {
+          document.getElementById('dayContent').textContent = 'index.json 为空。';
+        }
+
+        document.getElementById('q').addEventListener('input', (ev) => applyFilter(ev.target.value));
+      } catch (e) {
+        meta.textContent = 'error';
+        document.getElementById('list').innerHTML = '<div class="err">' + String(e) + '</div>';
+        console.error(e);
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
