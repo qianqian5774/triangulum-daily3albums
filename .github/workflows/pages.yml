@@ -32,11 +32,39 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      # Last.fm
       LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+      LASTFM_SHARED_SECRET: ${{ secrets.LASTFM_SHARED_SECRET }}
+
+      # MusicBrainz
       MB_USER_AGENT: ${{ secrets.MB_USER_AGENT }}
+
+      # ListenBrainz
+      LISTENBRAINZ_USER_TOKEN: ${{ secrets.LISTENBRAINZ_USER_TOKEN }}
+      LISTENBRAINZ_USERNAME: ${{ vars.LISTENBRAINZ_USERNAME }}
+
+      # Discogs
+      DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
+      DISCOGS_CONSUMER_KEY: ${{ secrets.DISCOGS_CONSUMER_KEY }}
+      DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}
+      DISCOGS_USER_AGENT: ${{ secrets.DISCOGS_USER_AGENT }}
+
+      # Discogs OAuth endpoints（非敏感：建议用 Repository Variables）
+      DISCOGS_REQUEST_TOKEN_URL: ${{ vars.DISCOGS_REQUEST_TOKEN_URL }}
+      DISCOGS_AUTHORIZE_URL: ${{ vars.DISCOGS_AUTHORIZE_URL }}
+      DISCOGS_ACCESS_TOKEN_URL: ${{ vars.DISCOGS_ACCESS_TOKEN_URL }}
+
+      # SMTP（你只有真的要发邮件时才需要；其中密码务必是 Secret）
+      SMTP_HOST: ${{ vars.SMTP_HOST }}
+      SMTP_PORT: ${{ vars.SMTP_PORT }}
+      SMTP_ENCRYPTION: ${{ vars.SMTP_ENCRYPTION }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      # ...下面 steps 保持你原样即可
 
       - name: Setup Python
         uses: actions/setup-python@v5
