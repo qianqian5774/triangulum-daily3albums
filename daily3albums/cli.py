@@ -518,8 +518,27 @@ def cmd_build(
         out_public_dir.mkdir(parents=True, exist_ok=True)
         _copy_tree_overwrite(web_dir, out_public_dir)
 
-        # Ensure non-blank homepage even if web/ is empty or encoded badly
-        _ensure_nonblank_index_html(out_public_dir=out_public_dir, web_dir=web_dir)
+        # HARD GUARD: refuse to publish blank site
+        web_index = web_dir / "index.html"
+        web_archive = web_dir / "archive.html"
+        if (not web_index.exists()) or web_index.stat().st_size == 0:
+            print("BUILD ERROR: web/index.html is missing or empty. Refusing to publish a blank homepage.")
+            print("Fix: create a real web/index.html (non-empty), then rerun build.")
+            return 2
+        if (not web_archive.exists()) or web_archive.stat().st_size == 0:
+            print("BUILD ERROR: web/archive.html is missing or empty. Refusing to publish a blank archive page.")
+            print("Fix: create a real web/archive.html (non-empty), then rerun build.")
+            return 2
+
+        # Also ensure the copied outputs are non-blank (catch copy bugs / wrong out_dir)
+        out_index = out_public_dir / "index.html"
+        out_archive = out_public_dir / "archive.html"
+        if (not out_index.exists()) or out_index.stat().st_size == 0:
+            print("BUILD ERROR: output index.html is missing or empty after copying web/.")
+            return 2
+        if (not out_archive.exists()) or out_archive.stat().st_size == 0:
+            print("BUILD ERROR: output archive.html is missing or empty after copying web/.")
+            return 2
 
         # Write artifacts
         from daily3albums.artifact_writer import write_daily_artifacts  # type: ignore
@@ -530,12 +549,6 @@ def cmd_build(
         print(f"out={out_public_dir}")
         for k, v in paths.items():
             print(f"{k}={v}")
-
-        # Additional hint if web/index.html is missing/empty
-        web_index = web_dir / "index.html"
-        if (not web_index.exists()) or web_index.stat().st_size == 0:
-            print("NOTE: web/index.html is missing or empty; wrote a built-in minimal index.html into output.")
-            print("      You should copy output index.html back to web/index.html to persist it.")
 
         return 0
     finally:
