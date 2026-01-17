@@ -16,13 +16,14 @@ on:
         required: true
         default: "10"
   schedule:
-    # UTC 16:10 = Asia/Singapore (+08:00) 00:10 next day
+    # UTC 16:10 = Asia/Taipei (+08:00) 00:10 next day
     - cron: "10 16 * * *"
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: "pages"
@@ -32,6 +33,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      TZ: Asia/Taipei
+      DAILY3ALBUMS_TZ: Asia/Taipei
       # Last.fm
       LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
       LASTFM_SHARED_SECRET: ${{ secrets.LASTFM_SHARED_SECRET }}
@@ -85,14 +88,20 @@ jobs:
       - name: Install UI deps
         run: npm --prefix ui ci
 
-      # 可选：缓存 .state（缓存/负缓存/限流状态），减少每天冷启动压力
-      - name: Cache state
+      - name: Restore state cache
         uses: actions/cache@v4
         with:
           path: .state
-          key: state-${{ runner.os }}-${{ github.ref_name }}
+          key: state-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
+            state-${{ runner.os }}-${{ github.ref_name }}-
             state-${{ runner.os }}-
+
+      - name: Prune old state files
+        run: |
+          if [ -d .state ]; then
+            find .state -type f -name '*.jsonl' -mtime +30 -delete
+          fi
 
       - name: Build artifacts
         run: |
@@ -106,19 +115,55 @@ jobs:
 
           daily3albums build --tag "$TAG" --n "$N" --topk "$TOPK" --verbose
 
-      - name: Sanity check output
-        run: |
-          test -s _build/public/index.html
-          test -s _build/public/archive.html
-          test -s _build/public/data/today.json
-          test -s _build/public/data/index.json
-          python -m json.tool _build/public/data/today.json > /dev/null
-          python -m json.tool _build/public/data/index.json > /dev/null
+      - name: Self-check output
+        run: python scripts/self_check.py --path _build/public
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _build/public
+
+      - name: Report failure to issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tz = "Asia/Taipei";
+            const date = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+            const title = `Daily build failure ${date}`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `Workflow failed on ${date} (${tz}).`,
+              ``,
+              `Run: ${runUrl}`,
+              ``,
+              `Please review the build logs in GitHub Actions.`
+            ].join(\"\\n\");
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: \"open\",
+              per_page: 100
+            });
+
+            const existing = issues.find(issue => issue.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body
+              });
+              core.info(`Updated existing issue #${existing.number}`);
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body
+              });
+            }
 
   deploy:
     needs: build

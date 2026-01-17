@@ -1,0 +1,42 @@
+{
+  "topalbums": {
+    "album": [
+      {
+        "name": "Nebula Drift",
+        "artist": {"name": "Echo Unit"},
+        "mbid": "rg-fixture-1",
+        "playcount": "12345",
+        "url": "https://www.last.fm/music/Echo+Unit/Nebula+Drift",
+        "@attr": {"rank": "1"},
+        "image": [
+          {"#text": "https://example.com/cover1-small.jpg", "size": "small"},
+          {"#text": "https://example.com/cover1-extralarge.jpg", "size": "extralarge"}
+        ]
+      },
+      {
+        "name": "Circuit Bloom",
+        "artist": {"name": "Pulse Array"},
+        "mbid": "rg-fixture-2",
+        "playcount": "11337",
+        "url": "https://www.last.fm/music/Pulse+Array/Circuit+Bloom",
+        "@attr": {"rank": "2"},
+        "image": [
+          {"#text": "https://example.com/cover2-small.jpg", "size": "small"},
+          {"#text": "https://example.com/cover2-extralarge.jpg", "size": "extralarge"}
+        ]
+      },
+      {
+        "name": "Static Night",
+        "artist": {"name": "Ion Field"},
+        "mbid": "rg-fixture-3",
+        "playcount": "10101",
+        "url": "https://www.last.fm/music/Ion+Field/Static+Night",
+        "@attr": {"rank": "3"},
+        "image": [
+          {"#text": "https://example.com/cover3-small.jpg", "size": "small"},
+          {"#text": "https://example.com/cover3-extralarge.jpg", "size": "extralarge"}
+        ]
+      }
+    ]
+  }
+}

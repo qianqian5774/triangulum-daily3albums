@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
 import sqlite3
 import time
@@ -114,6 +115,37 @@ class RequestBroker:
         if self.logger:
             self.logger(msg)
 
+    def _fixture_bytes(self, url: str) -> bytes | None:
+        fixtures_dir = os.environ.get("DAILY3ALBUMS_FIXTURES_DIR")
+        if not fixtures_dir:
+            return None
+
+        base = Path(fixtures_dir)
+        if not base.is_absolute():
+            base = self.repo_root / base
+
+        map_path = base / "url_map.json"
+        if not map_path.exists():
+            return None
+
+        try:
+            mapping = json.loads(map_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+        rel = mapping.get(url)
+        if not rel:
+            if os.environ.get("DAILY3ALBUMS_FIXTURES_STRICT", "").lower() in {"1", "true", "yes"}:
+                raise RuntimeError(f"Fixture missing for URL: {_redact_url(url)}")
+            return None
+
+        fixture_path = (base / rel).resolve()
+        if not fixture_path.exists():
+            raise RuntimeError(f"Fixture file not found: {fixture_path}")
+
+        self._log(f"FIXTURE HIT url={_redact_url(url)} path={fixture_path}")
+        return fixture_path.read_bytes()
+
     def _host_policy(self, host: str) -> HostPolicy:
         hosts = (self.policies_raw or {}).get("hosts", {})
         h = hosts.get(host, {}) if isinstance(hosts, dict) else {}
@@ -188,6 +220,10 @@ class RequestBroker:
         self.conn.commit()
 
     def get(self, url: str, headers: Optional[dict] = None, ttl_override_s: Optional[int] = None) -> bytes:
+        fixture_body = self._fixture_bytes(url)
+        if fixture_body is not None:
+            return fixture_body
+
         parsed = urlparse(url)
         host = parsed.netloc
 

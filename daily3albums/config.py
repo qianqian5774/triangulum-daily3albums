@@ -79,5 +79,6 @@ class AppConfig:
 def load_config(repo_root: Path) -> AppConfig:
     cfg = load_yaml(repo_root / "config" / "config.yaml")
     policies = load_yaml(repo_root / "config" / "endpoint_policies.yaml")
-    tz = cfg.get("timezone", "Asia/Taipei")
+    tz_override = os.environ.get("DAILY3ALBUMS_TZ")
+    tz = (tz_override or cfg.get("timezone") or "Asia/Taipei").strip()
     return AppConfig(raw=cfg, policies=policies, timezone=tz)
