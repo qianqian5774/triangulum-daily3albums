@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "tag": "fixture",
+  "candidates": [
+    {
+      "rank": 1,
+      "artist": "Echo Unit",
+      "title": "Nebula Drift",
+      "mbid": "rg-fixture-1"
+    },
+    {
+      "rank": 2,
+      "artist": "Pulse Array",
+      "title": "Circuit Bloom",
+      "mbid": "rg-fixture-2"
+    },
+    {
+      "rank": 3,
+      "artist": "Ion Field",
+      "title": "Static Night",
+      "mbid": "rg-fixture-3"
+    }
+  ],
+  "top": [
+    {
+      "rg_mbid": "rg-fixture-1",
+      "score": 51,
+      "artist": "Echo Unit",
+      "title": "Nebula Drift"
+    },
+    {
+      "rg_mbid": "rg-fixture-2",
+      "score": 50,
+      "artist": "Pulse Array",
+      "title": "Circuit Bloom"
+    },
+    {
+      "rg_mbid": "rg-fixture-3",
+      "score": 49,
+      "artist": "Ion Field",
+      "title": "Static Night"
+    }
+  ],
+  "slots": {
+    "Headliner": {
+      "rg_mbid": "rg-fixture-1",
+      "score": 51,
+      "artist": "Echo Unit",
+      "title": "Nebula Drift"
+    },
+    "Lineage": {
+      "rg_mbid": "rg-fixture-2",
+      "score": 50,
+      "artist": "Pulse Array",
+      "title": "Circuit Bloom"
+    },
+    "DeepCut": {
+      "rg_mbid": "rg-fixture-3",
+      "score": 49,
+      "artist": "Ion Field",
+      "title": "Static Night"
+    }
+  }
+}

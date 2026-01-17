@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Taipei
+      DAILY3ALBUMS_TZ: Asia/Taipei
+      DAILY3ALBUMS_FIXTURES_DIR: tests/fixtures/http
+      DAILY3ALBUMS_FIXTURES_STRICT: "1"
+      LASTFM_API_KEY: fixture-key
+      MB_USER_AGENT: fixture-agent
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Dry-run (fixtures)
+        run: daily3albums dry-run --tag fixture --n 3 --topk 3
+
+      - name: Golden check
+        run: python scripts/golden_check.py
