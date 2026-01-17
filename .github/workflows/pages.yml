@@ -77,6 +77,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install UI deps
+        run: npm --prefix ui ci
+
       # 可选：缓存 .state（缓存/负缓存/限流状态），减少每天冷启动压力
       - name: Cache state
         uses: actions/cache@v4
