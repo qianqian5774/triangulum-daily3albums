@@ -1,0 +1,6 @@
+{
+  "https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=fixture&limit=3&page=1&api_key=fixture-key&format=json": "lastfm_topalbums_fixture.json",
+  "https://musicbrainz.org/ws/2/release-group/rg-fixture-1?fmt=json": "mb_release_group_rg-fixture-1.json",
+  "https://musicbrainz.org/ws/2/release-group/rg-fixture-2?fmt=json": "mb_release_group_rg-fixture-2.json",
+  "https://musicbrainz.org/ws/2/release-group/rg-fixture-3?fmt=json": "mb_release_group_rg-fixture-3.json"
+}
