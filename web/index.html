@@ -1,4 +1,5 @@
-﻿<!doctype html>
+﻿<!-- web/index.html -->
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
@@ -9,7 +10,7 @@
     header { margin-bottom: 18px; }
     .meta { color: #666; font-size: 14px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; overflow: hidden; }
+    .card { border: 1px solid #ddd; border-radius: 12px; overflow: hidden; background: #fff; }
     .cover { width: 100%; aspect-ratio: 1/1; object-fit: cover; background: #f2f2f2; display:block; }
     .content { padding: 12px 12px 14px; }
     .slot { font-size: 12px; color: #666; letter-spacing: .5px; }
@@ -17,22 +18,45 @@
     .artist { margin: 0; color: #333; }
     .sub { margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; }
     .err { color: #b00020; white-space: pre-wrap; }
+    .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    .btn {
+      display: inline-block;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      text-decoration: none;
+      font-size: 13px;
+      color: inherit;
+    }
+    .btn:hover { border-color: #bbb; }
   </style>
 </head>
 <body>
   <header>
     <h1 style="margin:0;">Daily 3 Albums</h1>
     <div class="meta" id="meta">loading...</div>
+    <div class="row">
+      <a class="btn" href="archive.html">Archive</a>
+      <a class="btn" href="data/today.json" target="_blank" rel="noopener">Open today.json</a>
+    </div>
   </header>
 
   <div id="app"></div>
 
   <script>
+    function normalizeUrl(u) {
+      if (!u) return '';
+      u = String(u);
+      // GitHub Pages 项目站点下，以 "/" 开头会跑到域名根，直接 404
+      if (u.startsWith('/')) return u.slice(1);
+      return u;
+    }
+
     async function main() {
       const app = document.getElementById('app');
       try {
-        const res = await fetch('/data/today.json', { cache: 'no-store' });
-        if (!res.ok) throw new Error('fetch /data/today.json failed: ' + res.status);
+        const res = await fetch('data/today.json', { cache: 'no-store' });
+        if (!res.ok) throw new Error('fetch data/today.json failed: ' + res.status);
         const j = await res.json();
 
         document.getElementById('meta').textContent =
@@ -48,7 +72,9 @@
 
           const img = document.createElement('img');
           img.className = 'cover';
-          img.src = (p.cover && p.cover.optimized_cover_url) ? p.cover.optimized_cover_url : '/assets/placeholder.webp';
+          const cover = p.cover || {};
+          const coverUrl = normalizeUrl(cover.optimized_cover_url);
+          img.src = coverUrl ? coverUrl : 'assets/placeholder.webp';
           img.alt = (p.artist_credit || '') + ' - ' + (p.title || '');
           card.appendChild(img);
 
@@ -88,6 +114,7 @@
         console.error(e);
       }
     }
+
     main();
   </script>
 </body>

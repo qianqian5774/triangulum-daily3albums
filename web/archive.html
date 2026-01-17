@@ -1,3 +1,4 @@
+<!-- web/archive.html -->
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -71,11 +72,11 @@
       <input id="q" class="search" placeholder="filter by date / theme / run_id..." />
       <div class="list" id="list"></div>
       <div class="hint" style="margin-top:12px;">
-        数据来自 <code>/data/index.json</code> 和 <code>/data/archive/YYYY-MM-DD.json</code>
+        数据来自 <code>data/index.json</code> 和 <code>data/archive/YYYY-MM-DD.json</code>
       </div>
       <div class="row">
-        <a class="btn" href="/index.html">Today</a>
-        <a class="btn" href="/data/index.json" target="_blank" rel="noopener">Open index.json</a>
+        <a class="btn" href="index.html">Today</a>
+        <a class="btn" href="data/index.json" target="_blank" rel="noopener">Open index.json</a>
       </div>
     </aside>
 
@@ -102,6 +103,13 @@
     }
 
     function safe(v) { return (v === null || v === undefined) ? '' : String(v); }
+
+    function normalizeUrl(u) {
+      if (!u) return '';
+      u = String(u);
+      if (u.startsWith('/')) return u.slice(1);
+      return u;
+    }
 
     function renderList() {
       const list = document.getElementById('list');
@@ -136,7 +144,8 @@
 
       const img = el('img', 'cover');
       const cover = p.cover || {};
-      img.src = cover.optimized_cover_url || '/assets/placeholder.webp';
+      const coverUrl = normalizeUrl(cover.optimized_cover_url);
+      img.src = coverUrl ? coverUrl : 'assets/placeholder.webp';
       img.alt = (p.artist_credit || '') + ' - ' + (p.title || '');
       card.appendChild(img);
 
@@ -179,7 +188,7 @@
       dayContent.innerHTML = '';
 
       try {
-        const url = '/data/archive/' + date + '.json';
+        const url = 'data/archive/' + date + '.json';
         const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error('fetch ' + url + ' failed: ' + res.status);
         const j = await res.json();
@@ -194,7 +203,7 @@
         dayLinks.appendChild(link1);
 
         const link2 = el('a', 'btn');
-        link2.href = '/index.html';
+        link2.href = 'index.html';
         link2.textContent = 'Back to Today';
         dayLinks.appendChild(link2);
 
@@ -212,12 +221,11 @@
     async function main() {
       const meta = document.getElementById('meta');
       try {
-        const res = await fetch('/data/index.json', { cache: 'no-store' });
-        if (!res.ok) throw new Error('fetch /data/index.json failed: ' + res.status);
+        const res = await fetch('data/index.json', { cache: 'no-store' });
+        if (!res.ok) throw new Error('fetch data/index.json failed: ' + res.status);
         const j = await res.json();
         const items = (j.items || []).slice();
 
-        // 兼容：items 里如果没有 theme_of_day/run_id，也不崩
         state.items = items.map(x => ({
           date: x.date,
           run_id: x.run_id || '',
@@ -226,7 +234,6 @@
 
         meta.textContent = 'items: ' + state.items.length;
 
-        // 默认全量 + 首条自动加载
         state.filtered = state.items.slice();
         renderList();
 
