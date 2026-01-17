@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" role="img" aria-labelledby="title desc">
+  <title id="title">Triangulum Placeholder</title>
+  <desc id="desc">Industrial clinical placeholder cover</desc>
+  <rect width="480" height="480" fill="#0C0C0C" />
+  <rect x="28" y="28" width="424" height="424" fill="#111" stroke="#CCFF00" stroke-width="4" />
+  <path d="M64 120h352v12H64zM64 176h280v12H64zM64 232h320v12H64zM64 288h240v12H64z" fill="#1f1f1f" />
+  <text x="64" y="380" fill="#CCFF00" font-family="JetBrains Mono, monospace" font-size="20" letter-spacing="6">NO COVER</text>
+</svg>

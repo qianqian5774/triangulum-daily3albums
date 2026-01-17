@@ -1,121 +1,15 @@
-﻿<!-- web/index.html -->
 <!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Daily 3 Albums</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-    header { margin-bottom: 18px; }
-    .meta { color: #666; font-size: 14px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; overflow: hidden; background: #fff; }
-    .cover { width: 100%; aspect-ratio: 1/1; object-fit: cover; background: #f2f2f2; display:block; }
-    .content { padding: 12px 12px 14px; }
-    .slot { font-size: 12px; color: #666; letter-spacing: .5px; }
-    .title { margin: 6px 0 2px; font-weight: 700; }
-    .artist { margin: 0; color: #333; }
-    .sub { margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; }
-    .err { color: #b00020; white-space: pre-wrap; }
-    .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-    .btn {
-      display: inline-block;
-      padding: 8px 10px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      text-decoration: none;
-      font-size: 13px;
-      color: inherit;
-    }
-    .btn:hover { border-color: #bbb; }
-  </style>
-</head>
-<body>
-  <header>
-    <h1 style="margin:0;">Daily 3 Albums</h1>
-    <div class="meta" id="meta">loading...</div>
-    <div class="row">
-      <a class="btn" href="archive.html">Archive</a>
-      <a class="btn" href="data/today.json" target="_blank" rel="noopener">Open today.json</a>
-    </div>
-  </header>
-
-  <div id="app"></div>
-
-  <script>
-    function normalizeUrl(u) {
-      if (!u) return '';
-      u = String(u);
-      // GitHub Pages 项目站点下，以 "/" 开头会跑到域名根，直接 404
-      if (u.startsWith('/')) return u.slice(1);
-      return u;
-    }
-
-    async function main() {
-      const app = document.getElementById('app');
-      try {
-        const res = await fetch('data/today.json', { cache: 'no-store' });
-        if (!res.ok) throw new Error('fetch data/today.json failed: ' + res.status);
-        const j = await res.json();
-
-        document.getElementById('meta').textContent =
-          j.date + ' | theme: ' + j.theme_of_day + ' | run: ' + j.run_id;
-
-        const picks = j.picks || [];
-        const grid = document.createElement('div');
-        grid.className = 'grid';
-
-        for (const p of picks) {
-          const card = document.createElement('div');
-          card.className = 'card';
-
-          const img = document.createElement('img');
-          img.className = 'cover';
-          const cover = p.cover || {};
-          const coverUrl = normalizeUrl(cover.optimized_cover_url);
-          img.src = coverUrl ? coverUrl : 'assets/placeholder.webp';
-          img.alt = (p.artist_credit || '') + ' - ' + (p.title || '');
-          card.appendChild(img);
-
-          const content = document.createElement('div');
-          content.className = 'content';
-
-          const slot = document.createElement('div');
-          slot.className = 'slot';
-          slot.textContent = p.slot || '';
-          content.appendChild(slot);
-
-          const title = document.createElement('div');
-          title.className = 'title';
-          title.textContent = p.title || '';
-          content.appendChild(title);
-
-          const artist = document.createElement('p');
-          artist.className = 'artist';
-          artist.textContent = p.artist_credit || '';
-          content.appendChild(artist);
-
-          const sub = document.createElement('div');
-          sub.className = 'sub';
-          const y = p.first_release_year ? String(p.first_release_year) : '';
-          const t = p.primary_type ? String(p.primary_type) : '';
-          sub.textContent = [y, t, p.rg_mbid].filter(Boolean).join(' | ');
-          content.appendChild(sub);
-
-          card.appendChild(content);
-          grid.appendChild(card);
-        }
-
-        app.innerHTML = '';
-        app.appendChild(grid);
-      } catch (e) {
-        app.innerHTML = '<div class="err">' + String(e) + '</div>';
-        console.error(e);
-      }
-    }
-
-    main();
-  </script>
-</body>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=./" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Triangulum</title>
+  </head>
+  <body>
+    <p>Redirecting to Triangulum UI…</p>
+    <script>
+      window.location.replace("./");
+    </script>
+  </body>
 </html>

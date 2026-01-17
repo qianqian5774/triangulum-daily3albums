@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-void-black text-clinical-white font-display;
+}
+
+::selection {
+  background: #ccff00;
+  color: #050505;
+}
+
+.hud-border {
+  @apply border border-panel-700/80 shadow-hard-lg;
+}
+
+.glitch-text {
+  text-shadow: 0 0 8px rgba(204, 255, 0, 0.4), 2px 0 0 rgba(255, 51, 0, 0.4);
+}
+
+.marquee {
+  display: inline-flex;
+  gap: 2.5rem;
+  animation: marquee 18s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    animation: none;
+  }
+}
