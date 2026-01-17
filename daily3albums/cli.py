@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -247,7 +248,7 @@ def _pick_to_issue_item(tag: str, slot: str, s: Any) -> dict[str, Any]:
     title = getattr(c, "title", "")
     img = getattr(c, "image_url", "") or ""
 
-    optimized_cover_url = img or "/assets/placeholder.webp"
+    optimized_cover_url = img or "assets/placeholder.svg"
 
     return {
         "slot": slot,
@@ -322,8 +323,8 @@ def _builtin_min_index_html() -> str:
     async function main() {
       const app = document.getElementById('app');
       try {
-        const res = await fetch('/data/today.json', { cache: 'no-store' });
-        if (!res.ok) throw new Error('fetch /data/today.json failed: ' + res.status);
+        const res = await fetch('data/today.json', { cache: 'no-store' });
+        if (!res.ok) throw new Error('fetch data/today.json failed: ' + res.status);
         const j = await res.json();
 
         document.getElementById('meta').textContent =
@@ -339,7 +340,7 @@ def _builtin_min_index_html() -> str:
 
           const img = document.createElement('img');
           img.className = 'cover';
-          img.src = (p.cover && p.cover.optimized_cover_url) ? p.cover.optimized_cover_url : '/assets/placeholder.webp';
+          img.src = (p.cover && p.cover.optimized_cover_url) ? p.cover.optimized_cover_url : 'assets/placeholder.svg';
           img.alt = (p.artist_credit || '') + ' - ' + (p.title || '');
           card.appendChild(img);
 
@@ -513,10 +514,32 @@ def cmd_build(
                 qpath = repo_root / qpath
             quarantine_rows = _read_quarantine_jsonl(qpath)
 
-        # Copy web -> out (if exists)
+        ui_dir = repo_root / "ui"
+        ui_dist_dir = ui_dir / "dist"
         web_dir = repo_root / "web"
+
+        if not ui_dir.exists():
+            print("BUILD ERROR: ui/ directory is missing. Cannot build frontend.")
+            return 2
+
+        print("BUILD: ui bundle")
+        ui_build = subprocess.run(
+            ["npm", "--prefix", str(ui_dir), "run", "build"],
+            check=False,
+            cwd=repo_root,
+        )
+        if ui_build.returncode != 0:
+            print("BUILD ERROR: ui build failed. See npm output above.")
+            return 2
+
+        if not ui_dist_dir.exists():
+            print("BUILD ERROR: ui/dist is missing after build.")
+            return 2
+
+        # Copy web shells + ui dist into public output
         out_public_dir.mkdir(parents=True, exist_ok=True)
         _copy_tree_overwrite(web_dir, out_public_dir)
+        _copy_tree_overwrite(ui_dist_dir, out_public_dir)
 
         # HARD GUARD: refuse to publish blank site
         web_index = web_dir / "index.html"
@@ -530,14 +553,13 @@ def cmd_build(
             print("Fix: create a real web/archive.html (non-empty), then rerun build.")
             return 2
 
-        # Also ensure the copied outputs are non-blank (catch copy bugs / wrong out_dir)
         out_index = out_public_dir / "index.html"
         out_archive = out_public_dir / "archive.html"
         if (not out_index.exists()) or out_index.stat().st_size == 0:
-            print("BUILD ERROR: output index.html is missing or empty after copying web/.")
+            print("BUILD ERROR: output index.html is missing or empty after copying ui/dist.")
             return 2
         if (not out_archive.exists()) or out_archive.stat().st_size == 0:
-            print("BUILD ERROR: output archive.html is missing or empty after copying web/.")
+            print("BUILD ERROR: output archive.html is missing or empty after copying ui/dist.")
             return 2
 
         # Write artifacts
