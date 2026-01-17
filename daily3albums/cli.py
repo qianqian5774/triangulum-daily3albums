@@ -523,8 +523,12 @@ def cmd_build(
             return 2
 
         print("BUILD: ui bundle")
+        npm_exe = shutil.which("npm.cmd") or shutil.which("npm")
+        if not npm_exe:
+            raise SystemExit("UI build failed: npm not found. Install Node.js and ensure npm is on PATH.")
+
         ui_build = subprocess.run(
-            ["npm", "--prefix", str(ui_dir), "run", "build"],
+            [npm_exe, "--prefix", str(ui_dir), "run", "build"],
             check=False,
             cwd=repo_root,
         )
