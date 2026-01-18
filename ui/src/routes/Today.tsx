@@ -52,6 +52,19 @@ function deriveStableId(pick: { title: string; artist_credit: string; slot: stri
 
 export function TodayRoute() {
   const hudContext = useContext(HudContext);
+
+  /**
+   * Critical: do NOT put the entire hudContext object into the data-loading effect deps.
+   * HUD state may update frequently (clock / flicker / status), recreating the context value,
+   * which would retrigger the effect and spam-fetch today.json.
+   *
+   * We keep only a ref to the latest updateHud function.
+   */
+  const updateHudRef = useRef(hudContext?.updateHud);
+  useEffect(() => {
+    updateHudRef.current = hudContext?.updateHud;
+  }, [hudContext?.updateHud]);
+
   const [issue, setIssue] = useState<TodayIssue | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -62,19 +75,24 @@ export function TodayRoute() {
   const glitchTimeoutRef = useRef<number | null>(null);
   const lastFocusedRef = useRef<string | null>(null);
 
+  // Load exactly once on mount.
   useEffect(() => {
     let active = true;
+
     loadToday()
       .then((data) => {
         if (!active) return;
+
         setIssue(data);
+
         const batchId = data.run_id ? data.run_id.toUpperCase() : data.date;
         const marqueeItems = data.picks.map((pick) => `${pick.title} — ${pick.artist_credit}`);
         const nextRefreshAt =
           typeof (data as Record<string, unknown>).next_refresh_at === "string"
             ? ((data as Record<string, unknown>).next_refresh_at as string)
             : null;
-        hudContext?.updateHud({
+
+        updateHudRef.current?.({
           batchId,
           status: "OK",
           marqueeItems,
@@ -84,12 +102,13 @@ export function TodayRoute() {
       .catch((err: Error) => {
         if (!active) return;
         setError(err.message);
-        hudContext?.updateHud({ status: "ERROR" });
+        updateHudRef.current?.({ status: "ERROR" });
       });
+
     return () => {
       active = false;
     };
-  }, [hudContext]);
+  }, []);
 
   const picks = useMemo(() => {
     if (!issue) {
@@ -190,6 +209,7 @@ export function TodayRoute() {
         <h1 className="text-3xl font-semibold uppercase tracking-tightish">{headerText}</h1>
         <p className="font-mono text-sm text-clinical-white/60">{t("today.intro")}</p>
       </div>
+
       {issue ? (
         <LayoutGroup>
           <motion.div
@@ -203,17 +223,14 @@ export function TodayRoute() {
                 <SlotCard
                   pick={pick}
                   layoutId={FLAGS.viewerOverlay ? `card-${pick.stableId}` : undefined}
-                  onSelect={
-                    FLAGS.viewerOverlay
-                      ? (event) => handleOpen(pick.stableId, event)
-                      : undefined
-                  }
+                  onSelect={FLAGS.viewerOverlay ? (event) => handleOpen(pick.stableId, event) : undefined}
                   dataTestId={`album-card-${index}`}
                   className="h-full"
                 />
               </motion.div>
             ))}
           </motion.div>
+
           <AnimatePresence>
             {FLAGS.viewerOverlay && focusedId && (
               <TreatmentViewerOverlay
