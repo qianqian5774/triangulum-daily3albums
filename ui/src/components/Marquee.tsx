@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { cn } from "../lib/cn";
+import { copy } from "../strings/copy";
 
 interface MarqueeProps {
   items: string[];
@@ -9,7 +10,7 @@ interface MarqueeProps {
 export function Marquee({ items, className }: MarqueeProps) {
   const sequence = useMemo(() => {
     if (items.length === 0) {
-      return ["Triangulum intake stable", "Awaiting signals", "Scan ready"];
+      return copy.system.marqueeFallback;
     }
     return items;
   }, [items]);

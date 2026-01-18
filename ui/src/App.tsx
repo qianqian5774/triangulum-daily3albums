@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Hud } from "./components/Hud";
 import { ArchiveRoute } from "./routes/Archive";
 import { TodayRoute } from "./routes/Today";
+import { copy } from "./strings/copy";
+import { t } from "./strings/t";
 
 export type HudStatus = "OK" | "DEGRADED" | "ERROR";
 
@@ -10,6 +12,7 @@ export interface HudState {
   batchId: string;
   status: HudStatus;
   marqueeItems: string[];
+  nextRefreshAt?: string | null;
 }
 
 interface HudContextValue {
@@ -20,9 +23,10 @@ interface HudContextValue {
 export const HudContext = createContext<HudContextValue | null>(null);
 
 const defaultHud: HudState = {
-  batchId: "BOOTING",
+  batchId: t("system.status.booting"),
   status: "DEGRADED",
-  marqueeItems: ["Triangulum intake stable", "Awaiting data stream"]
+  marqueeItems: copy.system.marqueeFallback,
+  nextRefreshAt: null
 };
 
 function App() {
@@ -37,7 +41,12 @@ function App() {
   return (
     <HudContext.Provider value={contextValue}>
       <div className="min-h-screen bg-void-black text-clinical-white">
-        <Hud batchId={hud.batchId} status={hud.status} marqueeItems={hud.marqueeItems} />
+        <Hud
+          batchId={hud.batchId}
+          status={hud.status}
+          marqueeItems={hud.marqueeItems}
+          nextRefreshAt={hud.nextRefreshAt}
+        />
         <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10 md:px-6">
           <Routes>
             <Route path="/" element={<TodayRoute />} />

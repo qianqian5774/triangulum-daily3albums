@@ -4,6 +4,7 @@ import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { SlotCard } from "../components/SlotCard";
 import { loadArchiveDay, loadArchiveIndex } from "../lib/data";
+import { t } from "../strings/t";
 import type { ArchiveIndex, TodayIssue } from "../lib/types";
 
 const listVariants = {
@@ -57,7 +58,8 @@ export function ArchiveRoute() {
         hudContext?.updateHud({
           batchId: data.run_id ? data.run_id.toUpperCase() : data.date,
           status: "OK",
-          marqueeItems: data.picks.map((pick) => `${pick.title} — ${pick.artist_credit}`)
+          marqueeItems: data.picks.map((pick) => `${pick.title} — ${pick.artist_credit}`),
+          nextRefreshAt: null
         });
       })
       .catch((err: Error) => {
@@ -73,28 +75,26 @@ export function ArchiveRoute() {
 
   const headerText = useMemo(() => {
     if (!selectedDate) {
-      return "Select a date";
+      return t("archive.selectDate");
     }
     const theme = index?.items.find((item) => item.date === selectedDate)?.theme_of_day;
-    return theme ? `${selectedDate} · Theme ${theme}` : selectedDate;
+    return theme ? `${selectedDate} · ${t("today.themePrefix")} ${theme}` : selectedDate;
   }, [selectedDate, index]);
 
   if (error) {
-    return <BSOD message={`ARCHIVE JSON load failed: ${error}`} />;
+    return <BSOD message={`${t("system.errors.archiveLoad")}: ${error}`} />;
   }
 
   return (
     <section className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
-        <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/60">Archive</p>
+        <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/60">{t("archive.label")}</p>
         <h1 className="text-3xl font-semibold uppercase tracking-tightish">{headerText}</h1>
-        <p className="font-mono text-sm text-clinical-white/60">
-          Historical intake logs. Select a date to replay the triage output.
-        </p>
+        <p className="font-mono text-sm text-clinical-white/60">{t("archive.intro")}</p>
       </div>
       <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
         <div className="hud-border rounded-card bg-panel-900/70 p-4">
-          <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/50">Dates</p>
+          <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/50">{t("archive.datesLabel")}</p>
           {index ? (
             <motion.ul
               className="mt-4 flex max-h-[340px] flex-col gap-2 overflow-auto pr-2 text-sm"
@@ -103,10 +103,7 @@ export function ArchiveRoute() {
               animate={prefersReducedMotion ? undefined : "show"}
             >
               {index.items.map((item) => (
-                <motion.li
-                  key={item.date}
-                  variants={prefersReducedMotion ? undefined : itemVariants}
-                >
+                <motion.li key={item.date} variants={prefersReducedMotion ? undefined : itemVariants}>
                   <button
                     type="button"
                     onClick={() => setSelectedDate(item.date)}
@@ -122,7 +119,7 @@ export function ArchiveRoute() {
               ))}
             </motion.ul>
           ) : (
-            <p className="mt-4 font-mono text-xs text-clinical-white/50">Loading archive index...</p>
+            <p className="mt-4 font-mono text-xs text-clinical-white/50">{t("archive.loadingIndex")}</p>
           )}
         </div>
         <div>
@@ -134,7 +131,7 @@ export function ArchiveRoute() {
             </div>
           ) : (
             <div className="hud-border rounded-card bg-panel-900/60 p-6 font-mono text-sm text-clinical-white/60">
-              Select a date to view archived capsules.
+              {t("archive.empty")}
             </div>
           )}
         </div>
