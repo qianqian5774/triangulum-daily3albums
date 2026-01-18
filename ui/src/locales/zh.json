@@ -1,0 +1,74 @@
+{
+  "system": {
+    "status": {
+      "label": "状态",
+      "operational": "运行正常",
+      "synthesizing": "合成中",
+      "degraded": "降级",
+      "error": "错误"
+    },
+    "batch": {
+      "label": "批次编号"
+    },
+    "error": {
+      "title": "系统驳回",
+      "message": "胶囊阵列未通过完整性校验。请重新运行管线或核对 /data 内的 JSON 产物。",
+      "code": "错误代码: 0xTRI-ARCHIVE",
+      "today": "今日 JSON 载入失败: {{error}}",
+      "archive": "档案 JSON 载入失败: {{error}}"
+    }
+  },
+  "hud": {
+    "language": "语言",
+    "scale": "缩放",
+    "clock": {
+      "next_cycle": "下一代谢周期",
+      "tminus": "T-减",
+      "estimate": "本地节律"
+    }
+  },
+  "navigation": {
+    "today": "今日",
+    "archive": "病历档案"
+  },
+  "marquee": {
+    "fallback": ["Triangulum 摄入稳定", "等待信号", "扫描就绪"]
+  },
+  "today": {
+    "label": "今日",
+    "loading": "化合物合成中…",
+    "headline": "{{date}} · 主题 {{theme}}",
+    "helper": "诊断管线已启动。三枚胶囊按序完成编译，准备即刻摄取。",
+    "loading_capsules": "正在载入摄入流…",
+    "readminister": "重新给药"
+  },
+  "archive": {
+    "label": "病历档案",
+    "helper": "历史摄取日志。选择日期即可回放分诊输出。",
+    "drawer": "医疗抽屉",
+    "select": "请选择日期查看归档胶囊。",
+    "loading": "正在载入档案索引…",
+    "header": "{{date}} · 主题 {{theme}}",
+    "header_fallback": "请选择日期"
+  },
+  "treatment": {
+    "viewer": {
+      "enter": "轻触侵入",
+      "exit": "关闭",
+      "prev": "上一剂",
+      "next": "下一剂"
+    },
+    "dose": {
+      "headliner": "主剂量",
+      "lineage": "谱系",
+      "deepcut": "深潜剂",
+      "no_cover": "无封面",
+      "artist_fallback": "未知艺人",
+      "evidence": "剂量证据",
+      "rationale": "处方理由",
+      "tags": "标签",
+      "links": "剂量链接",
+      "readminister": "重新给药"
+    }
+  }
+}

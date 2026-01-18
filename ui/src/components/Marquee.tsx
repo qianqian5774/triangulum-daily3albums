@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn";
 
 interface MarqueeProps {
@@ -7,12 +8,14 @@ interface MarqueeProps {
 }
 
 export function Marquee({ items, className }: MarqueeProps) {
+  const { t } = useTranslation();
   const sequence = useMemo(() => {
     if (items.length === 0) {
-      return ["Triangulum intake stable", "Awaiting signals", "Scan ready"];
+      const fallback = t("marquee.fallback", { returnObjects: true });
+      return Array.isArray(fallback) ? fallback : [String(fallback)];
     }
     return items;
-  }, [items]);
+  }, [items, t]);
 
   const repeated = [...sequence, ...sequence];
 

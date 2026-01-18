@@ -10,6 +10,10 @@ body {
   @apply bg-void-black text-clinical-white font-display;
 }
 
+.ui-root {
+  font-size: calc(16px * var(--ui-scale, 1));
+}
+
 ::selection {
   background: #ccff00;
   color: #050505;
@@ -29,6 +33,52 @@ body {
   animation: marquee 18s linear infinite;
 }
 
+.breath {
+  animation: breath 5s ease-in-out infinite;
+}
+
+.glitch-once {
+  animation: glitch-once 120ms steps(2, end);
+}
+
+.pulse-separator {
+  animation: pulse-separator 1.1s ease-in-out infinite;
+}
+
+@keyframes breath {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes glitch-once {
+  0% {
+    filter: none;
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(204, 255, 0, 0.5));
+  }
+  100% {
+    filter: none;
+  }
+}
+
+@keyframes pulse-separator {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @keyframes marquee {
   0% {
     transform: translateX(0%);
@@ -40,6 +90,11 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .marquee {
+    animation: none;
+  }
+  .breath,
+  .glitch-once,
+  .pulse-separator {
     animation: none;
   }
 }

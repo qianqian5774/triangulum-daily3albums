@@ -1,0 +1,74 @@
+{
+  "system": {
+    "status": {
+      "label": "Status",
+      "operational": "OPERATIONAL",
+      "synthesizing": "SYNTHESIZING",
+      "degraded": "DEGRADED",
+      "error": "ERROR"
+    },
+    "batch": {
+      "label": "Batch ID"
+    },
+    "error": {
+      "title": "System Failure",
+      "message": "The capsule array failed integrity checks. Re-run pipeline or verify the JSON artifacts in /data.",
+      "code": "ERROR_CODE: 0xTRI-ARCHIVE",
+      "today": "TODAY JSON load failed: {{error}}",
+      "archive": "ARCHIVE JSON load failed: {{error}}"
+    }
+  },
+  "hud": {
+    "language": "LANG",
+    "scale": "SCALE",
+    "clock": {
+      "next_cycle": "NEXT CYCLE",
+      "tminus": "T-MINUS",
+      "estimate": "LOCAL RHYTHM"
+    }
+  },
+  "navigation": {
+    "today": "Today",
+    "archive": "Patient Records"
+  },
+  "marquee": {
+    "fallback": ["Triangulum intake stable", "Awaiting signals", "Scan ready"]
+  },
+  "today": {
+    "label": "Today",
+    "loading": "Synthesizing Compounds...",
+    "headline": "{{date}} · Theme {{theme}}",
+    "helper": "Diagnostic pipeline engaged. Three capsules are compiled in sequence for immediate intake.",
+    "loading_capsules": "Loading intake stream...",
+    "readminister": "Re-administer Dose"
+  },
+  "archive": {
+    "label": "Patient Records",
+    "helper": "Historical intake logs. Select a date to replay the triage output.",
+    "drawer": "Medical Drawer",
+    "select": "Select a date to view archived capsules.",
+    "loading": "Loading archive index...",
+    "header": "{{date}} · Theme {{theme}}",
+    "header_fallback": "Select a date"
+  },
+  "treatment": {
+    "viewer": {
+      "enter": "Tap to intrude",
+      "exit": "Close",
+      "prev": "Previous dose",
+      "next": "Next dose"
+    },
+    "dose": {
+      "headliner": "Headliner",
+      "lineage": "Lineage",
+      "deepcut": "Deep Cut",
+      "no_cover": "No Cover",
+      "artist_fallback": "Unknown Artist",
+      "evidence": "Dose Evidence",
+      "rationale": "Rationale",
+      "tags": "Tags",
+      "links": "Dose Links",
+      "readminister": "Re-administer Dose"
+    }
+  }
+}
