@@ -1,0 +1,53 @@
+{
+  "output_schema_version": "1",
+  "date": "2024-09-10",
+  "run_id": "dev-seed-20240910",
+  "theme_of_day": "Neon Recall",
+  "picks": [
+    {
+      "slot": "Headliner",
+      "title": "Signal Bloom",
+      "artist_credit": "Aster Unit",
+      "first_release_year": 2019,
+      "tags": [{ "name": "industrial", "source": "dev" }],
+      "cover": { "has_cover": false, "optimized_cover_url": "" },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=Signal%20Bloom%20Aster%20Unit"
+      },
+      "evidence": { "mapping_confidence": 0.42 },
+      "reason": "High-contrast textures and clipped harmonics align with today's diagnostic profile."
+    },
+    {
+      "slot": "Lineage",
+      "title": "Rust Cathedral",
+      "artist_credit": "Grey Atlas",
+      "first_release_year": 2014,
+      "tags": [{ "name": "darkwave", "source": "dev" }],
+      "cover": { "has_cover": false, "optimized_cover_url": "" },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=Rust%20Cathedral%20Grey%20Atlas"
+      },
+      "evidence": { "mapping_confidence": 0.37 },
+      "reason": "A grounded baseline for the day's pulse; sustained drones keep the chamber stable."
+    },
+    {
+      "slot": "DeepCut",
+      "title": "Low Orbit Suture",
+      "artist_credit": "Lumen Fabric",
+      "first_release_year": 2022,
+      "tags": [{ "name": "synth", "source": "dev" }],
+      "cover": { "has_cover": false, "optimized_cover_url": "" },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=Low%20Orbit%20Suture%20Lumen%20Fabric"
+      },
+      "evidence": { "mapping_confidence": 0.33 },
+      "reason": "Sparse percussive light cuts through for repair-ready focus."
+    }
+  ]
+}

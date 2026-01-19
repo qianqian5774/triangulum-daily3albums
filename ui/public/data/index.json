@@ -1,0 +1,15 @@
+{
+  "output_schema_version": "1",
+  "items": [
+    {
+      "date": "2026-01-19",
+      "run_id": "dev-seed-20260119",
+      "theme_of_day": "Signal Decay"
+    },
+    {
+      "date": "2026-01-18",
+      "run_id": "dev-seed-20260118",
+      "theme_of_day": "Chrome Drift"
+    }
+  ]
+}

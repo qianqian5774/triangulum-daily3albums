@@ -1,6 +1,7 @@
 import { createContext, useCallback, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Hud } from "./components/Hud";
+import { NoiseOverlay } from "./components/NoiseOverlay";
 import { ArchiveRoute } from "./routes/Archive";
 import { TodayRoute } from "./routes/Today";
 import { copy } from "./strings/copy";
@@ -54,6 +55,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        <NoiseOverlay />
       </div>
     </HudContext.Provider>
   );

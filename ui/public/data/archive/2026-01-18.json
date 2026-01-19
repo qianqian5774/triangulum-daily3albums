@@ -1,0 +1,62 @@
+{
+  "output_schema_version": "1",
+  "date": "2026-01-18",
+  "run_id": "dev-seed-20260118",
+  "theme_of_day": "Chrome Drift",
+  "picks": [
+    {
+      "slot": "Headliner",
+      "title": "Mezzanine",
+      "artist_credit": "Massive Attack",
+      "first_release_year": 1998,
+      "tags": [{ "name": "trip-hop", "source": "dev" }],
+      "cover": {
+        "has_cover": true,
+        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/5/51/Mezzaninealbumcover.png"
+      },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=Mezzanine%20Massive%20Attack"
+      },
+      "evidence": { "mapping_confidence": 0.39 },
+      "reason": "Dense low-end circuitry and shadowed vocals create the chrome drift baseline."
+    },
+    {
+      "slot": "Lineage",
+      "title": "Dummy",
+      "artist_credit": "Portishead",
+      "first_release_year": 1994,
+      "tags": [{ "name": "trip-hop", "source": "dev" }],
+      "cover": {
+        "has_cover": true,
+        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/7/7c/Portishead_-_Dummy.png"
+      },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=Dummy%20Portishead"
+      },
+      "evidence": { "mapping_confidence": 0.36 },
+      "reason": "Muted brass and vinyl crackle preserve the lineage channel."
+    },
+    {
+      "slot": "DeepCut",
+      "title": "Music Has the Right to Children",
+      "artist_credit": "Boards of Canada",
+      "first_release_year": 1998,
+      "tags": [{ "name": "downtempo", "source": "dev" }],
+      "cover": {
+        "has_cover": true,
+        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/4/4f/Music_has_the_right_to_children.jpg"
+      },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=Music%20Has%20the%20Right%20to%20Children%20Boards%20of%20Canada"
+      },
+      "evidence": { "mapping_confidence": 0.31 },
+      "reason": "Analog drift and warped memory tones stabilize the deep-cut circuit."
+    }
+  ]
+}
