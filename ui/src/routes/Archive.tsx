@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
@@ -22,6 +22,16 @@ const itemVariants = {
 
 export function ArchiveRoute() {
   const hudContext = useContext(HudContext);
+
+  // IMPORTANT:
+  // Do NOT put `hudContext` into effects' dependency arrays.
+  // `updateHud()` changes HUD state -> Provider value changes -> `hudContext` identity changes
+  // -> effects re-run -> fetch again -> infinite loop.
+  const updateHudRef = useRef(hudContext?.updateHud);
+  useEffect(() => {
+    updateHudRef.current = hudContext?.updateHud;
+  }, [hudContext?.updateHud]);
+
   const [index, setIndex] = useState<ArchiveIndex | null>(null);
   const [issue, setIssue] = useState<TodayIssue | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -30,32 +40,43 @@ export function ArchiveRoute() {
 
   useEffect(() => {
     let active = true;
+
+    // reset transient errors on (re)mount
+    setError(null);
+
     loadArchiveIndex()
       .then((data) => {
         if (!active) return;
         setIndex(data);
-        setSelectedDate(data.items[0]?.date ?? null);
+
+        // Only set the initial date once (avoid pointless state flips).
+        setSelectedDate((prev) => prev ?? data.items[0]?.date ?? null);
       })
       .catch((err: Error) => {
         if (!active) return;
         setError(err.message);
-        hudContext?.updateHud({ status: "ERROR" });
+        updateHudRef.current?.({ status: "ERROR" });
       });
+
     return () => {
       active = false;
     };
-  }, [hudContext]);
+  }, []); // ✅ do NOT depend on hudContext
 
   useEffect(() => {
-    if (!selectedDate) {
-      return;
-    }
+    if (!selectedDate) return;
+
     let active = true;
+
+    // clear old issue while loading a new date (optional, but avoids stale UI)
+    setError(null);
+    setIssue(null);
+
     loadArchiveDay(selectedDate)
       .then((data) => {
         if (!active) return;
         setIssue(data);
-        hudContext?.updateHud({
+        updateHudRef.current?.({
           batchId: data.run_id ? data.run_id.toUpperCase() : data.date,
           status: "OK",
           marqueeItems: data.picks.map((pick) => `${pick.title} — ${pick.artist_credit}`),
@@ -66,12 +87,13 @@ export function ArchiveRoute() {
         if (!active) return;
         setIssue(null);
         setError(err.message);
-        hudContext?.updateHud({ status: "ERROR" });
+        updateHudRef.current?.({ status: "ERROR" });
       });
+
     return () => {
       active = false;
     };
-  }, [selectedDate, hudContext]);
+  }, [selectedDate]); // ✅ do NOT depend on hudContext
 
   const headerText = useMemo(() => {
     if (!selectedDate) {
