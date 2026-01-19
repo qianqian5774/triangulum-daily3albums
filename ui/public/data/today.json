@@ -1,0 +1,62 @@
+{
+  "output_schema_version": "1",
+  "date": "2026-01-19",
+  "run_id": "dev-seed-20260119",
+  "theme_of_day": "Signal Decay",
+  "picks": [
+    {
+      "slot": "Headliner",
+      "title": "The Downward Spiral",
+      "artist_credit": "Nine Inch Nails",
+      "first_release_year": 1994,
+      "tags": [{ "name": "industrial", "source": "dev" }],
+      "cover": {
+        "has_cover": true,
+        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/8/8c/Nine_Inch_Nails_-_The_Downward_Spiral.png"
+      },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=The%20Downward%20Spiral%20Nine%20Inch%20Nails"
+      },
+      "evidence": { "mapping_confidence": 0.42 },
+      "reason": "A corrosive signal core that anchors the headliner slot with maximum voltage."
+    },
+    {
+      "slot": "Lineage",
+      "title": "Unknown Pleasures",
+      "artist_credit": "Joy Division",
+      "first_release_year": 1979,
+      "tags": [{ "name": "post-punk", "source": "dev" }],
+      "cover": {
+        "has_cover": true,
+        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/7/7c/Unknown_pleasures.jpg"
+      },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=Unknown%20Pleasures%20Joy%20Division"
+      },
+      "evidence": { "mapping_confidence": 0.37 },
+      "reason": "Minimalist pulse lines and shadowed vocals preserve the archival lineage."
+    },
+    {
+      "slot": "DeepCut",
+      "title": "The Man-Machine",
+      "artist_credit": "Kraftwerk",
+      "first_release_year": 1978,
+      "tags": [{ "name": "electronic", "source": "dev" }],
+      "cover": {
+        "has_cover": true,
+        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/5/54/Kraftwerk_The_Man-Machine.png"
+      },
+      "links": {
+        "musicbrainz": null,
+        "lastfm": null,
+        "youtube_search": "https://www.youtube.com/results?search_query=The%20Man-Machine%20Kraftwerk"
+      },
+      "evidence": { "mapping_confidence": 0.33 },
+      "reason": "Mechanical clarity keeps the deep cut slot locked to precision timing."
+    }
+  ]
+}

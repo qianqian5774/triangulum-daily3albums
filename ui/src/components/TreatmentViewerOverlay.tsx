@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
+import { useScrambleText } from "../hooks/useScrambleText";
 import { resolvePublicPath } from "../lib/paths";
 import { t } from "../strings/t";
 import type { PickItem } from "../lib/types";
@@ -75,8 +76,9 @@ export function TreatmentViewerOverlay({
   }
 
   const coverUrl = resolveCover(activePick.cover.optimized_cover_url);
+  const scrambledTitle = useScrambleText(activePick.title);
 
-  const contentVariants = prefersReducedMotion
+  const parentVariants = prefersReducedMotion
     ? {
         initial: { opacity: 0 },
         animate: { opacity: 1 },
@@ -84,8 +86,24 @@ export function TreatmentViewerOverlay({
       }
     : {
         initial: { opacity: 0, x: direction > 0 ? 24 : -24 },
-        animate: { opacity: 1, x: 0 },
+        animate: {
+          opacity: 1,
+          x: 0,
+          transition: { staggerChildren: 0.1, delayChildren: 0.05 }
+        },
         exit: { opacity: 0, x: direction > 0 ? -24 : 24 }
+      };
+
+  const childVariants = prefersReducedMotion
+    ? {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 }
+      }
+    : {
+        initial: { opacity: 0, y: 12 },
+        animate: { opacity: 1, y: 0, transition: { duration: 0.25 } },
+        exit: { opacity: 0, y: -8, transition: { duration: 0.2 } }
       };
 
   return (
@@ -113,43 +131,46 @@ export function TreatmentViewerOverlay({
           aria-label={activePick.title}
           data-testid="treatment-overlay"
         >
-          <div className="relative z-10 flex flex-col gap-6 p-6 md:flex-row">
-            <div className="w-full md:w-[45%]">
-              <div className="relative aspect-square w-full overflow-hidden rounded-card bg-panel-800">
-                {coverUrl ? (
-                  <img src={coverUrl} alt={`${activePick.title} cover`} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-panel-900 via-panel-700 to-panel-900">
-                    <span className="font-mono text-xs uppercase tracking-[0.4em] text-clinical-white/40">
-                      {t("treatment.cover.missing")}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex w-full flex-col gap-4 md:w-[55%]">
-              <div className="flex items-start justify-between gap-4">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activePick.stableId}
+              className="relative z-10 grid gap-6 p-6 md:grid-cols-[45%_1fr] md:items-start"
+              variants={parentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+            >
+              <motion.div
+                className="w-full"
+                variants={childVariants}
+                layoutId={`cover-${activePick.stableId}`}
+              >
+                <div className="relative aspect-square w-full overflow-hidden rounded-card bg-panel-800">
+                  {coverUrl ? (
+                    <img src={coverUrl} alt={`${activePick.title} cover`} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-panel-900 via-panel-700 to-panel-900">
+                      <span className="font-mono text-xs uppercase tracking-[0.4em] text-clinical-white/40">
+                        {t("treatment.cover.missing")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+              <motion.div
+                className="flex items-start justify-between gap-4 md:col-start-2"
+                variants={childVariants}
+              >
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-clinical-white/50">
                     {t("treatment.viewer.enter")}
                   </p>
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={activePick.stableId}
-                      variants={contentVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      transition={{ duration: prefersReducedMotion ? 0.1 : 0.2 }}
-                    >
-                      <h2 className="mt-2 text-2xl font-semibold uppercase tracking-tightish">
-                        {activePick.title}
-                      </h2>
-                      <p className="text-sm text-clinical-white/70">
-                        {activePick.artist_credit || t("treatment.cover.unknownArtist")}
-                      </p>
-                    </motion.div>
-                  </AnimatePresence>
+                  <h2 className="glow-text mt-2 text-2xl font-semibold uppercase tracking-tightish">
+                    {scrambledTitle}
+                  </h2>
+                  <p className="text-sm text-clinical-white/70">
+                    {activePick.artist_credit || t("treatment.cover.unknownArtist")}
+                  </p>
                 </div>
                 <button
                   ref={closeRef}
@@ -159,16 +180,24 @@ export function TreatmentViewerOverlay({
                 >
                   {t("treatment.viewer.exit")}
                 </button>
-              </div>
-              <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.2em] text-clinical-white/60">
+              </motion.div>
+              <motion.div
+                className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.2em] text-clinical-white/60 md:col-start-2"
+                variants={childVariants}
+              >
                 {activePick.first_release_year && <span>{activePick.first_release_year}</span>}
                 {activePick.tags?.[0]?.name && <span>#{activePick.tags[0].name}</span>}
                 <span>{t(`treatment.slot.${activePick.slot}`)}</span>
-              </div>
+              </motion.div>
               {activePick.reason && (
-                <p className="text-sm text-clinical-white/75">{activePick.reason}</p>
+                <motion.p
+                  className="text-sm text-clinical-white/75 md:col-start-2"
+                  variants={childVariants}
+                >
+                  {activePick.reason}
+                </motion.p>
               )}
-              <div className="mt-auto flex flex-wrap items-center gap-3 text-xs text-clinical-white/70">
+              <div className="mt-auto flex flex-wrap items-center gap-3 text-xs text-clinical-white/70 md:col-start-2">
                 {activePick.links?.musicbrainz && (
                   <a
                     className="underline decoration-acid-green/60 underline-offset-4"
@@ -190,11 +219,11 @@ export function TreatmentViewerOverlay({
                   </a>
                 )}
               </div>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-clinical-white/40">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-clinical-white/40 md:col-start-2">
                 {t("treatment.viewer.instructions")}
               </p>
-            </div>
-          </div>
+            </motion.div>
+          </AnimatePresence>
           <button
             type="button"
             onClick={onPrev}
