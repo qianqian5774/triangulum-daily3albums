@@ -12,6 +12,7 @@ from typing import Any, Callable, Optional
 from urllib.parse import urlparse, urlsplit, parse_qsl, urlencode, urlunsplit
 
 import httpx
+import logging
 
 
 def _parse_ttl(s: str) -> int:
@@ -48,6 +49,23 @@ def _redact_url(url: str) -> str:
         return url
 
 
+def _get_adapter_logger(repo_root: Path) -> logging.Logger:
+    logger = logging.getLogger("adapter_requests")
+    if logger.handlers:
+        return logger
+    logs_dir = repo_root / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / "adapter_requests.log"
+    log_path.touch(exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    return logger
+
+
 @dataclass
 class RetryPolicy:
     max_attempts: int = 4
@@ -76,6 +94,7 @@ class RequestBroker:
         self.policies_raw = endpoint_policies or {}
         self.logger = logger
         self.timeout_s = float(timeout_s)
+        self.adapter_logger = _get_adapter_logger(repo_root)
 
         self.state_dir = repo_root / ".state"
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -114,6 +133,21 @@ class RequestBroker:
     def _log(self, msg: str) -> None:
         if self.logger:
             self.logger(msg)
+
+    def _log_adapter_activity(
+        self,
+        adapter_name: str | None,
+        action: str,
+        status: str,
+        url: str,
+        details: str | None = None,
+    ) -> None:
+        if not adapter_name:
+            return
+        message = f"Adapter={adapter_name} Action={action} Status={status} Url={_redact_url(url)}"
+        if details:
+            message = f"{message} Details={details}"
+        self.adapter_logger.info(message)
 
     def _fixture_bytes(self, url: str) -> bytes | None:
         fixtures_dir = os.environ.get("DAILY3ALBUMS_FIXTURES_DIR")
@@ -219,9 +253,16 @@ class RequestBroker:
         )
         self.conn.commit()
 
-    def get(self, url: str, headers: Optional[dict] = None, ttl_override_s: Optional[int] = None) -> bytes:
+    def get(
+        self,
+        url: str,
+        headers: Optional[dict] = None,
+        ttl_override_s: Optional[int] = None,
+        adapter_name: str | None = None,
+    ) -> bytes:
         fixture_body = self._fixture_bytes(url)
         if fixture_body is not None:
+            self._log_adapter_activity(adapter_name, "GET", "fixture-hit", url)
             return fixture_body
 
         parsed = urlparse(url)
@@ -233,13 +274,16 @@ class RequestBroker:
             status = int(cached.get("status", 0))
             if 200 <= status <= 299:
                 self._log(f"CACHE HIT url={_redact_url(url)}")
+                self._log_adapter_activity(adapter_name, "GET", f"cache-hit:{status}", url)
                 return cached["body"]
 
             # 负缓存（非 2xx）保持与首次请求一致：直接抛异常
             self._log(f"CACHE HIT NEG status={status} url={_redact_url(url)}")
+            self._log_adapter_activity(adapter_name, "GET", f"cache-hit:{status}", url)
             raise RuntimeError(f"HTTP {status} for {_redact_url(url)} (cached)")
 
         self._log(f"CACHE MISS url={_redact_url(url)}")
+        self._log_adapter_activity(adapter_name, "GET", "cache-miss", url)
 
         pol = self._host_policy(host)
         ttl_ok = int(ttl_override_s) if ttl_override_s is not None else pol.ttl_default_s
@@ -267,9 +311,11 @@ class RequestBroker:
 
                 if 200 <= status <= 299:
                     self._cache_put(key, url, status, hdrs, body, ttl_ok)
+                    self._log_adapter_activity(adapter_name, "GET", str(status), url)
                     return body
 
                 self._cache_put(key, url, status, hdrs, body, pol.negative_cache_ttl_s)
+                self._log_adapter_activity(adapter_name, "GET", str(status), url)
                 raise RuntimeError(f"HTTP {status} for {_redact_url(url)}")
 
             except (httpx.TimeoutException, httpx.TransportError) as e:
@@ -282,8 +328,14 @@ class RequestBroker:
                     continue
                 raise
 
-    def get_json(self, url: str, headers: Optional[dict] = None, ttl_override_s: Optional[int] = None) -> Any:
-        raw = self.get(url, headers=headers, ttl_override_s=ttl_override_s)
+    def get_json(
+        self,
+        url: str,
+        headers: Optional[dict] = None,
+        ttl_override_s: Optional[int] = None,
+        adapter_name: str | None = None,
+    ) -> Any:
+        raw = self.get(url, headers=headers, ttl_override_s=ttl_override_s, adapter_name=adapter_name)
         try:
             return json.loads(raw.decode("utf-8"))
         except Exception as e:

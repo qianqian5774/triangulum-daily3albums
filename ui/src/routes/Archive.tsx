@@ -37,6 +37,7 @@ export function ArchiveRoute() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
+  const coverCacheKey = issue?.run_id ?? issue?.date ?? selectedDate ?? "";
 
   useEffect(() => {
     let active = true;
@@ -148,7 +149,7 @@ export function ArchiveRoute() {
           {issue ? (
             <div className="grid gap-6 md:grid-cols-3">
               {issue.picks.map((pick) => (
-                <SlotCard key={pick.slot} pick={pick} />
+                <SlotCard key={pick.slot} pick={pick} cacheKey={pick.cover.cover_version ?? coverCacheKey} />
               ))}
             </div>
           ) : (

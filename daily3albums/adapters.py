@@ -50,6 +50,62 @@ class LastFmTopAlbum:
     image_extralarge: str | None
 
 
+@dataclass
+class CoverArtResult:
+    has_cover: bool
+    optimized_cover_url: str | None
+    original_cover_url: str | None
+    release_mbid: str | None
+
+
+class CoverArtArchiveAdapter:
+    def __init__(self, request_broker: RequestBroker) -> None:
+        self.request_broker = request_broker
+
+    def fetch_cover(self, rg_mbid: str) -> CoverArtResult | None:
+        rg_mbid = (rg_mbid or "").strip()
+        if not rg_mbid:
+            return None
+
+        url = f"https://coverartarchive.org/release-group/{rg_mbid}"
+        try:
+            payload = self.request_broker.get_json(url, adapter_name="CoverArtArchiveAdapter")
+        except Exception:
+            return None
+
+        if not isinstance(payload, dict):
+            return None
+
+        images = payload.get("images")
+        if not isinstance(images, list) or not images:
+            return CoverArtResult(False, None, None, None)
+
+        def pick_image() -> dict[str, Any] | None:
+            for item in images:
+                if isinstance(item, dict) and item.get("front") is True:
+                    return item
+            for item in images:
+                if isinstance(item, dict):
+                    return item
+            return None
+
+        chosen = pick_image()
+        if not chosen:
+            return CoverArtResult(False, None, None, None)
+
+        image_url = (chosen.get("image") or "").strip()
+        thumbs = chosen.get("thumbnails") if isinstance(chosen.get("thumbnails"), dict) else {}
+        optimized = None
+        if isinstance(thumbs, dict):
+            optimized = (thumbs.get("large") or thumbs.get("250") or thumbs.get("500") or "").strip() or None
+        if not optimized:
+            optimized = image_url or None
+
+        release_mbid = (chosen.get("release") or "").strip() if isinstance(chosen.get("release"), str) else None
+        has_cover = bool(optimized)
+        return CoverArtResult(has_cover, optimized, image_url or None, release_mbid)
+
+
 def lastfm_tag_top_albums(
     broker: RequestBroker,
     api_key: str,
@@ -66,7 +122,7 @@ def lastfm_tag_top_albums(
         "format": "json",
     }
     url = "https://ws.audioscrobbler.com/2.0/?" + urlencode(params)
-    j = broker.get_json(url)
+    j = broker.get_json(url, adapter_name="LastfmAdapter")
 
     # Last.fm 错误会以 JSON 返回：{"error":..., "message":...}
     if isinstance(j, dict) and "error" in j:
@@ -173,7 +229,7 @@ def musicbrainz_search_release_group_by_query(
     params = {"query": query, "fmt": "json", "limit": str(limit)}
     url = "https://musicbrainz.org/ws/2/release-group?" + urlencode(params, quote_via=quote_plus)
     headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
-    j = broker.get_json(url, headers=headers)
+    j = broker.get_json(url, headers=headers, adapter_name="MusicBrainzAdapter")
 
     rgs = (j or {}).get("release-groups") or []
     out: list[MbReleaseGroup] = []
@@ -241,7 +297,7 @@ def musicbrainz_get_release_group(
     url = f"https://musicbrainz.org/ws/2/release-group/{rg_id}?fmt=json"
     headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
     try:
-        j = broker.get_json(url, headers=headers)
+        j = broker.get_json(url, headers=headers, adapter_name="MusicBrainzAdapter")
     except Exception:
         return None
 
@@ -274,7 +330,7 @@ def musicbrainz_get_release_group_debug(
     url = f"https://musicbrainz.org/ws/2/release-group/{rg_id}?fmt=json"
     headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
     try:
-        j = broker.get_json(url, headers=headers)
+        j = broker.get_json(url, headers=headers, adapter_name="MusicBrainzAdapter")
     except Exception as e:
         return None, f"rg:error:{type(e).__name__}"
 
@@ -318,7 +374,7 @@ def musicbrainz_get_release(
     url = f"https://musicbrainz.org/ws/2/release/{release_id}?fmt=json"
     headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
     try:
-        j = broker.get_json(url, headers=headers)
+        j = broker.get_json(url, headers=headers, adapter_name="MusicBrainzAdapter")
     except Exception:
         return None
 
@@ -346,7 +402,7 @@ def musicbrainz_get_release_debug(
     url = f"https://musicbrainz.org/ws/2/release/{release_id}?fmt=json"
     headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
     try:
-        j = broker.get_json(url, headers=headers)
+        j = broker.get_json(url, headers=headers, adapter_name="MusicBrainzAdapter")
     except Exception as e:
         return None, f"rel:error:{type(e).__name__}"
 

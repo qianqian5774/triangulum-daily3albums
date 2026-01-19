@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useRef } from "react";
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
-import { resolvePublicPath } from "../lib/paths";
+import { appendCacheBuster, resolvePublicPath } from "../lib/paths";
 import { t } from "../strings/t";
 import type { PickItem } from "../lib/types";
 
@@ -17,24 +17,25 @@ interface SlotCardProps {
   layoutId?: string;
   dataTestId?: string;
   className?: string;
+  cacheKey?: string;
 }
 
-function resolveCover(url: string) {
+function resolveCover(url: string, cacheKey?: string) {
   const trimmed = url.trim();
   if (!trimmed) {
     return null;
   }
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return trimmed;
+    return appendCacheBuster(trimmed, cacheKey);
   }
   const safe = trimmed.replace(/^\//, "");
-  return resolvePublicPath(safe);
+  return appendCacheBuster(resolvePublicPath(safe), cacheKey);
 }
 
-export function SlotCard({ pick, onSelect, layoutId, dataTestId, className }: SlotCardProps) {
+export function SlotCard({ pick, onSelect, layoutId, dataTestId, className, cacheKey }: SlotCardProps) {
   const cardRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
-  const coverUrl = resolveCover(pick.cover.optimized_cover_url);
+  const coverUrl = resolveCover(pick.cover.optimized_cover_url, cacheKey);
   const isInteractive = Boolean(onSelect);
   const coverLayoutId = layoutId?.startsWith("card-") ? layoutId.replace("card-", "cover-") : undefined;
   const tiltX = useMotionValue(0);

@@ -1,5 +1,5 @@
 import type { KeyboardEvent, MouseEvent } from "react";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
@@ -74,9 +74,9 @@ export function TodayRoute() {
   const lastActiveRef = useRef<HTMLElement | null>(null);
   const glitchTimeoutRef = useRef<number | null>(null);
   const lastFocusedRef = useRef<string | null>(null);
+  const coverCacheKey = issue?.run_id ?? issue?.date ?? "";
 
-  // Load exactly once on mount.
-  useEffect(() => {
+  const loadIssue = useCallback(() => {
     let active = true;
 
     loadToday()
@@ -109,6 +109,25 @@ export function TodayRoute() {
       active = false;
     };
   }, []);
+
+  // Load exactly once on mount.
+  useEffect(() => loadIssue(), [loadIssue]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (document.visibilityState === "visible") {
+        loadIssue();
+      }
+    };
+
+    window.addEventListener("focus", handleRefresh);
+    document.addEventListener("visibilitychange", handleRefresh);
+
+    return () => {
+      window.removeEventListener("focus", handleRefresh);
+      document.removeEventListener("visibilitychange", handleRefresh);
+    };
+  }, [loadIssue]);
 
   const picks = useMemo(() => {
     if (!issue) {
@@ -226,6 +245,7 @@ export function TodayRoute() {
                   onSelect={FLAGS.viewerOverlay ? (event) => handleOpen(pick.stableId, event) : undefined}
                   dataTestId={`album-card-${index}`}
                   className="h-full"
+                  cacheKey={pick.cover.cover_version ?? coverCacheKey}
                 />
               </motion.div>
             ))}
@@ -241,6 +261,7 @@ export function TodayRoute() {
                 onNext={handleNext}
                 onPrev={handlePrev}
                 glitchActive={glitchActive}
+                cacheKey={coverCacheKey}
               />
             )}
           </AnimatePresence>

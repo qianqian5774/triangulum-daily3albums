@@ -3,6 +3,7 @@ export type SlotName = "Headliner" | "Lineage" | "DeepCut";
 export interface CoverInfo {
   has_cover: boolean;
   optimized_cover_url: string;
+  cover_version?: string | null;
   original_cover_url?: string | null;
 }
 
@@ -86,6 +87,7 @@ export function parseTodayIssue(payload: unknown): TodayIssue {
       cover: {
         has_cover: Boolean(cover.has_cover),
         optimized_cover_url: cover.optimized_cover_url,
+        cover_version: isString(cover.cover_version) ? cover.cover_version : null,
         original_cover_url: isString(cover.original_cover_url) ? cover.original_cover_url : null
       },
       links: isRecord(pick.links)

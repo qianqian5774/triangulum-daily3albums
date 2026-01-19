@@ -12,7 +12,7 @@ from typing import Any
 
 from daily3albums.config import load_env, load_config
 from daily3albums.request_broker import RequestBroker
-from daily3albums.adapters import lastfm_tag_top_albums, musicbrainz_search_release_group
+from daily3albums.adapters import CoverArtArchiveAdapter, CoverArtResult, lastfm_tag_top_albums, musicbrainz_search_release_group
 from daily3albums.dry_run import run_dry_run
 
 
@@ -49,7 +49,7 @@ def cmd_probe_lastfm(repo_root: Path, tag: str, limit: int, verbose: bool, raw: 
                 "format": "json",
             }
             url = "https://ws.audioscrobbler.com/2.0/?" + urlencode(params)
-            j = broker.get_json(url)
+            j = broker.get_json(url, adapter_name="LastfmAdapter")
             print(json.dumps(j, ensure_ascii=False, indent=2))
             return 0
 
@@ -235,7 +235,13 @@ def _read_quarantine_jsonl(path: Path) -> list[dict[str, Any]]:
     return items
 
 
-def _pick_to_issue_item(tag: str, slot: str, s: Any) -> dict[str, Any]:
+def _pick_to_issue_item(
+    tag: str,
+    slot: str,
+    s: Any,
+    cover_version: str | None = None,
+    cover_result: CoverArtResult | None = None,
+) -> dict[str, Any]:
     c = s.c
     n = s.n
 
@@ -246,9 +252,10 @@ def _pick_to_issue_item(tag: str, slot: str, s: Any) -> dict[str, Any]:
 
     artist = getattr(c, "artist", "")
     title = getattr(c, "title", "")
-    img = getattr(c, "image_url", "") or ""
+    fallback_image = getattr(c, "image_url", "") or ""
 
-    optimized_cover_url = img or "assets/placeholder.svg"
+    cover_url = cover_result.optimized_cover_url if cover_result and cover_result.has_cover else fallback_image
+    optimized_cover_url = cover_url or "assets/placeholder.svg"
 
     return {
         "slot": slot,
@@ -262,10 +269,11 @@ def _pick_to_issue_item(tag: str, slot: str, s: Any) -> dict[str, Any]:
         "tags": [{"name": tag, "source": "lastfm"}],
         "popularity": None,
         "cover": {
-            "has_cover": bool(img),
+            "has_cover": bool(cover_url),
             "optimized_cover_url": optimized_cover_url,
-            "source_release_mbid": None,
-            "original_cover_url": img or None,
+            "cover_version": cover_version,
+            "source_release_mbid": cover_result.release_mbid if cover_result else None,
+            "original_cover_url": cover_result.original_cover_url if cover_result else (fallback_image or None),
         },
         "links": {
             "musicbrainz": f"https://musicbrainz.org/release-group/{rg_id}" if rg_id else None,
@@ -426,6 +434,7 @@ def cmd_build(
 
     logger = print if verbose else None
     broker = RequestBroker(repo_root=repo_root, endpoint_policies=cfg.policies, logger=logger)
+    cover_adapter = CoverArtArchiveAdapter(broker)
 
     mb_search_limit = int(mb_search_limit)
     min_confidence = float(min_confidence)
@@ -505,7 +514,20 @@ def cmd_build(
             "warnings": [],
         }
 
-        issue["picks"] = [_pick_to_issue_item(tag=tag, slot=slot, s=s) for slot, s in zip(slot_names, scored_items)]
+        cover_version = issue["generation"].get("started_at")
+        issue["picks"] = []
+        for slot, s in zip(slot_names, scored_items):
+            rg_id = getattr(getattr(s, "n", None), "mb_release_group_id", "") or ""
+            cover_result = cover_adapter.fetch_cover(rg_id) if rg_id else None
+            issue["picks"].append(
+                _pick_to_issue_item(
+                    tag=tag,
+                    slot=slot,
+                    s=s,
+                    cover_version=cover_version,
+                    cover_result=cover_result,
+                )
+            )
 
         quarantine_rows: list[dict[str, Any]] = []
         if quarantine_out:
