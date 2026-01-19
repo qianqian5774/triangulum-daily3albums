@@ -42,6 +42,29 @@ Do not dump raw stack traces as the only output; traces can go into logs.
 - Do not generate or depend on PNG/JPEG/WebP or other raster outputs.
 - Playwright “screenshots” must be implemented as DOM→SVG snapshots (preferred) or placeholder SVGs (fallback).
 
+## Plan parsing robustness (required)
+
+Doctor implementations must be resilient to plan parsing failures and must still produce artifacts.
+
+1) Preferred: keep the YAML in this file strictly valid.
+2) Defensive parsing (required): before parsing, perform a best-effort sanitization pass for a narrow class of common YAML footguns:
+   - If any `name:` or `label:` scalar contains an unquoted colon pattern (`:` followed by a space), automatically wrap the full scalar value in double quotes.
+   - This sanitization must be conservative and limited to `name:` and `label:` keys only (do not rewrite other keys).
+   - Record that sanitization happened as evidence in logs and in REPORT.md “Algorithm Trace”.
+3) Fallback plan (required): if AGENTS.md is missing, severely corrupted, or plan parsing still fails after sanitization:
+   - Do NOT crash.
+   - Switch to a built-in, hard-coded minimal fallback plan that:
+     - emits `overall_status=fail`,
+     - records a single severity="high" Issue that includes the parsing error details and how to fix AGENTS.md,
+     - produces `doctor/REPORT.md`, `doctor/REPORT.json`, and the three fixed-path SVG screenshots (placeholders allowed/required).
+   - Exit with a failing exit code after writing artifacts.
+
+## Artifact retention (required)
+
+- Do NOT delete `doctor/REPORT.*`, `doctor/screenshots/`, or `doctor/runs/` as part of doctor execution or post-run cleanup.
+- Do NOT add these paths to `.gitignore` automatically.
+- Whether these runtime artifacts should be committed is a separate workflow decision; doctor must not force it by deleting or ignoring files.
+
 ## Entry points and artifact chain (overview)
 
 Doctor should explain (in REPORT.md) the repository’s entrypoints and artifact chain, at minimum:
@@ -129,7 +152,7 @@ doctor_plan:
       hard_gate_ids: [lastfm_configured, musicbrainz_configured]
 
     - id: probe_lastfm
-      name: Minimal probe: Last.fm (1 request, no concurrency)
+      name: "Minimal probe: Last.fm (1 request, no concurrency)"
       action: probe_lastfm_minimal
       required: true
       hard_gate_ids: [lastfm_probe_ok]
@@ -138,7 +161,7 @@ doctor_plan:
         sleep_seconds_after: 1
 
     - id: probe_musicbrainz
-      name: Minimal probe: MusicBrainz (1 request, no concurrency)
+      name: "Minimal probe: MusicBrainz (1 request, no concurrency)"
       action: probe_musicbrainz_minimal
       required: true
       hard_gate_ids: [musicbrainz_probe_ok]
