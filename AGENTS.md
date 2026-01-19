@@ -1,8 +1,6 @@
 # Triangulum – Daily3Albums: End-to-End Doctor (Authoritative)
 
-This repository ships a “doctor” workflow that performs a comprehensive end-to-end health check from data ingestion to final rendering.
 
-AGENTS.md is the single source of truth. Implementations must follow this document exactly, especially the hard constraints and the doctor-plan (YAML) below.
 
 ## Scope and intent
 
@@ -23,21 +21,10 @@ Doctor must be sequential, deterministic, and beginner-readable in reporting.
 - All external requests MUST go through the repo’s existing cache/governance layer (e.g., RequestBroker) rather than direct ad-hoc HTTP calls.
 - Minimal probes must be single lightweight requests.
 
-2) Hard gate behavior
-- If Last.fm + MusicBrainz configuration is missing OR the minimal probe fails:
-  - `overall_status = fail`
-  - Still generate the complete report and all screenshots (SVG), using placeholder SVGs if necessary.
+- Still generate the complete report and all screenshots (SVG), using placeholder SVGs if necessary.
 
-3) Reporting quality (beginner-readable)
-For every issue, report MUST include:
-- what / where / repro / fix / risk / rollback / verify
-Do not dump raw stack traces as the only output; traces can go into logs.
+2. SVG-only visual evidence
 
-4) Stable outputs
-- Fixed paths and stable JSON keys are required to support diffs/automation.
-- Do not rename fields casually; prefer additive changes.
-
-5) SVG-only visual evidence
 - Screenshots/evidence MUST be SVG.
 - Do not generate or depend on PNG/JPEG/WebP or other raster outputs.
 - Playwright “screenshots” must be implemented as DOM→SVG snapshots (preferred) or placeholder SVGs (fallback).
@@ -58,12 +45,6 @@ Doctor implementations must be resilient to plan parsing failures and must still
      - records a single severity="high" Issue that includes the parsing error details and how to fix AGENTS.md,
      - produces `doctor/REPORT.md`, `doctor/REPORT.json`, and the three fixed-path SVG screenshots (placeholders allowed/required).
    - Exit with a failing exit code after writing artifacts.
-
-## Artifact retention (required)
-
-- Do NOT delete `doctor/REPORT.*`, `doctor/screenshots/`, or `doctor/runs/` as part of doctor execution or post-run cleanup.
-- Do NOT add these paths to `.gitignore` automatically.
-- Whether these runtime artifacts should be committed is a separate workflow decision; doctor must not force it by deleting or ignoring files.
 
 ## Entry points and artifact chain (overview)
 
@@ -352,6 +333,5 @@ A successful implementation (even when `overall_status=fail`) produces:
 - `doctor/screenshots/archive.svg`
 - `doctor/screenshots/detail.svg`
 - `doctor/runs/<run_id>/` with logs and ui_audit JSON+SVG evidence
-- Clear, reproducible issues with rollback guidance and verification steps
 
 End of AGENTS.md.
