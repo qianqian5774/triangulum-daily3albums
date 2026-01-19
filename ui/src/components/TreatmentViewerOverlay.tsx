@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
 import { useScrambleText } from "../hooks/useScrambleText";
-import { resolvePublicPath } from "../lib/paths";
+import { appendCacheBuster, resolvePublicPath } from "../lib/paths";
 import { t } from "../strings/t";
 import type { PickItem } from "../lib/types";
 
@@ -17,18 +17,19 @@ interface TreatmentViewerOverlayProps {
   onNext: () => void;
   onPrev: () => void;
   glitchActive?: boolean;
+  cacheKey?: string;
 }
 
-function resolveCover(url: string) {
+function resolveCover(url: string, cacheKey?: string) {
   const trimmed = url.trim();
   if (!trimmed) {
     return null;
   }
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return trimmed;
+    return appendCacheBuster(trimmed, cacheKey);
   }
   const safe = trimmed.replace(/^\//, "");
-  return resolvePublicPath(safe);
+  return appendCacheBuster(resolvePublicPath(safe), cacheKey);
 }
 
 export function TreatmentViewerOverlay({
@@ -38,7 +39,8 @@ export function TreatmentViewerOverlay({
   onClose,
   onNext,
   onPrev,
-  glitchActive
+  glitchActive,
+  cacheKey
 }: TreatmentViewerOverlayProps) {
   const prefersReducedMotion = useReducedMotion();
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -75,7 +77,8 @@ export function TreatmentViewerOverlay({
     return null;
   }
 
-  const coverUrl = resolveCover(activePick.cover.optimized_cover_url);
+  const coverVersionKey = activePick.cover.cover_version ?? cacheKey;
+  const coverUrl = resolveCover(activePick.cover.optimized_cover_url, coverVersionKey);
   const scrambledTitle = useScrambleText(activePick.title);
 
   const parentVariants = prefersReducedMotion
