@@ -4,7 +4,7 @@
 
 1. Build the daily artifacts:
    ```bash
-   daily3albums build --tag electronic --verbose
+   daily3albums build --verbose
    ```
 2. Preview the static site from `_build/public`:
    ```bash
@@ -12,10 +12,14 @@
    ```
    Then visit `http://localhost:8000/`.
 
+> Note: Local testing should only serve `_build/public`. Do not serve `ui/public/data` for runtime JSON.
+
 ## Schedule + timezone
 
-The GitHub Pages workflow runs daily at **00:10 Asia/Taipei (UTC+8)**.
+The GitHub Pages workflow runs **three times per day** on Beijing time (Asia/Shanghai).
 
-- Cron expression (UTC): `10 16 * * *`
-- Timezone in workflow: `Asia/Taipei` via `TZ` and `DAILY3ALBUMS_TZ`
-
+- Cron expressions (UTC):
+  - `5 16 * * *` (Asia/Shanghai 00:05 next day)
+  - `5 0 * * *` (Asia/Shanghai 08:05)
+  - `5 8 * * *` (Asia/Shanghai 16:05)
+- Timezone in workflow: `Asia/Shanghai` via `TZ` and `DAILY3ALBUMS_TZ`

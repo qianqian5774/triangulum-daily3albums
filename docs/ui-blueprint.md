@@ -9,7 +9,7 @@ Project Context
 设计风格：Industrial Clinical (工业诊疗风) / Swiss International (瑞士国际主义) / Cyberpunk (低保真赛博)。
 运行形态（必须明确）：
 
-数据来源是构建阶段生成的静态 JSON（data/today.json、data/archive/YYYY-MM-DD.json、data/index.json、可选 data/quarantine/YYYY-MM-DD.json），前端只做读取与渲染，不在运行时依赖后端 API。
+数据来源是构建阶段生成的静态 JSON（data/today.json、data/archive/YYYY-MM-DD/<run_id>.json、data/index.json、可选 data/quarantine/YYYY-MM-DD.json），前端只做读取与渲染，不在运行时依赖后端 API。
 部署目标是 GitHub Pages 项目站点（存在子路径），所有资源与 fetch 必须基于 BASE_URL/相对路径拼接，禁止以 / 开头的绝对路径。
 路由采用“静态友好”的策略：优先 HashRouter 或 BrowserRouter + 404 fallback 二选一（默认建议 HashRouter 省心稳）。
 Tech Stack (Mandatory)

@@ -34,10 +34,10 @@ export function ArchiveRoute() {
 
   const [index, setIndex] = useState<ArchiveIndex | null>(null);
   const [issue, setIssue] = useState<TodayIssue | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<ArchiveIndex["items"][number] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
-  const coverCacheKey = issue?.run_id ?? issue?.date ?? selectedDate ?? "";
+  const coverCacheKey = issue?.run_id ?? issue?.date ?? selectedEntry?.run_id ?? selectedEntry?.date ?? "";
 
   useEffect(() => {
     let active = true;
@@ -51,7 +51,7 @@ export function ArchiveRoute() {
         setIndex(data);
 
         // Only set the initial date once (avoid pointless state flips).
-        setSelectedDate((prev) => prev ?? data.items[0]?.date ?? null);
+        setSelectedEntry((prev) => prev ?? data.items[0] ?? null);
       })
       .catch((err: Error) => {
         if (!active) return;
@@ -65,7 +65,7 @@ export function ArchiveRoute() {
   }, []); // ✅ do NOT depend on hudContext
 
   useEffect(() => {
-    if (!selectedDate) return;
+    if (!selectedEntry) return;
 
     let active = true;
 
@@ -73,7 +73,7 @@ export function ArchiveRoute() {
     setError(null);
     setIssue(null);
 
-    loadArchiveDay(selectedDate)
+    loadArchiveDay(selectedEntry.date, selectedEntry.run_id)
       .then((data) => {
         if (!active) return;
         setIssue(data);
@@ -94,15 +94,18 @@ export function ArchiveRoute() {
     return () => {
       active = false;
     };
-  }, [selectedDate]); // ✅ do NOT depend on hudContext
+  }, [selectedEntry]); // ✅ do NOT depend on hudContext
 
   const headerText = useMemo(() => {
-    if (!selectedDate) {
+    if (!selectedEntry) {
       return t("archive.selectDate");
     }
-    const theme = index?.items.find((item) => item.date === selectedDate)?.theme_of_day;
-    return theme ? `${selectedDate} · ${t("today.themePrefix")} ${theme}` : selectedDate;
-  }, [selectedDate, index]);
+    const theme = selectedEntry.theme_of_day;
+    const slotSuffix = typeof selectedEntry.slot === "number" ? ` · slot ${selectedEntry.slot + 1}` : "";
+    return theme
+      ? `${selectedEntry.date}${slotSuffix} · ${t("today.themePrefix")} ${theme}`
+      : `${selectedEntry.date}${slotSuffix}`;
+  }, [selectedEntry]);
 
   if (error) {
     return <BSOD message={`${t("system.errors.archiveLoad")}: ${error}`} />;
@@ -126,17 +129,30 @@ export function ArchiveRoute() {
               animate={prefersReducedMotion ? undefined : "show"}
             >
               {index.items.map((item) => (
-                <motion.li key={item.date} variants={prefersReducedMotion ? undefined : itemVariants}>
+                <motion.li
+                  key={`${item.date}-${item.run_id ?? "legacy"}`}
+                  variants={prefersReducedMotion ? undefined : itemVariants}
+                >
                   <button
                     type="button"
-                    onClick={() => setSelectedDate(item.date)}
+                    onClick={() => setSelectedEntry(item)}
                     className={`w-full rounded-hud border px-3 py-2 text-left font-mono text-xs uppercase tracking-[0.3em] transition ${
-                      selectedDate === item.date
+                      selectedEntry?.date === item.date && selectedEntry?.run_id === item.run_id
                         ? "border-acid-green/70 text-acid-green"
                         : "border-panel-700/70 text-clinical-white/60 hover:border-clinical-white/40"
                     }`}
                   >
-                    {item.date}
+                    <span>{item.date}</span>
+                    {typeof item.slot === "number" ? (
+                      <span className="ml-2 text-[10px] uppercase tracking-[0.2em] text-clinical-white/50">
+                        slot {item.slot + 1}
+                      </span>
+                    ) : null}
+                    {item.run_at ? (
+                      <span className="ml-2 text-[10px] uppercase tracking-[0.2em] text-clinical-white/40">
+                        {item.run_at.slice(11, 19)}
+                      </span>
+                    ) : null}
                   </button>
                 </motion.li>
               ))}
