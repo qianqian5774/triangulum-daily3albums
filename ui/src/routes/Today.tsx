@@ -7,8 +7,10 @@ import { SlotCard } from "../components/SlotCard";
 import { TreatmentViewerOverlay } from "../components/TreatmentViewerOverlay";
 import { FLAGS } from "../config/flags";
 import { loadToday } from "../lib/data";
+import { appendCacheBuster, resolvePublicPath } from "../lib/paths";
 import { t } from "../strings/t";
 import type { TodayIssue } from "../lib/types";
+import type { TreatmentPick } from "../components/TreatmentViewerOverlay";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -50,6 +52,18 @@ function deriveStableId(pick: { title: string; artist_credit: string; slot: stri
   return `slot-${hashPick(`${pick.title}—${pick.artist_credit}—${pick.slot}`)}`;
 }
 
+function resolveCover(url: string, cacheKey?: string) {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return appendCacheBuster(trimmed, cacheKey);
+  }
+  const safe = trimmed.replace(/^\//, "");
+  return appendCacheBuster(resolvePublicPath(safe), cacheKey);
+}
+
 export function TodayRoute() {
   const hudContext = useContext(HudContext);
 
@@ -74,6 +88,7 @@ export function TodayRoute() {
   const lastActiveRef = useRef<HTMLElement | null>(null);
   const glitchTimeoutRef = useRef<number | null>(null);
   const lastFocusedRef = useRef<string | null>(null);
+  const openingRef = useRef<string | null>(null);
   const coverCacheKey = issue?.run_id ?? issue?.date ?? "";
 
   const loadIssue = useCallback(() => {
@@ -185,10 +200,52 @@ export function TodayRoute() {
     []
   );
 
+  const preloadCover = useCallback(
+    async (pick: TreatmentPick | undefined) => {
+      if (!pick) {
+        return;
+      }
+      const coverVersionKey = pick.cover.cover_version ?? coverCacheKey;
+      const coverUrl = resolveCover(pick.cover.optimized_cover_url, coverVersionKey);
+      if (!coverUrl) {
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        const image = new Image();
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+        image.onload = finish;
+        image.onerror = finish;
+        image.src = coverUrl;
+        if (image.decode) {
+          image.decode().then(finish).catch(finish);
+        }
+      });
+    },
+    [coverCacheKey]
+  );
+
+  const openPick = useCallback(
+    async (pickId: string) => {
+      const nextPick = picks.find((pick) => pick.stableId === pickId);
+      openingRef.current = pickId;
+      await preloadCover(nextPick);
+      if (openingRef.current !== pickId) {
+        return;
+      }
+      setFocusedId(pickId);
+    },
+    [picks, preloadCover]
+  );
+
   const handleOpen = (pickId: string, event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {
     lastActiveRef.current = event.currentTarget as HTMLElement;
     setDirection(1);
-    setFocusedId(pickId);
+    openPick(pickId);
   };
 
   const handleClose = () => {
@@ -205,7 +262,7 @@ export function TodayRoute() {
     if (!picks.length) return;
     const nextIndex = (activeIndex + 1) % picks.length;
     setDirection(1);
-    setFocusedId(picks[nextIndex].stableId);
+    openPick(picks[nextIndex].stableId);
     triggerGlitch(80);
   };
 
@@ -213,7 +270,7 @@ export function TodayRoute() {
     if (!picks.length) return;
     const nextIndex = (activeIndex - 1 + picks.length) % picks.length;
     setDirection(-1);
-    setFocusedId(picks[nextIndex].stableId);
+    openPick(picks[nextIndex].stableId);
     triggerGlitch(80);
   };
 

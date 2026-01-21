@@ -49,6 +49,20 @@ export function TreatmentViewerOverlay({
     () => picks.find((pick) => pick.stableId === activeId) ?? picks[0],
     [activeId, picks]
   );
+  const debugEnabled = useMemo(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("debug") === "1") {
+      return true;
+    }
+    try {
+      return window.localStorage.getItem("tri_debug") === "1";
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -123,6 +137,7 @@ export function TreatmentViewerOverlay({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        onClick={onClose}
       >
         <motion.div
           layoutId={`card-${activePick.stableId}`}
@@ -133,6 +148,7 @@ export function TreatmentViewerOverlay({
           aria-modal="true"
           aria-label={activePick.title}
           data-testid="treatment-overlay"
+          onClick={(event) => event.stopPropagation()}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -192,39 +208,59 @@ export function TreatmentViewerOverlay({
                 {activePick.tags?.[0]?.name && <span>#{activePick.tags[0].name}</span>}
                 <span>{t(`treatment.slot.${activePick.slot}`)}</span>
               </motion.div>
-              {activePick.reason && (
-                <motion.p
-                  className="text-sm text-clinical-white/75 md:col-start-2"
-                  variants={childVariants}
-                >
-                  {activePick.reason}
-                </motion.p>
-              )}
-              <div className="mt-auto flex flex-wrap items-center gap-3 text-xs text-clinical-white/70 md:col-start-2">
-                {activePick.links?.musicbrainz && (
-                  <a
-                    className="underline decoration-acid-green/60 underline-offset-4"
-                    href={activePick.links.musicbrainz}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t("treatment.links.musicbrainz")}
-                  </a>
-                )}
-                {activePick.links?.youtube_search && (
-                  <a
-                    className="underline decoration-clinical-white/40 underline-offset-4"
-                    href={activePick.links.youtube_search}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t("treatment.links.youtube")}
-                  </a>
-                )}
+              <div className="mt-auto flex flex-col gap-4 md:col-start-2">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-clinical-white/70">
+                  {activePick.links?.musicbrainz && (
+                    <a
+                      className="inline-flex min-h-[44px] items-center rounded-full border border-acid-green/30 px-4 py-2 uppercase tracking-[0.2em] text-acid-green transition hover:border-acid-green/70 hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+                      href={activePick.links.musicbrainz}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t("treatment.links.musicbrainz")}
+                    </a>
+                  )}
+                  {activePick.links?.youtube_search && (
+                    <a
+                      className="inline-flex min-h-[44px] items-center rounded-full border border-clinical-white/30 px-4 py-2 uppercase tracking-[0.2em] text-clinical-white transition hover:border-clinical-white/70 hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
+                      href={activePick.links.youtube_search}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t("treatment.links.youtube")}
+                    </a>
+                  )}
+                </div>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-clinical-white/40">
+                      {t("treatment.viewer.instructions")}
+                    </p>
+                    {debugEnabled && activePick.reason && (
+                      // Diagnostic output is intentionally hidden unless ?debug=1 or localStorage tri_debug=1.
+                      <p className="text-[10px] font-mono text-clinical-white/50">
+                        Diagnostic: {activePick.reason}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={onPrev}
+                      className="rounded-full border border-panel-700/80 px-4 py-2 text-xs uppercase tracking-[0.3em] text-clinical-white/70 transition hover:border-acid-green/60 hover:text-acid-green focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+                    >
+                      {t("treatment.viewer.prev")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onNext}
+                      className="rounded-full border border-panel-700/80 px-4 py-2 text-xs uppercase tracking-[0.3em] text-clinical-white/70 transition hover:border-acid-green/60 hover:text-acid-green focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+                    >
+                      {t("treatment.viewer.next")}
+                    </button>
+                  </div>
+                </div>
               </div>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-clinical-white/40 md:col-start-2">
-                {t("treatment.viewer.instructions")}
-              </p>
             </motion.div>
           </AnimatePresence>
           <button
@@ -239,22 +275,6 @@ export function TreatmentViewerOverlay({
             className="absolute inset-y-0 right-0 z-0 w-[18%] cursor-pointer"
             aria-label={t("treatment.viewer.next")}
           />
-          <div className="pointer-events-none absolute bottom-6 right-6 z-10 flex gap-3">
-            <button
-              type="button"
-              onClick={onPrev}
-              className="pointer-events-auto rounded-full border border-panel-700/80 px-4 py-2 text-xs uppercase tracking-[0.3em] text-clinical-white/70 transition hover:border-acid-green/60 hover:text-acid-green"
-            >
-              {t("treatment.viewer.prev")}
-            </button>
-            <button
-              type="button"
-              onClick={onNext}
-              className="pointer-events-auto rounded-full border border-panel-700/80 px-4 py-2 text-xs uppercase tracking-[0.3em] text-clinical-white/70 transition hover:border-acid-green/60 hover:text-acid-green"
-            >
-              {t("treatment.viewer.next")}
-            </button>
-          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
