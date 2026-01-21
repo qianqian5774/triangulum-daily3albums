@@ -37,6 +37,8 @@ export interface IndexItem {
   date: string;
   run_id?: string;
   theme_of_day?: string;
+  slot?: number;
+  run_at?: string;
 }
 
 export interface ArchiveIndex {
@@ -129,7 +131,9 @@ export function parseArchiveIndex(payload: unknown): ArchiveIndex {
     .map((item) => ({
       date: isString(item.date) ? item.date : "",
       run_id: isString(item.run_id) ? item.run_id : undefined,
-      theme_of_day: isString(item.theme_of_day) ? item.theme_of_day : undefined
+      theme_of_day: isString(item.theme_of_day) ? item.theme_of_day : undefined,
+      slot: isNumber(item.slot) ? item.slot : undefined,
+      run_at: isString(item.run_at) ? item.run_at : undefined
     }))
     .filter((item) => item.date);
   return {

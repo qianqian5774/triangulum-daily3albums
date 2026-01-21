@@ -125,7 +125,11 @@ def main() -> int:
     if not isinstance(archive_date, str) or not archive_date.strip():
         raise SelfCheckError("today.json missing date for archive lookup")
 
-    archive_path = out_dir / "data" / "archive" / f"{archive_date}.json"
+    run_id = today_payload.get("run_id")
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise SelfCheckError("today.json missing run_id for archive lookup")
+
+    archive_path = out_dir / "data" / "archive" / archive_date / f"{run_id}.json"
     _ensure_file(archive_path)
     archive_payload = _read_json(archive_path)
     _validate_today(archive_payload, archive_path)

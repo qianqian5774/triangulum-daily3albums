@@ -1,7 +1,7 @@
 ﻿schema_version: "1.0"
 output_schema_version: "1.0"
 
-timezone: "Asia/Taipei"
+timezone: "Asia/Shanghai"
 random_seed_strategy: "date"
 
 history:
@@ -44,3 +44,17 @@ themes:
     - name: "leftfield club"
       seed_tags: ["uk bass", "leftfield", "electronic"]
       adjacent_tags: ["breakbeat", "idm", "techno"]
+
+tag_pool:
+  - ambient
+  - drone
+  - electronic
+  - experimental
+  - fourth world
+  - idm
+  - jazz
+  - minimalism
+  - new age
+  - post-rock
+  - soundscape
+  - techno

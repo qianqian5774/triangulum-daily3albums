@@ -73,7 +73,7 @@ def write_daily_artifacts(
 
     date_key = issue["date"]
     today_path = data_dir / "today.json"
-    archive_path = archive_dir / f"{date_key}.json"
+    archive_path = archive_dir / date_key / f"{issue['run_id']}.json"
     index_path = data_dir / "index.json"
     quarantine_path = quarantine_dir / f"{date_key}.json"
 
@@ -97,9 +97,24 @@ def write_daily_artifacts(
         index_obj = {"output_schema_version": issue["output_schema_version"], "items": []}
 
     items = index_obj.get("items") or []
-    items = [x for x in items if x.get("date") != date_key]
-    items.append({"date": date_key, "run_id": issue["run_id"], "theme_of_day": issue["theme_of_day"]})
-    items.sort(key=lambda x: x["date"], reverse=True)
+    items = [x for x in items if x.get("run_id") != issue["run_id"]]
+    items.append(
+        {
+            "date": date_key,
+            "run_id": issue["run_id"],
+            "theme_of_day": issue["theme_of_day"],
+            "slot": issue.get("slot"),
+            "run_at": issue.get("run_at"),
+        }
+    )
+
+    def sort_key(item: dict[str, Any]) -> str:
+        run_at = item.get("run_at")
+        if isinstance(run_at, str):
+            return run_at
+        return f"{item.get('date','')}-{item.get('run_id','')}"
+
+    items.sort(key=sort_key, reverse=True)
     index_obj["items"] = items
 
     atomic_write_json(index_path, index_obj)

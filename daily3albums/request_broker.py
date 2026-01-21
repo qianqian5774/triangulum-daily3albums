@@ -55,7 +55,7 @@ def _get_adapter_logger(repo_root: Path) -> logging.Logger:
         return logger
     logs_dir = repo_root / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
-    log_path = logs_dir / "adapter_requests.log"
+    log_path = logs_dir / "adapters.log"
     log_path.touch(exist_ok=True)
     handler = logging.FileHandler(log_path, encoding="utf-8")
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
@@ -138,16 +138,35 @@ class RequestBroker:
         self,
         adapter_name: str | None,
         action: str,
-        status: str,
         url: str,
+        status: str | None = None,
+        cache: str | None = None,
+        sleep_s: float | None = None,
+        error: str | None = None,
         details: str | None = None,
     ) -> None:
-        if not adapter_name:
-            return
-        message = f"Adapter={adapter_name} Action={action} Status={status} Url={_redact_url(url)}"
-        if details:
-            message = f"{message} Details={details}"
-        self.adapter_logger.info(message)
+        host = ""
+        try:
+            host = urlparse(url).netloc
+        except Exception:
+            host = ""
+        fields = [
+            f"adapter={adapter_name or 'unknown'}",
+            f"action={action}",
+            f"host={host}",
+            f"url={_redact_url(url)}",
+        ]
+        if status is not None:
+            fields.append(f"status={status}")
+        if cache is not None:
+            fields.append(f"cache={cache}")
+        if sleep_s is not None:
+            fields.append(f"sleep_s={sleep_s:.3f}")
+        if error is not None:
+            fields.append(f"error={error}")
+        if details is not None:
+            fields.append(f"details={details}")
+        self.adapter_logger.info(" ".join(fields))
 
     def _fixture_bytes(self, url: str) -> bytes | None:
         fixtures_dir = os.environ.get("DAILY3ALBUMS_FIXTURES_DIR")
@@ -202,7 +221,7 @@ class RequestBroker:
             retry=rp,
         )
 
-    def _rate_limit(self, host: str) -> None:
+    def _rate_limit(self, host: str, adapter_name: str | None, url: str) -> None:
         pol = self._host_policy(host)
         rps = max(pol.rate_limit_rps, 0.01)
         min_interval = 1.0 / rps
@@ -212,6 +231,12 @@ class RequestBroker:
         wait = (last + min_interval) - now
         if wait > 0:
             self._log(f"RATE_LIMIT host={host} sleep={wait:.3f}s")
+            self._log_adapter_activity(
+                adapter_name=adapter_name,
+                action="rate_limit",
+                url=url,
+                sleep_s=wait,
+            )
             time.sleep(wait)
         self._host_last_ts[host] = time.monotonic()
 
@@ -262,7 +287,13 @@ class RequestBroker:
     ) -> bytes:
         fixture_body = self._fixture_bytes(url)
         if fixture_body is not None:
-            self._log_adapter_activity(adapter_name, "GET", "fixture-hit", url)
+            self._log_adapter_activity(
+                adapter_name=adapter_name,
+                action="GET",
+                url=url,
+                status="fixture",
+                cache="hit",
+            )
             return fixture_body
 
         parsed = urlparse(url)
@@ -274,16 +305,34 @@ class RequestBroker:
             status = int(cached.get("status", 0))
             if 200 <= status <= 299:
                 self._log(f"CACHE HIT url={_redact_url(url)}")
-                self._log_adapter_activity(adapter_name, "GET", f"cache-hit:{status}", url)
+                self._log_adapter_activity(
+                    adapter_name=adapter_name,
+                    action="GET",
+                    url=url,
+                    status=str(status),
+                    cache="hit",
+                )
                 return cached["body"]
 
             # 负缓存（非 2xx）保持与首次请求一致：直接抛异常
             self._log(f"CACHE HIT NEG status={status} url={_redact_url(url)}")
-            self._log_adapter_activity(adapter_name, "GET", f"cache-hit:{status}", url)
+            self._log_adapter_activity(
+                adapter_name=adapter_name,
+                action="GET",
+                url=url,
+                status=str(status),
+                cache="hit",
+                error=f"HTTP_{status}",
+            )
             raise RuntimeError(f"HTTP {status} for {_redact_url(url)} (cached)")
 
         self._log(f"CACHE MISS url={_redact_url(url)}")
-        self._log_adapter_activity(adapter_name, "GET", "cache-miss", url)
+        self._log_adapter_activity(
+            adapter_name=adapter_name,
+            action="GET",
+            url=url,
+            cache="miss",
+        )
 
         pol = self._host_policy(host)
         ttl_ok = int(ttl_override_s) if ttl_override_s is not None else pol.ttl_default_s
@@ -291,7 +340,7 @@ class RequestBroker:
         attempt = 0
         while True:
             attempt += 1
-            self._rate_limit(host)
+            self._rate_limit(host, adapter_name=adapter_name, url=url)
 
             try:
                 resp = self.client.get(url, headers=headers)
@@ -303,6 +352,13 @@ class RequestBroker:
                         if pol.retry.jitter:
                             delay = int(delay * (0.6 + 0.8 * random.random()))
                         self._log(f"RETRY status={status} attempt={attempt} delay_ms={delay} url={_redact_url(url)}")
+                        self._log_adapter_activity(
+                            adapter_name=adapter_name,
+                            action="retry",
+                            url=url,
+                            status=str(status),
+                            sleep_s=delay / 1000.0,
+                        )
                         time.sleep(delay / 1000.0)
                         continue
 
@@ -311,11 +367,24 @@ class RequestBroker:
 
                 if 200 <= status <= 299:
                     self._cache_put(key, url, status, hdrs, body, ttl_ok)
-                    self._log_adapter_activity(adapter_name, "GET", str(status), url)
+                    self._log_adapter_activity(
+                        adapter_name=adapter_name,
+                        action="GET",
+                        url=url,
+                        status=str(status),
+                        cache="write",
+                    )
                     return body
 
                 self._cache_put(key, url, status, hdrs, body, pol.negative_cache_ttl_s)
-                self._log_adapter_activity(adapter_name, "GET", str(status), url)
+                self._log_adapter_activity(
+                    adapter_name=adapter_name,
+                    action="GET",
+                    url=url,
+                    status=str(status),
+                    cache="write-negative",
+                    error=f"HTTP_{status}",
+                )
                 raise RuntimeError(f"HTTP {status} for {_redact_url(url)}")
 
             except (httpx.TimeoutException, httpx.TransportError) as e:
@@ -324,8 +393,21 @@ class RequestBroker:
                     if pol.retry.jitter:
                         delay = int(delay * (0.6 + 0.8 * random.random()))
                     self._log(f"RETRY error={type(e).__name__} attempt={attempt} delay_ms={delay} url={_redact_url(url)}")
+                    self._log_adapter_activity(
+                        adapter_name=adapter_name,
+                        action="retry",
+                        url=url,
+                        error=type(e).__name__,
+                        sleep_s=delay / 1000.0,
+                    )
                     time.sleep(delay / 1000.0)
                     continue
+                self._log_adapter_activity(
+                    adapter_name=adapter_name,
+                    action="error",
+                    url=url,
+                    error=type(e).__name__,
+                )
                 raise
 
     def get_json(

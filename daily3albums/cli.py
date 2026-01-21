@@ -1,8 +1,12 @@
 ﻿from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import logging
+import math
 import os
+import random
 import shutil
 import subprocess
 import uuid
@@ -180,6 +184,22 @@ def cmd_dry_run(
 # helpers (build)
 # ----------------------------
 
+_DEFAULT_TAG_POOL = [
+    "ambient",
+    "drone",
+    "electronic",
+    "experimental",
+    "fourth world",
+    "idm",
+    "jazz",
+    "minimalism",
+    "new age",
+    "post-rock",
+    "soundscape",
+    "techno",
+]
+
+
 def _now_date_in_tz(tz_name: str) -> str:
     try:
         from zoneinfo import ZoneInfo
@@ -187,6 +207,236 @@ def _now_date_in_tz(tz_name: str) -> str:
     except Exception:
         dt = datetime.now()
     return dt.date().isoformat()
+
+
+def _beijing_now() -> datetime:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("Asia/Shanghai"))
+    except Exception:
+        return datetime.now()
+
+
+def _beijing_slot(dt: datetime) -> int:
+    hour = dt.hour
+    if hour < 8:
+        return 0
+    if hour < 16:
+        return 1
+    return 2
+
+
+def _hash_index(seed: str, size: int) -> int:
+    if size <= 0:
+        return 0
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    return int(digest, 16) % size
+
+
+def _get_tag_pool(cfg: Any) -> list[str]:
+    pool = cfg.raw.get("tag_pool") if hasattr(cfg, "raw") else None
+    if isinstance(pool, list):
+        cleaned = [str(x).strip() for x in pool if str(x).strip()]
+        if cleaned:
+            return cleaned
+    return list(_DEFAULT_TAG_POOL)
+
+
+def _get_build_logger(repo_root: Path) -> logging.Logger:
+    logger = logging.getLogger("build")
+    if logger.handlers:
+        return logger
+    logs_dir = repo_root / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / "build.log"
+    log_path.touch(exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    return logger
+
+
+def _select_tag(tag_arg: str | None, cfg: Any, beijing_now: datetime, log_line: callable) -> tuple[str, int, str, list[str]]:
+    raw = (tag_arg or "").strip()
+    slot = _beijing_slot(beijing_now)
+    if raw and raw.lower() not in {"auto", "all"}:
+        log_line(f"tag_mode=manual beijing_now={beijing_now.isoformat()} slot={slot} selected_tag={raw}")
+        return raw, slot, "", []
+    pool = _get_tag_pool(cfg)
+    if not pool:
+        raise RuntimeError("TAG_POOL is empty; configure config.yaml tag_pool.")
+    seed = f"{beijing_now.date().isoformat()}:{slot}"
+    selected = pool[_hash_index(seed, len(pool))]
+    log_line(
+        "tag_mode=auto "
+        f"beijing_now={beijing_now.isoformat()} slot={slot} seed={seed} selected_tag={selected}"
+    )
+    return selected, slot, seed, pool
+
+
+def _load_recent_stable_ids(out_public_dir: Path, max_runs: int) -> list[str]:
+    index_path = out_public_dir / "data" / "index.json"
+    if not index_path.exists():
+        return []
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return []
+
+    def sort_key(item: dict[str, Any]) -> str:
+        run_at = item.get("run_at")
+        if isinstance(run_at, str):
+            return run_at
+        return f"{item.get('date','')}-{item.get('run_id','')}"
+
+    items_sorted = sorted(
+        [x for x in items if isinstance(x, dict)],
+        key=sort_key,
+        reverse=True,
+    )
+    recent_ids: list[str] = []
+    runs_checked = 0
+    for item in items_sorted:
+        if runs_checked >= max_runs:
+            break
+        date = item.get("date")
+        run_id = item.get("run_id")
+        if not isinstance(date, str) or not date:
+            continue
+        archive_path = (
+            out_public_dir / "data" / "archive" / date / f"{run_id}.json"
+            if isinstance(run_id, str) and run_id
+            else out_public_dir / "data" / "archive" / f"{date}.json"
+        )
+        if not archive_path.exists():
+            continue
+        try:
+            issue = json.loads(archive_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        picks = issue.get("picks") if isinstance(issue, dict) else None
+        if not isinstance(picks, list):
+            continue
+        for pick in picks:
+            if isinstance(pick, dict) and isinstance(pick.get("rg_mbid"), str) and pick["rg_mbid"]:
+                recent_ids.append(pick["rg_mbid"])
+        runs_checked += 1
+    return recent_ids
+
+
+def _softmax_weights(scores: list[float], temperature: float = 10.0) -> list[float]:
+    if not scores:
+        return []
+    max_score = max(scores)
+    exp_scores = [math.exp((s - max_score) / temperature) for s in scores]
+    total = sum(exp_scores)
+    if total <= 0:
+        return [1.0 / len(scores)] * len(scores)
+    return [s / total for s in exp_scores]
+
+
+def _weighted_sample(
+    items: list[Any],
+    count: int,
+    rng: random.Random,
+    recent_ids: set[str],
+    cooling_penalty: float | None,
+) -> tuple[list[Any], int]:
+    unique_items: list[tuple[Any, float, bool]] = []
+    seen_rg: set[str] = set()
+    cooling_hits = 0
+    for item in items:
+        rg_id = getattr(getattr(item, "n", None), "mb_release_group_id", "") or ""
+        if not rg_id or rg_id in seen_rg:
+            continue
+        seen_rg.add(rg_id)
+        is_recent = rg_id in recent_ids
+        if is_recent:
+            cooling_hits += 1
+        score = float(getattr(item, "score", 0.0))
+        unique_items.append((item, score, is_recent))
+
+    scores = [s for _, s, _ in unique_items]
+    weights = _softmax_weights(scores)
+
+    if cooling_penalty is not None:
+        adjusted = []
+        for (item, score, is_recent), weight in zip(unique_items, weights):
+            if is_recent:
+                weight *= max(cooling_penalty, 0.0)
+            adjusted.append((item, weight))
+    else:
+        adjusted = [(item, weight) for (item, _score, _), weight in zip(unique_items, weights)]
+
+    picks: list[Any] = []
+    candidates = adjusted[:]
+    while candidates and len(picks) < count:
+        total = sum(weight for _, weight in candidates)
+        if total <= 0:
+            break
+        r = rng.random() * total
+        upto = 0.0
+        chosen_idx = None
+        for idx, (_item, weight) in enumerate(candidates):
+            upto += weight
+            if upto >= r:
+                chosen_idx = idx
+                break
+        if chosen_idx is None:
+            break
+        item, _weight = candidates.pop(chosen_idx)
+        picks.append(item)
+    return picks, cooling_hits
+
+
+def _threshold_steps(min_confidence: float, ambiguity_gap: float) -> list[tuple[float, float]]:
+    steps: list[tuple[float, float]] = []
+    min_steps = [0.0, -0.05, -0.10, -0.15]
+    gap_steps = [0.0, -0.02, -0.04, -0.06]
+    for d_conf, d_gap in zip(min_steps, gap_steps):
+        new_conf = max(0.50, min_confidence + d_conf)
+        new_gap = max(0.0, ambiguity_gap + d_gap)
+        steps.append((round(new_conf, 3), round(new_gap, 3)))
+    seen = set()
+    unique_steps = []
+    for conf, gap in steps:
+        if (conf, gap) in seen:
+            continue
+        seen.add((conf, gap))
+        unique_steps.append((conf, gap))
+    return unique_steps
+
+
+def _assign_slots(items: list[Any]) -> dict[str, Any]:
+    if not items:
+        return {"Headliner": None, "Lineage": None, "DeepCut": None}
+
+    headliner = items[0]
+
+    def year_key(s: Any) -> int:
+        n = getattr(s, "n", None)
+        if not n or not getattr(n, "first_release_date", None):
+            return 999999
+        y = str(n.first_release_date)[:4]
+        return int(y) if y.isdigit() else 999999
+
+    lineage = min(items, key=year_key)
+
+    deepcut = None
+    for s in items:
+        if s is headliner or s is lineage:
+            continue
+        deepcut = s
+        break
+
+    return {"Headliner": headliner, "Lineage": lineage, "DeepCut": deepcut}
 
 
 def _safe_year(first_release_date: str | None) -> int | None:
@@ -431,6 +681,12 @@ def cmd_build(
 ) -> int:
     env = load_env(repo_root)
     cfg = load_config(repo_root)
+    build_logger = _get_build_logger(repo_root)
+
+    def log_line(msg: str) -> None:
+        if verbose:
+            print(msg)
+        build_logger.info(msg)
 
     logger = print if verbose else None
     broker = RequestBroker(repo_root=repo_root, endpoint_policies=cfg.policies, logger=logger)
@@ -444,69 +700,103 @@ def cmd_build(
     out_public_dir = (repo_root / out_dir).resolve()
 
     try:
-        out = run_dry_run(
-            broker,
-            env,
-            tag=tag,
-            n=n,
-            topk=topk,
-            split_slots=split_slots,
-            mb_search_limit=mb_search_limit,
-            min_confidence=min_confidence,
-            ambiguity_gap=ambiguity_gap,
-            mb_debug=mb_debug,
-            quarantine_out=quarantine_out,
-        )
+        beijing_now = _beijing_now()
+        selected_tag, slot, _seed, _pool = _select_tag(tag, cfg, beijing_now, log_line)
+        tag = selected_tag
 
-        # Assemble 3 picks
-        picks_scored: list[Any] = []
-        if split_slots:
-            slots = out.get("slots") or {}
-            for name in ("Headliner", "Lineage", "DeepCut"):
-                s = slots.get(name)
-                if s is None or s.n is None:
-                    continue
-                picks_scored.append((name, s))
-        else:
-            for s in out.get("top") or []:
-                if getattr(s, "n", None) is None:
-                    continue
-                picks_scored.append(("Pick", s))
-                if len(picks_scored) >= 3:
+        date_key = (date_override or "").strip() or beijing_now.date().isoformat()
+        run_id = f"{date_key}_slot{slot}_{uuid.uuid4().hex[:6]}"
+        theme_of_day = (theme or "").strip() or tag
+
+        recent_ids = _load_recent_stable_ids(out_public_dir, max_runs=9)
+        recent_set = set(recent_ids)
+        rng = random.Random(run_id)
+
+        picked: list[Any] = []
+        used_min_conf = min_confidence
+        used_gap = ambiguity_gap
+        candidate_count = 0
+        cooling_hits = 0
+        final_rg_ids: list[str] = []
+
+        for conf, gap in _threshold_steps(min_confidence, ambiguity_gap):
+            out = run_dry_run(
+                broker,
+                env,
+                tag=tag,
+                n=n,
+                topk=topk,
+                split_slots=split_slots,
+                mb_search_limit=mb_search_limit,
+                min_confidence=conf,
+                ambiguity_gap=gap,
+                mb_debug=mb_debug,
+                quarantine_out=None,
+            )
+            candidates = [s for s in (out.get("top") or []) if getattr(s, "n", None) is not None]
+            candidate_count = len(candidates)
+            for cooling_penalty in (0.0, 0.2, None):
+                picked, cooling_hits = _weighted_sample(
+                    candidates,
+                    count=3,
+                    rng=rng,
+                    recent_ids=recent_set,
+                    cooling_penalty=cooling_penalty,
+                )
+                final_rg_ids = [
+                    getattr(getattr(s, "n", None), "mb_release_group_id", "") for s in picked
+                ]
+                log_line(
+                    "pick_attempt "
+                    f"min_confidence={conf:.2f} ambiguity_gap={gap:.2f} "
+                    f"candidate_count={candidate_count} topk={topk} "
+                    f"cooling_penalty={'off' if cooling_penalty is None else cooling_penalty} "
+                    f"cooling_hits={cooling_hits} picks={final_rg_ids}"
+                )
+                if len(picked) >= 3:
+                    used_min_conf = conf
+                    used_gap = gap
                     break
+            if len(picked) >= 3:
+                break
 
-        if len(picks_scored) < 3:
-            have_rg = {getattr(s.n, "mb_release_group_id", "") for _, s in picks_scored if getattr(s, "n", None)}
-            for s in out.get("top") or []:
-                if getattr(s, "n", None) is None:
-                    continue
-                rg = getattr(s.n, "mb_release_group_id", "")
-                if rg and rg in have_rg:
-                    continue
-                picks_scored.append(("Supplement", s))
-                have_rg.add(rg)
-                if len(picks_scored) >= 3:
-                    break
-
-        if len(picks_scored) < 3:
-            print("BUILD ERROR: cannot assemble 3 valid picks (normalized items are less than 3).")
+        if len(picked) < 3:
+            print("BUILD ERROR: cannot assemble 3 valid picks after relaxing thresholds.")
             return 2
 
-        slot_names = ["Headliner", "Lineage", "DeepCut"]
-        scored_items = [s for _, s in picks_scored[:3]]
+        if quarantine_out:
+            run_dry_run(
+                broker,
+                env,
+                tag=tag,
+                n=n,
+                topk=topk,
+                split_slots=split_slots,
+                mb_search_limit=mb_search_limit,
+                min_confidence=used_min_conf,
+                ambiguity_gap=used_gap,
+                mb_debug=mb_debug,
+                quarantine_out=quarantine_out,
+            )
 
-        date_key = (date_override or "").strip() or _now_date_in_tz(getattr(cfg, "timezone", "Asia/Shanghai"))
-        run_id = f"{date_key}_{uuid.uuid4().hex[:6]}"
-        theme_of_day = (theme or "").strip() or tag
+        slot_names = ["Headliner", "Lineage", "DeepCut"]
+        scored_items = sorted(picked, key=lambda s: float(getattr(s, "score", 0.0)), reverse=True)
+        if split_slots:
+            slots = _assign_slots(scored_items)
+            scored_items = [slots.get(name) for name in slot_names if slots.get(name) is not None]
+        else:
+            scored_items = scored_items[:3]
 
         issue = {
             "output_schema_version": "1.0",
             "date": date_key,
             "run_id": run_id,
             "theme_of_day": theme_of_day,
+            "slot": slot,
+            "run_at": beijing_now.isoformat(timespec="seconds"),
             "lineage_source": None,
             "picks": [],
-            "constraints": {"ambiguity_gap": ambiguity_gap, "min_confidence": min_confidence},
+            "constraints": {"ambiguity_gap": used_gap, "min_confidence": used_min_conf},
             "generation": {
                 "started_at": datetime.now().isoformat(timespec="seconds"),
                 "versions": {"daily3albums": getattr(cfg, "version", None)},
@@ -597,6 +887,11 @@ def cmd_build(
         print(f"out={out_public_dir}")
         for k, v in paths.items():
             print(f"{k}={v}")
+        log_line(
+            "build_summary "
+            f"slot={slot} selected_tag={tag} run_id={run_id} "
+            f"archive_path={paths.get('archive')} index_path={paths.get('index')}"
+        )
 
         return 0
     finally:
@@ -649,7 +944,7 @@ def main() -> None:
 
     # build
     p_build = sub.add_parser("build", help="Build static artifacts: run pipeline -> write JSON -> copy web/")
-    p_build.add_argument("--tag", required=True)
+    p_build.add_argument("--tag", default="auto")
     p_build.add_argument("--n", type=int, default=30)
     p_build.add_argument("--topk", type=int, default=10)
     p_build.add_argument("--verbose", action="store_true")

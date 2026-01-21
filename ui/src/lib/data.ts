@@ -19,7 +19,8 @@ export async function loadArchiveIndex(): Promise<ArchiveIndex> {
   return parseArchiveIndex(payload);
 }
 
-export async function loadArchiveDay(date: string): Promise<TodayIssue> {
-  const payload = await fetchJson(`data/archive/${date}.json`);
+export async function loadArchiveDay(date: string, runId?: string): Promise<TodayIssue> {
+  const path = runId ? `data/archive/${date}/${runId}.json` : `data/archive/${date}.json`;
+  const payload = await fetchJson(path);
   return parseTodayIssue(payload);
 }
