@@ -15,12 +15,17 @@ export function useScrambleText(text: string) {
       return;
     }
 
-    let frame = 0;
-    const totalFrames = Math.max(12, text.length * 2);
+    const totalDurationMs = 700;
+    let frameId = 0;
+    let start: number | null = null;
 
-    const interval = window.setInterval(() => {
-      frame += 1;
-      const revealCount = Math.floor((frame / totalFrames) * text.length);
+    const tick = (timestamp: number) => {
+      if (start === null) {
+        start = timestamp;
+      }
+      const elapsed = timestamp - start;
+      const progress = Math.min(1, elapsed / totalDurationMs);
+      const revealCount = Math.floor(progress * text.length);
       const scrambled = text
         .split("")
         .map((char, index) => (index < revealCount ? char : characters[Math.floor(Math.random() * characters.length)]))
@@ -28,13 +33,16 @@ export function useScrambleText(text: string) {
 
       setDisplayText(scrambled);
 
-      if (frame >= totalFrames) {
-        window.clearInterval(interval);
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      } else {
         setDisplayText(text);
       }
-    }, 30);
+    };
 
-    return () => window.clearInterval(interval);
+    frameId = window.requestAnimationFrame(tick);
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [characters, prefersReducedMotion, text]);
 
   return displayText;

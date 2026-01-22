@@ -32,6 +32,7 @@ class Normalized:
     primary_type: str
     confidence: float
     source: str
+    artist_mbids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -135,6 +136,7 @@ def _normalize_candidate(
                     primary_type=rg.primary_type or "",
                     confidence=1.0,
                     source=src,
+                    artist_mbids=list(rg.artist_mbids or []),
                 ),
                 dbg,
             )
@@ -186,6 +188,7 @@ def _normalize_candidate(
             primary_type=rg.primary_type or "",
             confidence=float(match.confidence),
             source=match.method,
+            artist_mbids=list(rg.artist_mbids or []),
         ),
         dbg,
     )

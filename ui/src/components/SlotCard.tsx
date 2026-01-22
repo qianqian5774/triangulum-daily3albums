@@ -18,6 +18,8 @@ interface SlotCardProps {
   dataTestId?: string;
   className?: string;
   cacheKey?: string;
+  imageLoading?: "eager" | "lazy";
+  fetchPriority?: "high" | "auto" | "low";
 }
 
 function resolveCover(url: string, cacheKey?: string) {
@@ -26,13 +28,22 @@ function resolveCover(url: string, cacheKey?: string) {
     return null;
   }
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return appendCacheBuster(trimmed, cacheKey);
+    return null;
   }
   const safe = trimmed.replace(/^\//, "");
   return appendCacheBuster(resolvePublicPath(safe), cacheKey);
 }
 
-export function SlotCard({ pick, onSelect, layoutId, dataTestId, className, cacheKey }: SlotCardProps) {
+export function SlotCard({
+  pick,
+  onSelect,
+  layoutId,
+  dataTestId,
+  className,
+  cacheKey,
+  imageLoading = "lazy",
+  fetchPriority = "auto"
+}: SlotCardProps) {
   const cardRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const coverUrl = resolveCover(pick.cover.optimized_cover_url, cacheKey);
@@ -89,7 +100,7 @@ export function SlotCard({ pick, onSelect, layoutId, dataTestId, className, cach
       ref={cardRef}
       layoutId={layoutId}
       data-testid={dataTestId}
-      onClick={onSelect}
+      onPointerUp={onSelect}
       onKeyDown={handleKeyDown}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -120,7 +131,8 @@ export function SlotCard({ pick, onSelect, layoutId, dataTestId, className, cach
             src={coverUrl}
             alt={`${pick.title} cover`}
             className="h-full w-full object-cover"
-            loading="lazy"
+            loading={imageLoading}
+            fetchPriority={fetchPriority}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-panel-900 via-panel-700 to-panel-900">
@@ -139,12 +151,14 @@ export function SlotCard({ pick, onSelect, layoutId, dataTestId, className, cach
       </div>
       <div className="flex flex-1 flex-col gap-3 px-5 py-4">
         <div>
-          <h3 className="glitch-text text-lg font-semibold uppercase tracking-tightish">{pick.title}</h3>
-          <p className="text-sm text-clinical-white/80">
+          <h3 className="glitch-text text-lg font-semibold uppercase tracking-tightish text-clinical-white">
+            {pick.title}
+          </h3>
+          <p className="text-sm text-clinical-white/60">
             {pick.artist_credit || t("treatment.cover.unknownArtist")}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-clinical-white/60">
+        <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-clinical-white/50">
           {pick.first_release_year && <span>{pick.first_release_year}</span>}
           {pick.tags?.[0]?.name && <span>#{pick.tags[0].name}</span>}
         </div>

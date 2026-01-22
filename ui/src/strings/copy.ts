@@ -32,7 +32,13 @@ export const copy = {
     intro:
       "Diagnostic pipeline engaged. Three capsules are compiled in sequence for immediate intake.",
     loading: "Synthesizing compounds…",
-    themePrefix: "Theme"
+    themePrefix: "Theme",
+    timeline: {
+      title: "Today Timeline",
+      thumb: "Slot",
+      nowLabel: "Now"
+    },
+    returnToNow: "Return to now"
   },
   archive: {
     label: "Patient Records",

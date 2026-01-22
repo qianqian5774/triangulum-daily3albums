@@ -58,7 +58,7 @@ function resolveCover(url: string, cacheKey?: string) {
     return null;
   }
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return appendCacheBuster(trimmed, cacheKey);
+    return null;
   }
   const safe = trimmed.replace(/^\//, "");
   return appendCacheBuster(resolvePublicPath(safe), cacheKey);
@@ -82,6 +82,7 @@ export function TodayRoute() {
   const [issue, setIssue] = useState<TodayIssue | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
   const [direction, setDirection] = useState<-1 | 1>(1);
   const [glitchActive, setGlitchActive] = useState(false);
   const prefersReducedMotion = useReducedMotion();
@@ -144,15 +145,49 @@ export function TodayRoute() {
     };
   }, [loadIssue]);
 
+  const slots = useMemo(() => {
+    if (!issue) {
+      return [];
+    }
+    if (issue.slots?.length) {
+      return issue.slots;
+    }
+    return [
+      {
+        slot_id: issue.now_slot_id ?? 0,
+        label: t("today.timeline.nowLabel"),
+        theme: issue.theme_of_day,
+        picks: issue.picks
+      }
+    ];
+  }, [issue]);
+
+  useEffect(() => {
+    if (!issue) {
+      return;
+    }
+    const nextSlotId = issue.now_slot_id ?? slots[0]?.slot_id ?? 0;
+    setSelectedSlotId(nextSlotId);
+  }, [issue, slots]);
+
+  const activeSlot = useMemo(() => {
+    if (!slots.length) {
+      return null;
+    }
+    const match = slots.find((slot) => slot.slot_id === selectedSlotId);
+    return match ?? slots[0];
+  }, [slots, selectedSlotId]);
+
   const picks = useMemo(() => {
     if (!issue) {
       return [];
     }
-    return issue.picks.map((pick) => ({
+    const activePicks = activeSlot?.picks ?? issue.picks;
+    return activePicks.map((pick) => ({
       ...pick,
       stableId: deriveStableId(pick as { title: string; artist_credit: string; slot: string; id?: string })
     }));
-  }, [issue]);
+  }, [activeSlot, issue]);
 
   const headerText = useMemo(() => {
     if (!issue) {
@@ -160,6 +195,12 @@ export function TodayRoute() {
     }
     return `${issue.date} · ${t("today.themePrefix")} ${issue.theme_of_day}`;
   }, [issue]);
+
+  const showReturnToNow =
+    issue?.now_slot_id !== null &&
+    issue?.now_slot_id !== undefined &&
+    selectedSlotId !== null &&
+    selectedSlotId !== issue.now_slot_id;
 
   const activeIndex = useMemo(() => {
     if (!focusedId) {
@@ -258,6 +299,25 @@ export function TodayRoute() {
     window.requestAnimationFrame(() => lastActiveRef.current?.focus());
   };
 
+  useEffect(() => {
+    if (!picks.length) {
+      return;
+    }
+    const warm = picks.slice(0, 3);
+    warm.forEach((pick) => {
+      const coverVersionKey = pick.cover.cover_version ?? coverCacheKey;
+      const coverUrl = resolveCover(pick.cover.optimized_cover_url, coverVersionKey);
+      if (!coverUrl) {
+        return;
+      }
+      const image = new Image();
+      image.src = coverUrl;
+      if (image.decode) {
+        image.decode().catch(() => undefined);
+      }
+    });
+  }, [coverCacheKey, picks]);
+
   const handleNext = () => {
     if (!picks.length) return;
     const nextIndex = (activeIndex + 1) % picks.length;
@@ -280,33 +340,92 @@ export function TodayRoute() {
 
   return (
     <section className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/60">{t("today.label")}</p>
-        <h1 className="text-3xl font-semibold uppercase tracking-tightish">{headerText}</h1>
-        <p className="font-mono text-sm text-clinical-white/60">{t("today.intro")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/60">{t("today.label")}</p>
+          <h1 className="text-3xl font-semibold uppercase tracking-tightish">{headerText}</h1>
+          <p className="font-mono text-sm text-clinical-white/60">{t("today.intro")}</p>
+        </div>
+        {showReturnToNow && (
+          <button
+            type="button"
+            onClick={() => setSelectedSlotId(issue?.now_slot_id ?? null)}
+            className="rounded-full border border-acid-green/50 px-4 py-2 text-xs uppercase tracking-[0.3em] text-acid-green transition hover:border-acid-green hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+          >
+            {t("today.returnToNow")}
+          </button>
+        )}
       </div>
 
       {issue ? (
         <LayoutGroup>
-          <motion.div
-            className={`grid gap-6 md:grid-cols-3 ${FLAGS.dominantViewport ? "md:h-[78vh]" : ""}`}
-            variants={prefersReducedMotion ? undefined : containerVariants}
-            initial={prefersReducedMotion ? undefined : "hidden"}
-            animate={prefersReducedMotion ? undefined : "show"}
-          >
-            {picks.map((pick, index) => (
-              <motion.div key={pick.stableId} variants={prefersReducedMotion ? undefined : cardVariants}>
-                <SlotCard
-                  pick={pick}
-                  layoutId={FLAGS.viewerOverlay ? `card-${pick.stableId}` : undefined}
-                  onSelect={FLAGS.viewerOverlay ? (event) => handleOpen(pick.stableId, event) : undefined}
-                  dataTestId={`album-card-${index}`}
-                  className="h-full"
-                  cacheKey={pick.cover.cover_version ?? coverCacheKey}
-                />
-              </motion.div>
-            ))}
-          </motion.div>
+          <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
+            <aside className="hud-border rounded-card bg-panel-900/70 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-clinical-white/60">
+                {t("today.timeline.title")}
+              </p>
+              <div className="mt-4 flex flex-col gap-3">
+                {slots.map((slot) => {
+                  const isActive = slot.slot_id === (activeSlot?.slot_id ?? slot.slot_id);
+                  const thumbPick = slot.picks[0];
+                  const thumbUrl = thumbPick
+                    ? resolveCover(thumbPick.cover.optimized_cover_url, thumbPick.cover.cover_version ?? coverCacheKey)
+                    : null;
+                  return (
+                    <button
+                      key={slot.slot_id}
+                      type="button"
+                      onClick={() => setSelectedSlotId(slot.slot_id)}
+                      className={`flex w-full items-center gap-3 rounded-card border px-3 py-3 text-left transition ${
+                        isActive
+                          ? "border-acid-green/70 bg-panel-800/70 text-acid-green"
+                          : "border-panel-700/70 text-clinical-white/70 hover:border-clinical-white/60"
+                      }`}
+                    >
+                      <div className="h-12 w-12 overflow-hidden rounded-md border border-panel-700/60 bg-panel-800">
+                        {thumbUrl ? (
+                          <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[8px] uppercase tracking-[0.3em] text-clinical-white/30">
+                            {t("today.timeline.thumb")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1">
+                        <span className="text-[11px] uppercase tracking-[0.3em]">
+                          {slot.label}
+                        </span>
+                        <span className="text-xs uppercase tracking-[0.2em] text-clinical-white/50">
+                          {slot.theme}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+            <motion.div
+              className={`grid gap-6 md:grid-cols-3 ${FLAGS.dominantViewport ? "md:h-[78vh]" : ""}`}
+              variants={prefersReducedMotion ? undefined : containerVariants}
+              initial={prefersReducedMotion ? undefined : "hidden"}
+              animate={prefersReducedMotion ? undefined : "show"}
+            >
+              {picks.map((pick, index) => (
+                <motion.div key={pick.stableId} variants={prefersReducedMotion ? undefined : cardVariants}>
+                  <SlotCard
+                    pick={pick}
+                    layoutId={FLAGS.viewerOverlay ? `card-${pick.stableId}` : undefined}
+                    onSelect={FLAGS.viewerOverlay ? (event) => handleOpen(pick.stableId, event) : undefined}
+                    dataTestId={`album-card-${index}`}
+                    className="h-full"
+                    cacheKey={pick.cover.cover_version ?? coverCacheKey}
+                    imageLoading={index < 3 ? "eager" : "lazy"}
+                    fetchPriority={index < 3 ? "high" : "auto"}
+                  />
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
 
           <AnimatePresence>
             {FLAGS.viewerOverlay && focusedId && (
