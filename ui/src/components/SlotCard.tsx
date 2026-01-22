@@ -148,10 +148,10 @@ export function SlotCard({ pick, onSelect, layoutId, dataTestId, className, cach
           {pick.first_release_year && <span>{pick.first_release_year}</span>}
           {pick.tags?.[0]?.name && <span>#{pick.tags[0].name}</span>}
         </div>
-        <div className="mt-auto flex flex-wrap gap-2 text-xs text-clinical-white/70">
+        <div className="mt-auto flex flex-wrap gap-2 text-sm text-clinical-white/70">
           {pick.links?.musicbrainz && (
             <a
-              className="underline decoration-acid-green/60 underline-offset-4"
+              className="inline-flex min-h-[44px] items-center rounded-full border border-acid-green/30 px-3 py-2 uppercase tracking-[0.2em] text-acid-green transition hover:border-acid-green/70 hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
               href={pick.links.musicbrainz}
               onClick={(event) => event.stopPropagation()}
               target="_blank"
@@ -162,7 +162,7 @@ export function SlotCard({ pick, onSelect, layoutId, dataTestId, className, cach
           )}
           {pick.links?.youtube_search && (
             <a
-              className="underline decoration-clinical-white/40 underline-offset-4"
+              className="inline-flex min-h-[44px] items-center rounded-full border border-clinical-white/30 px-3 py-2 uppercase tracking-[0.2em] text-clinical-white transition hover:border-clinical-white/70 hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
               href={pick.links.youtube_search}
               onClick={(event) => event.stopPropagation()}
               target="_blank"
