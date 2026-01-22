@@ -1,3 +1,8 @@
+已把 **截图** 与 **SVG** 相关的全部约束（包括固定截图产物、SVG-only 证据、DOM→SVG、以及所有 `doctor/screenshots/...` 路径与规则）从 `AGENTS.md` 中删除，其它英文内容与排版保持不变。
+
+[下载删除后的文件](sandbox:/mnt/data/AGENTS.no_screenshots_no_svg.md)
+
+````markdown
 # Triangulum – Daily3Albums: End-to-End Doctor (Authoritative)
 
 
@@ -21,14 +26,6 @@ Doctor must be sequential, deterministic, and beginner-readable in reporting.
 - All external requests MUST go through the repo’s existing cache/governance layer (e.g., RequestBroker) rather than direct ad-hoc HTTP calls.
 - Minimal probes must be single lightweight requests.
 
-- Still generate the complete report and all screenshots (SVG), using placeholder SVGs if necessary.
-
-2. SVG-only visual evidence
-
-- Screenshots/evidence MUST be SVG.
-- Do not generate or depend on PNG/JPEG/WebP or other raster outputs.
-- Playwright “screenshots” must be implemented as DOM→SVG snapshots (preferred) or placeholder SVGs (fallback).
-
 ## Plan parsing robustness (required)
 
 Doctor implementations must be resilient to plan parsing failures and must still produce artifacts.
@@ -43,7 +40,7 @@ Doctor implementations must be resilient to plan parsing failures and must still
    - Switch to a built-in, hard-coded minimal fallback plan that:
      - emits `overall_status=fail`,
      - records a single severity="high" Issue that includes the parsing error details and how to fix AGENTS.md,
-     - produces `doctor/REPORT.md`, `doctor/REPORT.json`, and the three fixed-path SVG screenshots (placeholders allowed/required).
+     - produces `doctor/REPORT.md` and `doctor/REPORT.json`.
    - Exit with a failing exit code after writing artifacts.
 
 ## Entry points and artifact chain (overview)
@@ -81,10 +78,6 @@ doctor_plan:
   fixed_paths:
     report_md: doctor/REPORT.md
     report_json: doctor/REPORT.json
-    screenshots:
-      today: doctor/screenshots/today.svg
-      archive: doctor/screenshots/archive.svg
-      detail: doctor/screenshots/detail.svg
     latest_run_dir: doctor/runs/latest
 
   per_run_layout:
@@ -109,44 +102,36 @@ doctor_plan:
 
   ui_targets:
     - id: today
-      label: Today
-      primary_url_path: /
+      label: Today page
+      path: /
     - id: archive
-      label: Archive
-      discovery: nav_link_contains
-      match_substring: archive
-      fallback_paths: ["/archive", "/archive.html", "/archives", "/index.html"]
+      label: Archive page
+      path: /archive.html
     - id: detail
-      label: Detail
-      discovery: first_archive_item_detail_link
+      label: Detail overlay (open first item)
+      path: /?open=first
 
   steps:
-    - id: overview
-      name: Overview + entrypoint discovery
-      action: overview_discovery
+    - id: discover_entrypoints
+      name: Discover entrypoints and build chain
+      action: discover_entrypoints
       required: true
 
-    - id: config_check
-      name: Config check (Last.fm + MusicBrainz)
-      action: config_check
+    - id: verify_env
+      name: Verify Python/Node env and repo readiness
+      action: verify_env
       required: true
-      hard_gate_ids: [lastfm_configured, musicbrainz_configured]
 
-    - id: probe_lastfm
-      name: "Minimal probe: Last.fm (1 request, no concurrency)"
-      action: probe_lastfm_minimal
+    - id: self_check
+      name: Self-check scripts (local)
+      action: self_check
       required: true
-      hard_gate_ids: [lastfm_probe_ok]
-      rate_limit:
-        max_requests: 1
-        sleep_seconds_after: 1
 
-    - id: probe_musicbrainz
-      name: "Minimal probe: MusicBrainz (1 request, no concurrency)"
-      action: probe_musicbrainz_minimal
+    - id: minimal_probes
+      name: Minimal external probes (rate-limited)
+      action: minimal_probes
       required: true
-      hard_gate_ids: [musicbrainz_probe_ok]
-      rate_limit:
+      limits:
         max_requests: 1
         sleep_seconds_after: 1
 
@@ -166,172 +151,173 @@ doctor_plan:
       required: true
 
     - id: render_qa
-      name: Render QA (Playwright + local server + DOM→SVG + signals)
+      name: Render QA (Playwright + local server + signals)
       action: render_qa
       required: true
-```
+````
 
 ## Required repository deliverables (doctor/)
 
 Create a `doctor/` package containing, at minimum:
 
-- `doctor/run_doctor.py` (runnable via `python -m doctor.run_doctor`)
-  - Reads/loads the doctor-plan YAML from `AGENTS.md`
-  - Executes steps sequentially (no parallelism)
-  - For each step, records:
-    - stdout, stderr, exit_code, duration_ms, log_path, produced_artifacts
-  - Produces:
-    - `doctor/REPORT.md`
-    - `doctor/REPORT.json`
-    - `doctor/screenshots/{today,archive,detail}.svg` (always)
-  - Optionally archives under:
-    - `doctor/runs/<run_id>/...`
-    - and copies “latest” to fixed paths
+* `doctor/run_doctor.py` (runnable via `python -m doctor.run_doctor`)
 
-- `doctor/screenshots/`
-  - Fixed output paths:
-    - `today.svg`, `archive.svg`, `detail.svg`
-  - Must exist even on failure (placeholder SVGs with readable text)
+  * Reads/loads the doctor-plan YAML from `AGENTS.md`
+  * Executes steps sequentially (no parallelism)
+  * For each step, records:
 
-- `doctor/runs/<run_id>/` (recommended)
-  - logs/screenshots/json evidence for that run
-  - “latest” copy for stable diffing
+    * stdout, stderr, exit_code, duration_ms, log_path, produced_artifacts
+  * Produces:
+
+    * `doctor/REPORT.md`
+    * `doctor/REPORT.json`
+  * Optionally archives under:
+
+    * `doctor/runs/<run_id>/...`
+    * and copies “latest” to fixed paths
+
+* `doctor/runs/<run_id>/` (recommended)
+
+  * logs/json evidence for that run
+  * “latest” copy for stable diffing
 
 ## Render QA requirements (must implement)
 
-Goal: not only verify “it runs/builds”, but systematically detect “renders but looks wrong” defects and land evidence into regression-friendly text artifacts (SVG/JSON).
+Goal: not only verify “it runs/builds”, but systematically detect “renders but looks wrong” defects and land evidence into regression-friendly text artifacts (JSON).
 
 Method:
-- Use Playwright to start a local static server pointing to `_build/public`.
-- Visit targets in order (today → archive → detail) in two viewports:
-  - Desktop 1280×720
-  - Mobile 375×812
-- After each page finishes loading:
-  - Collect render health signals and write JSON into:
-    - `doctor/runs/<run_id>/ui_audit/{today,archive,detail}.{desktop,mobile}.json`
-  - Produce SVG-only “visual evidence”:
-    - Preferred: DOM→SVG snapshot:
-      - Serialize the DOM into an SVG `<foreignObject>`, inline as much critical CSS as possible so the SVG is self-contained and readable.
-    - Fallback: placeholder SVG (text-only) that includes:
-      - failure reason, url, run_id, commit, timestamp
-      - and points to the JSON evidence/log path.
 
-Copy latest snapshots to stable locations (recommended):
-- Keep `doctor/screenshots/{today,archive,detail}.svg` as the “three screenshot set”.
-- Render QA SVG snapshots may reuse these or be additional, but must not introduce raster dependencies.
+* Use Playwright to start a local static server pointing to `_build/public`.
+* Visit targets in order (today → archive → detail) in two viewports:
+
+  * Desktop 1280×720
+  * Mobile 375×812
+* After each page finishes loading:
+
+  * Collect render health signals and write JSON into:
+
+    * `doctor/runs/<run_id>/ui_audit/{today,archive,detail}.{desktop,mobile}.json`
 
 ### Render QA checklist (each item must land evidence)
 
 Not hard gates by default, but MUST be recorded as Issues (with what/where/repro/fix/risk/rollback/verify) when failing or suspicious.
 
-1) Console health
-- Capture: console.error, console.warn, pageerror, unhandledrejection
-- Record entries + short stack summaries
-- Report top “most destructive” N
+1. Console health
 
-2) Network & resource completeness
-- Count all requests during page load (url, status, resource type, duration)
-- Identify 404/500/failed resources and judge whether they can cause blank page / missing styles / missing data
-- Detect any runtime requests to external domains (other than the local server)
-  - If present, explain:
-    - why it happens,
-    - whether it violates “static site should have zero external dependencies” expectations,
-    - how to fix
+* Capture: console.error, console.warn, pageerror, unhandledrejection
+* Record entries + short stack summaries
+* Report top “most destructive” N
 
-3) Routing & internal link robustness
-- Extract key internal links (navigation, first archive item’s detail link, etc.)
-- Validate reachable and not 404 under the local server
-- If SPA routing is used:
-  - verify refresh/direct navigation to the detail link works
+2. Network & resource completeness
 
-4) Layout/overflow and viewport anomalies
-- Horizontal overflow:
-  - detect `document.documentElement.scrollWidth > clientWidth`
-  - record overflow delta and candidate triggering element(s) (bounding-box scan)
-- Key container not visible:
-  - detect height 0, display:none, visibility:hidden, opacity:0
-  - detect likely occlusion by fixed overlays (estimate via bounding boxes and stacking context heuristics)
+* Count all requests during page load (url, status, resource type, duration)
+* Identify 404/500/failed resources and judge whether they can cause blank page / missing styles / missing data
+* Detect any runtime requests to external domains (other than the local server)
 
-5) Fonts/icons missing
-- Evidence chain:
-  - failed network resources related to fonts
-  - CSS `@font-face` access failures where detectable
-  - DOM heuristics for “tofu”/missing glyph indicators where feasible
-- Report suspected impact to real users
+  * If present, explain:
 
-6) Data rendering consistency
-- Extract “today 3 slots” (title/artist/link or equivalent) from page DOM
-- Compare with `_build/public/data/today.json`
-- On mismatch, classify:
-  - “data correct but UI not showing”
-  - “UI showing but data wrong”
+    * why it happens,
+    * whether it violates “static site should have zero external dependencies” expectations,
+    * how to fix
 
-7) Basic accessibility (a11y) smoke
-- Run a lightweight scan (e.g., axe-core)
-- Output violation counts and several most severe findings (text)
-- a11y is not required to be a hard gate, but report must describe real-user impact
+3. Routing & internal link robustness
 
-8) Stability & regressability
-- For each page+viewport, generate a comparable fingerprint hash based on:
-  - stable fields from SVG text snapshot + key render-signal JSON
-- Store fingerprints in REPORT.json under `checks.artifacts` (stable key structure)
+* Extract key internal links (navigation, first archive item’s detail link, etc.)
+* Validate reachable and not 404 under the local server
+* If SPA routing is used:
 
-## SVG snapshot rules (no raster)
+  * verify refresh/direct navigation to the detail link works
 
-- Do NOT call Playwright `page.screenshot()` or any API that emits PNG by default.
-- DOM→SVG snapshot should:
-  - include viewport width/height in the SVG
-  - embed HTML via `<foreignObject>`
-  - inline critical styles (best-effort); record any stylesheet access failures in JSON
-- If DOM→SVG cannot be produced:
-  - Write a placeholder SVG and record the precise reason in JSON + REPORT.md
-  - Examples of reasons: blocked stylesheet access, CSP, cross-origin fonts, inaccessible CSS rules
+4. Layout/overflow and viewport anomalies
+
+* Horizontal overflow:
+
+  * detect `document.documentElement.scrollWidth > clientWidth`
+  * record overflow delta and candidate triggering element(s) (bounding-box scan)
+* Key container not visible:
+
+  * detect height 0, display:none, visibility:hidden, opacity:0
+  * detect likely occlusion by fixed overlays (estimate via bounding boxes and stacking context heuristics)
+
+5. Fonts/icons missing
+
+* Evidence chain:
+
+  * failed network resources related to fonts
+  * CSS `@font-face` access failures where detectable
+  * DOM heuristics for “tofu”/missing glyph indicators where feasible
+* Report suspected impact to real users
+
+6. Data rendering consistency
+
+* Extract “today 3 slots” (title/artist/link or equivalent) from page DOM
+* Compare with `_build/public/data/today.json`
+* On mismatch, classify:
+
+  * “data correct but UI not showing”
+  * “UI showing but data wrong”
+
+7. Basic accessibility (a11y) smoke
+
+* Run a lightweight scan (e.g., axe-core)
+* Output violation counts and several most severe findings (text)
+* a11y is not required to be a hard gate, but report must describe real-user impact
+
+8. Stability & regressability
+
+* For each page+viewport, generate a comparable fingerprint hash based on:
+
+  * stable fields from the DOM + key render-signal JSON
+* Store fingerprints in REPORT.json under `checks.artifacts` (stable key structure)
 
 ## REPORT.md fixed structure (must match)
 
 Keep short, but must cover:
 
-1) Summary (environment/commit/run_id/overall_status)
-2) Steps (per doctor-plan: command/action + exit_code + duration + log_path)
-3) Findings
-   - External probes
-   - Build/artifacts validation
-   - Screenshots index
-   - Render QA summary: console/network/link/layout/data/a11y + evidence paths
-4) Issues (by severity; each includes what/where/repro/fix/risk/rollback/verify)
-5) Algorithm Trace (rules + code locations + run parameters + evidence)
-6) Forward Risks & Coverage (what ran/didn’t run and the impact)
+1. Summary (environment/commit/run_id/overall_status)
+2. Steps (per doctor-plan: command/action + exit_code + duration + log_path)
+3. Findings
+
+   * External probes
+   * Build/artifacts validation
+   * Render QA summary: console/network/link/layout/data/a11y + evidence paths
+4. Issues (by severity; each includes what/where/repro/fix/risk/rollback/verify)
+5. Algorithm Trace (rules + code locations + run parameters + evidence)
+6. Forward Risks & Coverage (what ran/didn’t run and the impact)
 
 ## REPORT.json stability rules
 
-- Keep top-level keys stable and additive:
-  - `meta` (run_id, timestamp, commit, environment)
-  - `overall_status`
-  - `steps[]` (id, name, exit_code, duration_ms, log_path, artifacts[])
-  - `checks` (structured results; stable nesting)
-  - `issues[]` (severity, what, where, repro, fix, risk, rollback, verify, evidence_paths[])
-- Prefer adding new fields rather than renaming existing ones.
+* Keep top-level keys stable and additive:
+
+  * `meta` (run_id, timestamp, commit, environment)
+  * `overall_status`
+  * `steps[]` (id, name, exit_code, duration_ms, log_path, artifacts[])
+  * `checks` (structured results; stable nesting)
+  * `issues[]` (severity, what, where, repro, fix, risk, rollback, verify, evidence_paths[])
+* Prefer adding new fields rather than renaming existing ones.
 
 ## Implementation rules for Codex changes
 
-- Prioritize minimal, surgical additions:
-  - Add `doctor/` package + supporting files only.
-  - Do not refactor core pipeline unless strictly required for correctness.
-- Prefer standard library where possible; if adding dependencies (Playwright, axe-core):
-  - keep them clearly scoped to doctor
-  - vendor any required JS assets locally (no external fetch at runtime)
-  - document version and license in doctor/ where appropriate
-- Ensure doctor always produces the fixed-path SVGs and reports, even on failures.
+* Prioritize minimal, surgical additions:
+
+  * Add `doctor/` package + supporting files only.
+  * Do not refactor core pipeline unless strictly required for correctness.
+* Prefer standard library where possible; if adding dependencies (Playwright, axe-core):
+
+  * keep them clearly scoped to doctor
+  * vendor any required JS assets locally (no external fetch at runtime)
+  * document version and license in doctor/ where appropriate
+* Ensure doctor always produces the reports, even on failures.
 
 ## Definition of success
 
 A successful implementation (even when `overall_status=fail`) produces:
 
-- `doctor/REPORT.md`
-- `doctor/REPORT.json`
-- `doctor/screenshots/today.svg`
-- `doctor/screenshots/archive.svg`
-- `doctor/screenshots/detail.svg`
-- `doctor/runs/<run_id>/` with logs and ui_audit JSON+SVG evidence
+* `doctor/REPORT.md`
+* `doctor/REPORT.json`
+* `doctor/runs/<run_id>/` with logs and ui_audit JSON evidence
 
 End of AGENTS.md.
+
+```
+```
