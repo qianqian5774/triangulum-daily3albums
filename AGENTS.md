@@ -19,7 +19,6 @@ Doctor must be sequential, deterministic, and beginner-readable in reporting.
 
 - Respect rate limits and backoff.
 - No concurrent flooding.
-- All external requests MUST go through the repo’s existing cache/governance layer (e.g., RequestBroker) rather than direct ad-hoc HTTP calls.
 - Minimal probes must be single lightweight requests.
 
 ## Plan parsing robustness (required)
