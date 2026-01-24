@@ -1,16 +1,19 @@
+// ui/vitest.config.ts
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    // 只跑单元测试：你放在 src 里，文件名以 .test.ts/.test.tsx 结尾
+    // Run only unit tests inside src, file name ends with .test.ts/.test.tsx
     include: ["src/**/*.test.{ts,tsx}"],
-    // 明确排除 Playwright 的 tests 目录，以及 e2e spec 命名
+    // Exclude Playwright e2e tests directory and *.spec.* naming
     exclude: [
       "tests/**",
       "**/*.spec.{ts,tsx}",
       "**/node_modules/**",
       "**/dist/**",
       "**/.{idea,git,cache,output,temp}/**"
-    ]
+    ],
+    // Make describe/it/expect available as globals in tests (optional but safe)
+    globals: true
   }
 });

@@ -176,3 +176,62 @@ body {
     animation: none;
   }
 }
+
+.transition-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  background: linear-gradient(120deg, rgba(204, 255, 0, 0.12), rgba(0, 0, 0, 0.6));
+  mix-blend-mode: screen;
+  animation: transition-sweep 0.9s ease-in-out;
+}
+
+.transition-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.08) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  opacity: 0.35;
+}
+
+@keyframes transition-sweep {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  45% {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.archived-card {
+  opacity: 0.45;
+  filter: grayscale(1) saturate(0.15);
+  pointer-events: none;
+}
+
+.archived-watermark {
+  position: absolute;
+  top: -24px;
+  right: 12px;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 0.45em;
+  color: rgba(255, 255, 255, 0.15);
+  transform: rotate(-4deg);
+  text-transform: uppercase;
+  z-index: 1;
+  pointer-events: none;
+}

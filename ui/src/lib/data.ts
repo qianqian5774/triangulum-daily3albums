@@ -9,8 +9,9 @@ async function fetchJson(path: string): Promise<unknown> {
   return response.json();
 }
 
-export async function loadToday(): Promise<TodayIssue> {
-  const payload = await fetchJson("data/today.json");
+export async function loadToday(cacheBust?: string): Promise<TodayIssue> {
+  const suffix = cacheBust ? `?t=${cacheBust}` : "";
+  const payload = await fetchJson(`data/today.json${suffix}`);
   return parseTodayIssue(payload);
 }
 
@@ -20,7 +21,14 @@ export async function loadArchiveIndex(): Promise<ArchiveIndex> {
 }
 
 export async function loadArchiveDay(date: string, runId?: string): Promise<TodayIssue> {
-  const path = runId ? `data/archive/${date}/${runId}.json` : `data/archive/${date}.json`;
-  const payload = await fetchJson(path);
+  if (runId) {
+    try {
+      const payload = await fetchJson(`data/archive/${date}/${runId}.json`);
+      return parseTodayIssue(payload);
+    } catch {
+      // fall through
+    }
+  }
+  const payload = await fetchJson(`data/archive/${date}.json`);
   return parseTodayIssue(payload);
 }

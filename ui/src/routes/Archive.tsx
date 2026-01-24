@@ -78,10 +78,10 @@ export function ArchiveRoute() {
         if (!active) return;
         setIssue(data);
         updateHudRef.current?.({
-          batchId: data.run_id ? data.run_id.toUpperCase() : data.date,
           status: "OK",
           marqueeItems: data.picks.map((pick) => `${pick.title} — ${pick.artist_credit}`),
-          nextRefreshAt: null
+          statusMessage: null,
+          lastSuccess: data.run_id ? `${data.date} / ${data.run_id}` : data.date
         });
       })
       .catch((err: Error) => {

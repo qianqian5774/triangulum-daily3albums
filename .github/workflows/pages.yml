@@ -17,12 +17,8 @@ on:
         required: true
         default: "10"
   schedule:
-    # UTC 16:05 = Asia/Shanghai (+08:00) 00:05 next day
-    - cron: "5 16 * * *"
-    # UTC 00:05 = Asia/Shanghai 08:05
-    - cron: "5 0 * * *"
-    # UTC 08:05 = Asia/Shanghai 16:05
-    - cron: "5 8 * * *"
+    # UTC 21:17 = Asia/Shanghai (+08:00) 05:17 next day
+    - cron: "17 21 * * *"
 
 permissions:
   contents: read
@@ -73,6 +69,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Jitter (0-120s)
+        run: |
+          delay=$((RANDOM % 121))
+          echo "Sleeping for ${delay}s to avoid cron stampede"
+          sleep "${delay}"
 
       - name: Setup Python
         uses: actions/setup-python@v5
