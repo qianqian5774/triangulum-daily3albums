@@ -38,7 +38,9 @@ export const copy = {
       thumb: "Slot",
       nowLabel: "Now"
     },
-    returnToNow: "Return to now"
+    returnToNow: "Return to now",
+    ambientEnter: "Enter ambient",
+    ambientExit: "Exit ambient"
   },
   archive: {
     label: "Patient Records",

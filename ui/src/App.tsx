@@ -48,7 +48,7 @@ function App() {
           marqueeItems={hud.marqueeItems}
           nextRefreshAt={hud.nextRefreshAt}
         />
-        <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10 md:px-6">
+        <main className="mx-auto flex w-full max-w-[90rem] flex-col gap-10 px-4 py-10 md:px-6">
           <Routes>
             <Route path="/" element={<TodayRoute />} />
             <Route path="/archive" element={<ArchiveRoute />} />

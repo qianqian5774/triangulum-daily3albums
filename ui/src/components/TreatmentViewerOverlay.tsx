@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useScrambleText } from "../hooks/useScrambleText";
-import { appendCacheBuster, resolvePublicPath } from "../lib/paths";
+import { resolveCoverUrl } from "../lib/covers";
 import { t } from "../strings/t";
 import type { PickItem } from "../lib/types";
 
@@ -20,18 +20,6 @@ interface TreatmentViewerOverlayProps {
   cacheKey?: string;
 }
 
-function resolveCover(url: string, cacheKey?: string) {
-  const trimmed = url.trim();
-  if (!trimmed) {
-    return null;
-  }
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return null;
-  }
-  const safe = trimmed.replace(/^\//, "");
-  return appendCacheBuster(resolvePublicPath(safe), cacheKey);
-}
-
 export function TreatmentViewerOverlay({
   picks,
   activeId,
@@ -44,6 +32,8 @@ export function TreatmentViewerOverlay({
 }: TreatmentViewerOverlayProps) {
   const prefersReducedMotion = useReducedMotion();
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const [retryToken, setRetryToken] = useState<string | null>(null);
+  const [coverFailed, setCoverFailed] = useState(false);
 
   const activePick = useMemo(
     () => picks.find((pick) => pick.stableId === activeId) ?? picks[0],
@@ -93,13 +83,19 @@ export function TreatmentViewerOverlay({
   }
 
   const coverVersionKey = activePick.cover.cover_version ?? cacheKey;
-  const coverUrl = resolveCover(activePick.cover.optimized_cover_url, coverVersionKey);
+  const coverUrl = resolveCoverUrl(activePick.cover.optimized_cover_url, coverVersionKey, retryToken);
   const scrambledTitle = useScrambleText(activePick.title);
+  const displayCover = !coverFailed && coverUrl;
+
+  useEffect(() => {
+    setRetryToken(null);
+    setCoverFailed(false);
+  }, [activePick.stableId, cacheKey]);
 
   useEffect(() => {
     let active = true;
     setCoverReady(false);
-    if (!coverUrl) {
+    if (!displayCover) {
       setCoverReady(true);
       return () => {
         active = false;
@@ -111,15 +107,23 @@ export function TreatmentViewerOverlay({
       setCoverReady(true);
     };
     image.onload = finish;
-    image.onerror = finish;
-    image.src = coverUrl;
+    image.onerror = () => {
+      if (!active) return;
+      if (retryToken === null) {
+        setRetryToken(Date.now().toString());
+        return;
+      }
+      setCoverFailed(true);
+      setCoverReady(true);
+    };
+    image.src = displayCover;
     if (image.decode) {
       image.decode().then(finish).catch(finish);
     }
     return () => {
       active = false;
     };
-  }, [coverUrl]);
+  }, [displayCover, retryToken]);
 
   const parentVariants = prefersReducedMotion
     ? {
@@ -188,10 +192,10 @@ export function TreatmentViewerOverlay({
               <motion.div className="w-full" variants={childVariants}>
                 <div className="relative aspect-square w-full overflow-hidden rounded-card bg-panel-800">
                   <div className="absolute inset-0 bg-gradient-to-br from-panel-900 via-panel-800 to-panel-900" />
-                  {coverUrl ? (
+                  {displayCover ? (
                     <motion.img
                       layoutId={`cover-${activePick.stableId}`}
-                      src={coverUrl}
+                      src={displayCover}
                       alt={`${activePick.title} cover`}
                       className={`relative z-10 h-full w-full object-cover transition-opacity duration-200 ${
                         coverReady ? "opacity-100" : "opacity-0"
@@ -208,7 +212,7 @@ export function TreatmentViewerOverlay({
               </motion.div>
               <motion.div className="flex flex-col gap-6 md:col-start-2" variants={childVariants}>
                 <div className="flex items-start justify-between gap-6">
-                  <div>
+                  <div className="pt-1">
                     <p className="text-xs uppercase tracking-[0.3em] text-clinical-white/50">
                       {t("treatment.viewer.enter")}
                     </p>
@@ -238,7 +242,7 @@ export function TreatmentViewerOverlay({
                 <div className="flex flex-wrap items-center gap-3 text-sm text-clinical-white/70">
                   {activePick.links?.musicbrainz && (
                     <a
-                      className="inline-flex min-h-[44px] items-center rounded-full border border-acid-green/30 px-4 py-2 uppercase tracking-[0.2em] text-acid-green transition hover:border-acid-green/70 hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+                      className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-acid-green underline decoration-acid-green/60 underline-offset-4 transition hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
                       href={activePick.links.musicbrainz}
                       target="_blank"
                       rel="noreferrer"
@@ -248,7 +252,7 @@ export function TreatmentViewerOverlay({
                   )}
                   {activePick.links?.youtube_search && (
                     <a
-                      className="inline-flex min-h-[44px] items-center rounded-full border border-clinical-white/30 px-4 py-2 uppercase tracking-[0.2em] text-clinical-white transition hover:border-clinical-white/70 hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
+                      className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-clinical-white underline decoration-clinical-white/50 underline-offset-4 transition hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
                       href={activePick.links.youtube_search}
                       target="_blank"
                       rel="noreferrer"
@@ -258,6 +262,9 @@ export function TreatmentViewerOverlay({
                   )}
                 </div>
                 <div className="mt-auto flex flex-col items-end gap-3 text-right">
+                  <p className="text-xs uppercase tracking-[0.32em] text-clinical-white/60">
+                    {t("treatment.viewer.instructions")}
+                  </p>
                   <div className="flex flex-wrap justify-end gap-3">
                     <button
                       type="button"
@@ -274,9 +281,6 @@ export function TreatmentViewerOverlay({
                       {t("treatment.viewer.next")}
                     </button>
                   </div>
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-clinical-white/50">
-                    {t("treatment.viewer.instructions")}
-                  </p>
                   {debugEnabled && activePick.reason && (
                     // Diagnostic output is intentionally hidden unless ?debug=1 or localStorage tri_debug=1.
                     <p className="text-[10px] font-mono text-clinical-white/50">
