@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import { addDays, parseDebugTime, resolveNowState, shiftDebugTime } from "./bjt";
 
 const seconds = (hour: number, minute: number, second: number) => hour * 3600 + minute * 60 + second;
