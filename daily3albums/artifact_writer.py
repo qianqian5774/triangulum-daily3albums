@@ -35,30 +35,40 @@ def atomic_write_json(path: Path, obj: Any) -> None:
 
 def validate_today(issue: dict) -> None:
     # 顶层必填
-    for k in ["output_schema_version", "date", "run_id", "theme_of_day", "picks"]:
+    for k in ["output_schema_version", "date", "run_id", "theme_of_day", "slots"]:
         if k not in issue:
             raise OutputValidationError(f"missing top-level field: {k}")
 
-    picks = issue["picks"]
-    if not isinstance(picks, list) or len(picks) != 3:
-        raise OutputValidationError("picks must be a list of 3 items")
+    slots = issue["slots"]
+    if not isinstance(slots, list) or len(slots) != 3:
+        raise OutputValidationError("slots must be a list of 3 items")
 
-    # 槽位唯一 + rg_mbid 不空
-    slots = [p.get("slot") for p in picks]
-    if len(set(slots)) != 3:
-        raise OutputValidationError(f"slots must be unique: {slots}")
+    slot_ids = [slot.get("slot_id") for slot in slots if isinstance(slot, dict)]
+    if len(slot_ids) != 3 or len(set(slot_ids)) != 3:
+        raise OutputValidationError(f"slot_id must be unique: {slot_ids}")
+    if slot_ids != [0, 1, 2]:
+        raise OutputValidationError(f"slots must be ordered [0,1,2]: {slot_ids}")
 
-    for i, p in enumerate(picks):
-        if not p.get("rg_mbid"):
-            raise OutputValidationError(f"pick[{i}].rg_mbid is empty")
-        cover = p.get("cover") or {}
-        if not cover.get("optimized_cover_url"):
-            raise OutputValidationError(f"pick[{i}].cover.optimized_cover_url is empty")
+    for i, slot in enumerate(slots):
+        if not isinstance(slot, dict):
+            raise OutputValidationError(f"slot[{i}] is not an object")
+        if "window_label" not in slot:
+            raise OutputValidationError(f"slot[{i}].window_label is missing")
+        picks = slot.get("picks")
+        if not isinstance(picks, list) or len(picks) != 3:
+            raise OutputValidationError(f"slot[{i}].picks must be a list of 3 items")
+        for j, pick in enumerate(picks):
+            if not isinstance(pick, dict) or not pick.get("rg_mbid"):
+                raise OutputValidationError(f"slot[{i}].pick[{j}].rg_mbid is empty")
+            cover = pick.get("cover") or {}
+            if not cover.get("optimized_cover_url"):
+                raise OutputValidationError(f"slot[{i}].pick[{j}].cover.optimized_cover_url is empty")
 
-    # 同日不重复 rg_mbid
-    rg_ids = [p["rg_mbid"] for p in picks]
-    if len(set(rg_ids)) != 3:
-        raise OutputValidationError("duplicate rg_mbid in picks")
+    picks = issue.get("picks")
+    if isinstance(picks, list) and picks:
+        slots_seen = [p.get("slot") for p in picks if isinstance(p, dict)]
+        if len(set(slots_seen)) != len(slots_seen):
+            raise OutputValidationError(f"duplicate slot names in picks: {slots_seen}")
 
 
 def write_daily_artifacts(
@@ -74,12 +84,14 @@ def write_daily_artifacts(
     date_key = issue["date"]
     today_path = data_dir / "today.json"
     archive_path = archive_dir / date_key / f"{issue['run_id']}.json"
+    archive_flat_path = archive_dir / f"{date_key}.json"
     index_path = data_dir / "index.json"
     quarantine_path = quarantine_dir / f"{date_key}.json"
 
     # 1) today + archive
     atomic_write_json(today_path, issue)
     atomic_write_json(archive_path, issue)
+    atomic_write_json(archive_flat_path, issue)
 
     # 2) index：读旧的（不存在就新建），追加一条（带兜底）
     index_obj: dict[str, Any]
@@ -126,6 +138,7 @@ def write_daily_artifacts(
     return {
         "today": today_path,
         "archive": archive_path,
+        "archive_flat": archive_flat_path,
         "index": index_path,
         **({"quarantine": quarantine_path} if quarantine_rows else {}),
     }

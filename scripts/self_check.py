@@ -38,18 +38,27 @@ def _validate_today(payload: Any, path: Path) -> None:
     _ensure_str(payload.get("run_id"), "run_id", path)
     _ensure_str(payload.get("theme_of_day"), "theme_of_day", path)
 
-    picks = payload.get("picks")
-    if not isinstance(picks, list) or len(picks) < 1:
-        raise SelfCheckError(f"Today picks missing or empty: {path}")
+    slots = payload.get("slots")
+    if not isinstance(slots, list) or len(slots) != 3:
+        raise SelfCheckError(f"Today slots missing or invalid: {path}")
 
-    for idx, pick in enumerate(picks):
-        if not isinstance(pick, dict):
-            raise SelfCheckError(f"Today pick[{idx}] must be object: {path}")
-        _ensure_str(pick.get("slot"), f"picks[{idx}].slot", path)
-        _ensure_str(pick.get("title"), f"picks[{idx}].title", path)
-        cover = pick.get("cover")
-        if not isinstance(cover, dict) or not isinstance(cover.get("optimized_cover_url"), str):
-            raise SelfCheckError(f"picks[{idx}].cover.optimized_cover_url missing: {path}")
+    for idx, slot in enumerate(slots):
+        if not isinstance(slot, dict):
+            raise SelfCheckError(f"Today slot[{idx}] must be object: {path}")
+        if not isinstance(slot.get("slot_id"), int):
+            raise SelfCheckError(f"slot[{idx}].slot_id missing: {path}")
+        _ensure_str(slot.get("window_label"), f"slot[{idx}].window_label", path)
+        picks = slot.get("picks")
+        if not isinstance(picks, list) or len(picks) != 3:
+            raise SelfCheckError(f"slot[{idx}].picks missing or invalid: {path}")
+        for jdx, pick in enumerate(picks):
+            if not isinstance(pick, dict):
+                raise SelfCheckError(f"slot[{idx}].pick[{jdx}] must be object: {path}")
+            _ensure_str(pick.get("slot"), f"slot[{idx}].picks[{jdx}].slot", path)
+            _ensure_str(pick.get("title"), f"slot[{idx}].picks[{jdx}].title", path)
+            cover = pick.get("cover")
+            if not isinstance(cover, dict) or not isinstance(cover.get("optimized_cover_url"), str):
+                raise SelfCheckError(f"slot[{idx}].picks[{jdx}].cover.optimized_cover_url missing: {path}")
 
 
 def _validate_index(payload: Any, path: Path) -> None:
@@ -129,10 +138,16 @@ def main() -> int:
     if not isinstance(run_id, str) or not run_id.strip():
         raise SelfCheckError("today.json missing run_id for archive lookup")
 
-    archive_path = out_dir / "data" / "archive" / archive_date / f"{run_id}.json"
-    _ensure_file(archive_path)
-    archive_payload = _read_json(archive_path)
-    _validate_today(archive_payload, archive_path)
+    archive_run_path = out_dir / "data" / "archive" / archive_date / f"{run_id}.json"
+    archive_flat_path = out_dir / "data" / "archive" / f"{archive_date}.json"
+    if archive_run_path.exists():
+        archive_payload = _read_json(archive_run_path)
+        _validate_today(archive_payload, archive_run_path)
+    if archive_flat_path.exists():
+        archive_payload = _read_json(archive_flat_path)
+        _validate_today(archive_payload, archive_flat_path)
+    if not archive_run_path.exists() and not archive_flat_path.exists():
+        raise SelfCheckError(f"Archive JSON missing for {archive_date}")
 
     index_payload = _read_json(index_path)
     _validate_index(index_payload, index_path)

@@ -221,19 +221,19 @@ def _beijing_now() -> datetime:
 
 def _beijing_slot(dt: datetime) -> int:
     hour = dt.hour
-    if hour < 8:
+    if hour < 12:
         return 0
-    if hour < 16:
+    if hour < 18:
         return 1
     return 2
 
 
 def _slot_label(slot_id: int) -> str:
     if slot_id == 0:
-        return "00:00-07:59"
+        return "06:00-11:59"
     if slot_id == 1:
-        return "08:00-15:59"
-    return "16:00-23:59"
+        return "12:00-17:59"
+    return "18:00-23:59"
 
 
 def _hash_index(seed: str, size: int) -> int:
@@ -820,7 +820,14 @@ def cmd_build(
 
     try:
         beijing_now = _beijing_now()
-        date_key = (date_override or "").strip() or beijing_now.date().isoformat()
+        bjt_date_key = beijing_now.date().isoformat()
+        if (date_override or "").strip() and date_override.strip() != bjt_date_key:
+            print(
+                "BUILD ERROR: date override does not match Asia/Shanghai date. "
+                f"override={date_override.strip()} bjt_date={bjt_date_key}"
+            )
+            return 2
+        date_key = bjt_date_key
         now_slot_id = _beijing_slot(beijing_now)
         run_id = f"{date_key}_slots_{uuid.uuid4().hex[:6]}"
 
@@ -911,7 +918,7 @@ def cmd_build(
 
             slot_payload = {
                 "slot_id": slot_id,
-                "label": _slot_label(slot_id),
+                "window_label": _slot_label(slot_id),
                 "theme": slot_tag,
                 "constraints": {"ambiguity_gap": used_gap, "min_confidence": used_min_conf},
                 "picks": [],
@@ -962,6 +969,12 @@ def cmd_build(
             },
             "warnings": [],
         }
+        if issue["date"] != bjt_date_key:
+            print(
+                "BUILD ERROR: today.json date must match Asia/Shanghai date. "
+                f"issue_date={issue['date']} bjt_date={bjt_date_key}"
+            )
+            return 2
 
         cover_version = issue["generation"].get("started_at")
         for slot_payload in slots_payload:
@@ -980,7 +993,11 @@ def cmd_build(
                     )
                 )
             issue["slots"].append(
-                {k: v for k, v in slot_payload.items() if k in {"slot_id", "label", "theme", "constraints", "picks"}}
+                {
+                    k: v
+                    for k, v in slot_payload.items()
+                    if k in {"slot_id", "window_label", "theme", "constraints", "picks"}
+                }
             )
 
         if not now_slot_payload:

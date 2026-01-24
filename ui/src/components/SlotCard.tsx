@@ -20,6 +20,7 @@ interface SlotCardProps {
   cacheKey?: string;
   imageLoading?: "eager" | "lazy";
   fetchPriority?: "high" | "auto" | "low";
+  disableLinks?: boolean;
 }
 
 export function SlotCard({
@@ -30,7 +31,8 @@ export function SlotCard({
   className,
   cacheKey,
   imageLoading = "lazy",
-  fetchPriority = "auto"
+  fetchPriority = "auto",
+  disableLinks = false
 }: SlotCardProps) {
   const cardRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -164,30 +166,32 @@ export function SlotCard({
           {pick.first_release_year && <span>{pick.first_release_year}</span>}
           {pick.tags?.[0]?.name && <span>#{pick.tags[0].name}</span>}
         </div>
-        <div className="mt-auto flex flex-wrap gap-2 text-sm text-clinical-white/70">
-          {pick.links?.musicbrainz && (
-            <a
-              className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-acid-green underline decoration-acid-green/60 underline-offset-4 transition hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
-              href={pick.links.musicbrainz}
-              onClick={(event) => event.stopPropagation()}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t("treatment.links.musicbrainz")}
-            </a>
-          )}
-          {pick.links?.youtube_search && (
-            <a
-              className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-clinical-white underline decoration-clinical-white/50 underline-offset-4 transition hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
-              href={pick.links.youtube_search}
-              onClick={(event) => event.stopPropagation()}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t("treatment.links.youtube")}
-            </a>
-          )}
-        </div>
+        {!disableLinks ? (
+          <div className="mt-auto flex flex-wrap gap-2 text-sm text-clinical-white/70">
+            {pick.links?.musicbrainz && (
+              <a
+                className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-acid-green underline decoration-acid-green/60 underline-offset-4 transition hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+                href={pick.links.musicbrainz}
+                onClick={(event) => event.stopPropagation()}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t("treatment.links.musicbrainz")}
+              </a>
+            )}
+            {pick.links?.youtube_search && (
+              <a
+                className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-clinical-white underline decoration-clinical-white/50 underline-offset-4 transition hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
+                href={pick.links.youtube_search}
+                onClick={(event) => event.stopPropagation()}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t("treatment.links.youtube")}
+              </a>
+            )}
+          </div>
+        ) : null}
       </div>
     </motion.article>
   );

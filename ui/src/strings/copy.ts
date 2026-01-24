@@ -18,13 +18,20 @@ export const copy = {
   },
   hud: {
     labels: {
-      batchId: "Batch ID",
-      status: "Status"
+      bjt: "BJT",
+      status: "Status",
+      lastSuccess: "Last successful run",
+      debug: "DEBUG TIME ACTIVE"
     },
-    clock: {
-      nextCycle: "NEXT CYCLE",
-      tMinus: "T-MINUS"
-    }
+    window: {
+      booting: "CALIBRATING",
+      offline: "SYSTEM OFFLINE",
+      label: "WINDOW",
+      slot: "SLOT"
+    },
+    nextUnlock: "NEXT UNLOCK",
+    nextBoot: "NEXT BOOT",
+    countdownPrefix: "T-"
   },
   today: {
     label: "Today",
@@ -36,11 +43,32 @@ export const copy = {
     timeline: {
       title: "Today Timeline",
       thumb: "Slot",
-      nowLabel: "Now"
+      nowLabel: "Now",
+      locked: "Locked"
     },
+    nowAvailable: "NOW AVAILABLE",
     returnToNow: "Return to now",
     ambientEnter: "Enter ambient",
-    ambientExit: "Exit ambient"
+    ambientExit: "Exit ambient",
+    debug: {
+      label: "Debug time controls",
+      addMinute: "+1 minute",
+      addHour: "+1 hour",
+      addDay: "+1 day",
+      clear: "Clear debug time"
+    },
+    offline: {
+      title: "SYSTEM OFFLINE",
+      nextBoot: "NEXT BOOT 06:00",
+      viewArchive: "View Archive",
+      archivedLabel: "ARCHIVED",
+      archivedHint: "Yesterday’s intake (archived)",
+      signalLost: "SIGNAL LOST",
+      establishing: "ESTABLISHING LINK…",
+      linkRestored: "LINK RESTORED",
+      retry: "Retry now",
+      noSignal: "NO SIGNAL / STATIC"
+    }
   },
   archive: {
     label: "Patient Records",
