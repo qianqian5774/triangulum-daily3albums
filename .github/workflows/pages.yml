@@ -1,3 +1,4 @@
+# .github/workflows/pages.yml
 name: Build and Deploy Pages
 
 on:
@@ -39,6 +40,7 @@ jobs:
     env:
       TZ: Asia/Shanghai
       DAILY3ALBUMS_TZ: Asia/Shanghai
+
       # Last.fm
       LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
       LASTFM_SHARED_SECRET: ${{ secrets.LASTFM_SHARED_SECRET }}
@@ -71,7 +73,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      # ...下面 steps 保持你原样即可
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -79,7 +80,7 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install
+      - name: Install (Python package)
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .
@@ -88,9 +89,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
 
       - name: Install UI deps
         run: npm --prefix ui ci
+
+      # ✅ 方案A附加：UI 单测（防止 resolveCoverUrl 被回滚/误删）
+      - name: Run UI tests
+        run: npm --prefix ui test
 
       - name: Restore state cache
         uses: actions/cache@v4
@@ -107,14 +114,54 @@ jobs:
             find .state -type f -name '*.jsonl' -mtime +30 -delete
           fi
 
-      - name: Build artifacts
+      - name: Build UI
+        run: npm --prefix ui run build
+
+      # ✅ 方案A核心：每次都“真正重新生成”
+      # 同时把 workflow_dispatch 的 n/topk/tag 接进 build 参数，避免你以为填了其实没生效
+      - name: Build daily3albums artifacts
         run: |
-          npm --prefix ui run build
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            daily3albums build --verbose --tag "${{ github.event.inputs.tag }}"
-          else
-            daily3albums build --verbose
+          ARGS="--verbose"
+          if [ -n "${{ github.event.inputs.n }}" ]; then
+            ARGS="$ARGS --n ${{ github.event.inputs.n }}"
           fi
+          if [ -n "${{ github.event.inputs.topk }}" ]; then
+            ARGS="$ARGS --topk ${{ github.event.inputs.topk }}"
+          fi
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            ARGS="$ARGS --tag \"${{ github.event.inputs.tag }}\""
+          fi
+          echo "daily3albums build args: $ARGS"
+          # shellcheck disable=SC2086
+          eval daily3albums build $ARGS
+
+      # ✅ 方案A附加：生成 data/meta.json，给前端做版本参数/对齐用
+      - name: Write data/meta.json
+        run: |
+          mkdir -p _build/public/data
+          python - <<'PY'
+          import json, os, datetime
+
+          tz = os.getenv("TZ", "Asia/Shanghai")
+          now = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+
+          meta = {
+            "build_id": os.getenv("GITHUB_RUN_ID"),
+            "run_number": os.getenv("GITHUB_RUN_NUMBER"),
+            "attempt": os.getenv("GITHUB_RUN_ATTEMPT"),
+            "sha": os.getenv("GITHUB_SHA"),
+            "ref": os.getenv("GITHUB_REF"),
+            "built_at": now,
+            "tz": tz,
+            "workflow": os.getenv("GITHUB_WORKFLOW"),
+          }
+
+          path = "_build/public/data/meta.json"
+          with open(path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+
+          print(f"Wrote {path}")
+          PY
 
       - name: Self-check output
         run: python scripts/self_check.py --path _build/public
@@ -139,12 +186,12 @@ jobs:
               `Run: ${runUrl}`,
               ``,
               `Please review the build logs in GitHub Actions.`
-            ].join(\"\\n\");
+            ].join("\n");
 
             const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              state: \"open\",
+              state: "open",
               per_page: 100
             });
 
@@ -172,3 +219,5 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }} 

@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -11,12 +12,16 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     env:
-      TZ: Asia/Taipei
-      DAILY3ALBUMS_TZ: Asia/Taipei
+      # 这里建议跟 Pages 对齐用 Asia/Shanghai，避免“本地/CI/线上时区不一致”引出诡异差异
+      TZ: Asia/Shanghai
+      DAILY3ALBUMS_TZ: Asia/Shanghai
+
       DAILY3ALBUMS_FIXTURES_DIR: tests/fixtures/http
       DAILY3ALBUMS_FIXTURES_STRICT: "1"
+
       LASTFM_API_KEY: fixture-key
       MB_USER_AGENT: fixture-agent
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,7 +32,7 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install
+      - name: Install (Python package)
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .
@@ -37,3 +42,17 @@ jobs:
 
       - name: Golden check
         run: python scripts/golden_check.py
+
+      # ✅ 把你这次修复固化进 CI：跑 UI 单测
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI deps
+        run: npm --prefix ui ci
+
+      - name: Run UI tests
+        run: npm --prefix ui test
