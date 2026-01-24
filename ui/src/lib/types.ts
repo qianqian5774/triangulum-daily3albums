@@ -30,6 +30,15 @@ export interface TodayIssue {
   date: string;
   run_id: string;
   theme_of_day: string;
+  now_slot_id?: number | null;
+  slots?: TodaySlot[];
+  picks: PickItem[];
+}
+
+export interface TodaySlot {
+  slot_id: number;
+  label: string;
+  theme: string;
   picks: PickItem[];
 }
 
@@ -109,11 +118,78 @@ export function parseTodayIssue(payload: unknown): TodayIssue {
       reason: isString(pick.reason) ? pick.reason : undefined
     };
   });
+  const parsedSlots: TodaySlot[] = Array.isArray((payload as Record<string, unknown>).slots)
+    ? (payload as Record<string, unknown>).slots
+        .filter(isRecord)
+        .map((slot) => {
+          const slotPicks = Array.isArray(slot.picks)
+            ? slot.picks
+                .filter(isRecord)
+                .map((pick) => {
+                  if (!isSlotName(pick.slot) || !isString(pick.title)) {
+                    return null;
+                  }
+                  const cover = pick.cover;
+                  if (!isRecord(cover) || !isString(cover.optimized_cover_url)) {
+                    return null;
+                  }
+                  return {
+                    slot: pick.slot,
+                    title: pick.title,
+                    artist_credit: isString(pick.artist_credit) ? pick.artist_credit : "",
+                    first_release_year: isNumber(pick.first_release_year) ? pick.first_release_year : null,
+                    tags: Array.isArray(pick.tags)
+                      ? pick.tags.filter(isRecord).map((tag) => ({
+                          name: isString(tag.name) ? tag.name : "",
+                          source: isString(tag.source) ? tag.source : undefined
+                        }))
+                      : [],
+                    cover: {
+                      has_cover: Boolean(cover.has_cover),
+                      optimized_cover_url: cover.optimized_cover_url,
+                      cover_version: isString(cover.cover_version) ? cover.cover_version : null,
+                      original_cover_url: isString(cover.original_cover_url) ? cover.original_cover_url : null
+                    },
+                    links: isRecord(pick.links)
+                      ? {
+                          musicbrainz: isString(pick.links.musicbrainz) ? pick.links.musicbrainz : null,
+                          lastfm: isString(pick.links.lastfm) ? pick.links.lastfm : null,
+                          youtube_search: isString(pick.links.youtube_search) ? pick.links.youtube_search : null
+                        }
+                      : undefined,
+                    evidence: isRecord(pick.evidence)
+                      ? {
+                          mapping_confidence: isNumber(pick.evidence.mapping_confidence)
+                            ? pick.evidence.mapping_confidence
+                            : undefined
+                        }
+                      : undefined,
+                    reason: isString(pick.reason) ? pick.reason : undefined
+                  } satisfies PickItem;
+                })
+                .filter((pick): pick is PickItem => Boolean(pick))
+            : [];
+          if (!isNumber(slot.slot_id) || !isString(slot.label) || !isString(slot.theme)) {
+            return null;
+          }
+          return {
+            slot_id: slot.slot_id,
+            label: slot.label,
+            theme: slot.theme,
+            picks: slotPicks
+          };
+        })
+        .filter((slot): slot is TodaySlot => Boolean(slot))
+    : [];
   return {
     output_schema_version,
     date,
     run_id,
     theme_of_day,
+    now_slot_id: isNumber((payload as Record<string, unknown>).now_slot_id)
+      ? ((payload as Record<string, unknown>).now_slot_id as number)
+      : null,
+    slots: parsedSlots.length ? parsedSlots : undefined,
     picks: parsedPicks
   };
 }

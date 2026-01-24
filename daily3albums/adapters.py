@@ -201,6 +201,7 @@ class MbReleaseGroup:
     id: str
     title: str
     artist_credit: str
+    artist_mbids: list[str]
     first_release_date: str | None
     primary_type: str | None
     secondary_types: list[str]
@@ -244,6 +245,7 @@ def musicbrainz_search_release_group_by_query(
         # MusicBrainz search results sometimes include only "artist-credit-phrase".
         ac_phrase = rg.get("artist-credit-phrase")
         artist_credit = (ac_phrase or "").strip() if isinstance(ac_phrase, str) else ""
+        artist_mbids: list[str] = []
         if not artist_credit:
             ac = rg.get("artist-credit") or []
             names: list[str] = []
@@ -254,18 +256,32 @@ def musicbrainz_search_release_group_by_query(
                     # 常见：{"name": "Brian Eno", "artist": {...}}
                     if isinstance(x.get("name"), str) and x.get("name"):
                         names.append(x["name"])
-                        continue
-                    # 兜底：{"artist": {"name": "Brian Eno", ...}}
                     art = x.get("artist")
-                    if isinstance(art, dict) and isinstance(art.get("name"), str) and art.get("name"):
-                        names.append(art["name"])
+                    if isinstance(art, dict):
+                        art_id = art.get("id")
+                        if isinstance(art_id, str) and art_id:
+                            artist_mbids.append(art_id)
+                        if isinstance(art.get("name"), str) and art.get("name"):
+                            names.append(art["name"])
             artist_credit = " / ".join(names) if names else ""
+        else:
+            ac = rg.get("artist-credit") or []
+            if isinstance(ac, list):
+                for x in ac:
+                    if not isinstance(x, dict):
+                        continue
+                    art = x.get("artist")
+                    if isinstance(art, dict):
+                        art_id = art.get("id")
+                        if isinstance(art_id, str) and art_id:
+                            artist_mbids.append(art_id)
 
         out.append(
             MbReleaseGroup(
                 id=rg_id,
                 title=rg_title,
                 artist_credit=artist_credit,
+                artist_mbids=artist_mbids,
                 first_release_date=rg.get("first-release-date") or None,
                 primary_type=rg.get("primary-type") or None,
                 secondary_types=list(rg.get("secondary-types") or []),
@@ -277,6 +293,7 @@ def musicbrainz_search_release_group_by_query(
 @dataclass
 class MbReleaseGroupSummary:
     id: str
+    artist_mbids: list[str]
     first_release_date: str | None
     primary_type: str | None
 
@@ -307,8 +324,21 @@ def musicbrainz_get_release_group(
     if not got_id:
         return None
 
+    artist_mbids: list[str] = []
+    ac = j.get("artist-credit") or []
+    if isinstance(ac, list):
+        for x in ac:
+            if not isinstance(x, dict):
+                continue
+            art = x.get("artist")
+            if isinstance(art, dict):
+                art_id = art.get("id")
+                if isinstance(art_id, str) and art_id:
+                    artist_mbids.append(art_id)
+
     return MbReleaseGroupSummary(
         id=got_id,
+        artist_mbids=artist_mbids,
         first_release_date=j.get("first-release-date") or None,
         primary_type=j.get("primary-type") or None,
     )
@@ -342,9 +372,22 @@ def musicbrainz_get_release_group_debug(
         # 这通常意味着不是 rg endpoint 返回的结构
         return None, "rg:missing-id"
 
+    artist_mbids: list[str] = []
+    ac = j.get("artist-credit") or []
+    if isinstance(ac, list):
+        for x in ac:
+            if not isinstance(x, dict):
+                continue
+            art = x.get("artist")
+            if isinstance(art, dict):
+                art_id = art.get("id")
+                if isinstance(art_id, str) and art_id:
+                    artist_mbids.append(art_id)
+
     return (
         MbReleaseGroupSummary(
             id=got_id,
+            artist_mbids=artist_mbids,
             first_release_date=j.get("first-release-date") or None,
             primary_type=j.get("primary-type") or None,
         ),

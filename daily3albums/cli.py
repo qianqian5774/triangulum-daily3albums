@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import random
+import re
 import shutil
 import subprocess
 import uuid
@@ -227,6 +228,14 @@ def _beijing_slot(dt: datetime) -> int:
     return 2
 
 
+def _slot_label(slot_id: int) -> str:
+    if slot_id == 0:
+        return "00:00-07:59"
+    if slot_id == 1:
+        return "08:00-15:59"
+    return "16:00-23:59"
+
+
 def _hash_index(seed: str, size: int) -> int:
     if size <= 0:
         return 0
@@ -276,6 +285,20 @@ def _select_tag(tag_arg: str | None, cfg: Any, beijing_now: datetime, log_line: 
         f"beijing_now={beijing_now.isoformat()} slot={slot} seed={seed} selected_tag={selected}"
     )
     return selected, slot, seed, pool
+
+
+def _select_tag_for_slot(tag_arg: str | None, cfg: Any, date_key: str, slot_id: int, log_line: callable) -> str:
+    raw = (tag_arg or "").strip()
+    if raw and raw.lower() not in {"auto", "all"}:
+        log_line(f"tag_mode=manual slot={slot_id} selected_tag={raw}")
+        return raw
+    pool = _get_tag_pool(cfg)
+    if not pool:
+        raise RuntimeError("TAG_POOL is empty; configure config.yaml tag_pool.")
+    seed = f"{date_key}:{slot_id}"
+    selected = pool[_hash_index(seed, len(pool))]
+    log_line(f"tag_mode=auto slot={slot_id} seed={seed} selected_tag={selected}")
+    return selected
 
 
 def _load_recent_stable_ids(out_public_dir: Path, max_runs: int) -> list[str]:
@@ -414,6 +437,100 @@ def _threshold_steps(min_confidence: float, ambiguity_gap: float) -> list[tuple[
     return unique_steps
 
 
+def _normalize_artist_credit(value: str) -> str:
+    text = (value or "").strip().lower()
+    text = re.sub(r"\s+(feat\.|featuring|ft\.)\s+.*$", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _artist_identity(s: Any) -> tuple[set[str], str]:
+    n = getattr(s, "n", None)
+    mbids = []
+    if n is not None:
+        mbids = [str(x).strip() for x in (getattr(n, "artist_mbids", None) or []) if str(x).strip()]
+    fallback = _normalize_artist_credit(getattr(getattr(s, "c", None), "artist", "") or "")
+    return set(mbids), fallback
+
+
+def _weighted_sample_unique_artists(
+    items: list[Any],
+    count: int,
+    rng: random.Random,
+    recent_ids: set[str],
+    cooling_penalty: float | None,
+    log_line: callable,
+) -> tuple[list[Any], int]:
+    unique_items: list[tuple[Any, float, bool]] = []
+    seen_rg: set[str] = set()
+    cooling_hits = 0
+    for item in items:
+        rg_id = getattr(getattr(item, "n", None), "mb_release_group_id", "") or ""
+        if not rg_id or rg_id in seen_rg:
+            continue
+        seen_rg.add(rg_id)
+        is_recent = rg_id in recent_ids
+        if is_recent:
+            cooling_hits += 1
+        score = float(getattr(item, "score", 0.0))
+        unique_items.append((item, score, is_recent))
+
+    scores = [s for _, s, _ in unique_items]
+    weights = _softmax_weights(scores)
+
+    if cooling_penalty is not None:
+        adjusted = []
+        for (item, score, is_recent), weight in zip(unique_items, weights):
+            if is_recent:
+                weight *= max(cooling_penalty, 0.0)
+            adjusted.append((item, weight))
+    else:
+        adjusted = [(item, weight) for (item, _score, _), weight in zip(unique_items, weights)]
+
+    picks: list[Any] = []
+    used_mbids: set[str] = set()
+    used_fallbacks: set[str] = set()
+    candidates = adjusted[:]
+    attempts = 0
+    max_attempts = len(candidates) * 2 if candidates else 0
+    while candidates and len(picks) < count and attempts <= max_attempts:
+        attempts += 1
+        total = sum(weight for _, weight in candidates)
+        if total <= 0:
+            break
+        r = rng.random() * total
+        upto = 0.0
+        chosen_idx = None
+        for idx, (_item, weight) in enumerate(candidates):
+            upto += weight
+            if upto >= r:
+                chosen_idx = idx
+                break
+        if chosen_idx is None:
+            break
+        item, _weight = candidates.pop(chosen_idx)
+        mbids, fallback = _artist_identity(item)
+        conflict = False
+        if mbids and used_mbids.intersection(mbids):
+            conflict = True
+        if fallback and fallback in used_fallbacks:
+            conflict = True
+        if conflict:
+            log_line(
+                "artist_conflict "
+                f"slot_index={len(picks)} "
+                f"candidate_rg={getattr(getattr(item, 'n', None), 'mb_release_group_id', '') or ''} "
+                f"candidate_mbids={sorted(mbids)} candidate_fallback={fallback or 'n/a'} "
+                f"used_mbids={sorted(used_mbids)} used_fallbacks={sorted(used_fallbacks)}"
+            )
+            continue
+        picks.append(item)
+        used_mbids.update(mbids)
+        if fallback:
+            used_fallbacks.add(fallback)
+    return picks, cooling_hits
+
+
 def _assign_slots(items: list[Any]) -> dict[str, Any]:
     if not items:
         return {"Headliner": None, "Lineage": None, "DeepCut": None}
@@ -507,12 +624,14 @@ def _pick_to_issue_item(
     cover_url = cover_result.optimized_cover_url if cover_result and cover_result.has_cover else fallback_image
     optimized_cover_url = cover_url or "assets/placeholder.svg"
 
+    artist_mbids = list(getattr(n, "artist_mbids", []) or []) if n else []
+
     return {
         "slot": slot,
         "rg_mbid": rg_id,
         "title": title,
         "artist_credit": artist,
-        "artist_mbids": [],
+        "artist_mbids": artist_mbids,
         "first_release_year": _safe_year(frd),
         "primary_type": ptype,
         "secondary_types": [],
@@ -701,102 +820,142 @@ def cmd_build(
 
     try:
         beijing_now = _beijing_now()
-        selected_tag, slot, _seed, _pool = _select_tag(tag, cfg, beijing_now, log_line)
-        tag = selected_tag
-
         date_key = (date_override or "").strip() or beijing_now.date().isoformat()
-        run_id = f"{date_key}_slot{slot}_{uuid.uuid4().hex[:6]}"
-        theme_of_day = (theme or "").strip() or tag
+        now_slot_id = _beijing_slot(beijing_now)
+        run_id = f"{date_key}_slots_{uuid.uuid4().hex[:6]}"
 
         recent_ids = _load_recent_stable_ids(out_public_dir, max_runs=9)
         recent_set = set(recent_ids)
-        rng = random.Random(run_id)
 
-        picked: list[Any] = []
-        used_min_conf = min_confidence
-        used_gap = ambiguity_gap
-        candidate_count = 0
-        cooling_hits = 0
-        final_rg_ids: list[str] = []
+        slot_names = ["Headliner", "Lineage", "DeepCut"]
+        slots_payload: list[dict[str, Any]] = []
+        now_slot_payload: dict[str, Any] | None = None
+        now_slot_tag = ""
+        now_constraints = {"ambiguity_gap": ambiguity_gap, "min_confidence": min_confidence}
 
-        for conf, gap in _threshold_steps(min_confidence, ambiguity_gap):
-            out = run_dry_run(
-                broker,
-                env,
-                tag=tag,
-                n=n,
-                topk=topk,
-                split_slots=split_slots,
-                mb_search_limit=mb_search_limit,
-                min_confidence=conf,
-                ambiguity_gap=gap,
-                mb_debug=mb_debug,
-                quarantine_out=None,
-            )
-            candidates = [s for s in (out.get("top") or []) if getattr(s, "n", None) is not None]
-            candidate_count = len(candidates)
-            for cooling_penalty in (0.0, 0.2, None):
-                picked, cooling_hits = _weighted_sample(
-                    candidates,
-                    count=3,
-                    rng=rng,
-                    recent_ids=recent_set,
-                    cooling_penalty=cooling_penalty,
-                )
-                final_rg_ids = [
-                    getattr(getattr(s, "n", None), "mb_release_group_id", "") for s in picked
-                ]
-                log_line(
-                    "pick_attempt "
-                    f"min_confidence={conf:.2f} ambiguity_gap={gap:.2f} "
-                    f"candidate_count={candidate_count} topk={topk} "
-                    f"cooling_penalty={'off' if cooling_penalty is None else cooling_penalty} "
-                    f"cooling_hits={cooling_hits} picks={final_rg_ids}"
-                )
+        slot_topk_attempts = [min(n, topk), min(n, topk + 10), min(n, topk + 20)]
+        slot_topk_attempts = [k for i, k in enumerate(slot_topk_attempts) if k and k not in slot_topk_attempts[:i]]
+
+        for slot_id in range(3):
+            slot_tag = _select_tag_for_slot(tag, cfg, date_key, slot_id, log_line)
+            if slot_id == now_slot_id:
+                now_slot_tag = slot_tag
+            rng = random.Random(f"{date_key}:{slot_id}:{slot_tag}")
+
+            picked: list[Any] = []
+            used_min_conf = min_confidence
+            used_gap = ambiguity_gap
+            candidate_count = 0
+            cooling_hits = 0
+            final_rg_ids: list[str] = []
+
+            for conf, gap in _threshold_steps(min_confidence, ambiguity_gap):
+                for slot_topk in slot_topk_attempts:
+                    out = run_dry_run(
+                        broker,
+                        env,
+                        tag=slot_tag,
+                        n=n,
+                        topk=slot_topk,
+                        split_slots=split_slots,
+                        mb_search_limit=mb_search_limit,
+                        min_confidence=conf,
+                        ambiguity_gap=gap,
+                        mb_debug=mb_debug,
+                        quarantine_out=None,
+                    )
+                    candidates = [s for s in (out.get("top") or []) if getattr(s, "n", None) is not None]
+                    candidate_count = len(candidates)
+                    for cooling_penalty in (0.0, 0.2, None):
+                        picked, cooling_hits = _weighted_sample_unique_artists(
+                            candidates,
+                            count=3,
+                            rng=rng,
+                            recent_ids=recent_set,
+                            cooling_penalty=cooling_penalty,
+                            log_line=log_line,
+                        )
+                        final_rg_ids = [
+                            getattr(getattr(s, "n", None), "mb_release_group_id", "") for s in picked
+                        ]
+                        log_line(
+                            "pick_attempt "
+                            f"slot={slot_id} tag={slot_tag} "
+                            f"min_confidence={conf:.2f} ambiguity_gap={gap:.2f} "
+                            f"candidate_count={candidate_count} topk={slot_topk} "
+                            f"cooling_penalty={'off' if cooling_penalty is None else cooling_penalty} "
+                            f"cooling_hits={cooling_hits} picks={final_rg_ids}"
+                        )
+                        if len(picked) >= 3:
+                            used_min_conf = conf
+                            used_gap = gap
+                            break
+                    if len(picked) >= 3:
+                        break
                 if len(picked) >= 3:
-                    used_min_conf = conf
-                    used_gap = gap
                     break
-            if len(picked) >= 3:
-                break
 
-        if len(picked) < 3:
-            print("BUILD ERROR: cannot assemble 3 valid picks after relaxing thresholds.")
-            return 2
+            if len(picked) < 3:
+                print(
+                    "BUILD ERROR: cannot assemble 3 distinct-artist picks "
+                    f"for slot={slot_id} tag={slot_tag} after relaxing thresholds."
+                )
+                return 2
 
-        if quarantine_out:
+            scored_items = sorted(picked, key=lambda s: float(getattr(s, "score", 0.0)), reverse=True)
+            if split_slots:
+                slots = _assign_slots(scored_items)
+                scored_items = [slots.get(name) for name in slot_names if slots.get(name) is not None]
+            else:
+                scored_items = scored_items[:3]
+
+            slot_payload = {
+                "slot_id": slot_id,
+                "label": _slot_label(slot_id),
+                "theme": slot_tag,
+                "constraints": {"ambiguity_gap": used_gap, "min_confidence": used_min_conf},
+                "picks": [],
+            }
+
+            if slot_id == now_slot_id:
+                now_constraints = slot_payload["constraints"]
+
+            slots_payload.append(slot_payload)
+
+            if slot_id == now_slot_id:
+                now_slot_payload = slot_payload
+
+            slot_payload["scored_items"] = scored_items
+
+        if quarantine_out and now_slot_tag:
             run_dry_run(
                 broker,
                 env,
-                tag=tag,
+                tag=now_slot_tag,
                 n=n,
                 topk=topk,
                 split_slots=split_slots,
                 mb_search_limit=mb_search_limit,
-                min_confidence=used_min_conf,
-                ambiguity_gap=used_gap,
+                min_confidence=now_constraints["min_confidence"],
+                ambiguity_gap=now_constraints["ambiguity_gap"],
                 mb_debug=mb_debug,
                 quarantine_out=quarantine_out,
             )
 
-        slot_names = ["Headliner", "Lineage", "DeepCut"]
-        scored_items = sorted(picked, key=lambda s: float(getattr(s, "score", 0.0)), reverse=True)
-        if split_slots:
-            slots = _assign_slots(scored_items)
-            scored_items = [slots.get(name) for name in slot_names if slots.get(name) is not None]
-        else:
-            scored_items = scored_items[:3]
+        theme_of_day = (theme or "").strip() or now_slot_tag
 
         issue = {
             "output_schema_version": "1.0",
             "date": date_key,
             "run_id": run_id,
             "theme_of_day": theme_of_day,
-            "slot": slot,
+            "slot": now_slot_id,
+            "now_slot_id": now_slot_id,
             "run_at": beijing_now.isoformat(timespec="seconds"),
             "lineage_source": None,
             "picks": [],
-            "constraints": {"ambiguity_gap": used_gap, "min_confidence": used_min_conf},
+            "constraints": now_constraints,
+            "slots": [],
             "generation": {
                 "started_at": datetime.now().isoformat(timespec="seconds"),
                 "versions": {"daily3albums": getattr(cfg, "version", None)},
@@ -805,19 +964,29 @@ def cmd_build(
         }
 
         cover_version = issue["generation"].get("started_at")
-        issue["picks"] = []
-        for slot, s in zip(slot_names, scored_items):
-            rg_id = getattr(getattr(s, "n", None), "mb_release_group_id", "") or ""
-            cover_result = cover_adapter.fetch_cover(rg_id) if rg_id else None
-            issue["picks"].append(
-                _pick_to_issue_item(
-                    tag=tag,
-                    slot=slot,
-                    s=s,
-                    cover_version=cover_version,
-                    cover_result=cover_result,
+        for slot_payload in slots_payload:
+            scored_items = slot_payload.pop("scored_items", [])
+            slot_payload["picks"] = []
+            for slot_name, s in zip(slot_names, scored_items):
+                rg_id = getattr(getattr(s, "n", None), "mb_release_group_id", "") or ""
+                cover_result = cover_adapter.fetch_cover(rg_id) if rg_id else None
+                slot_payload["picks"].append(
+                    _pick_to_issue_item(
+                        tag=slot_payload.get("theme") or theme_of_day,
+                        slot=slot_name,
+                        s=s,
+                        cover_version=cover_version,
+                        cover_result=cover_result,
+                    )
                 )
+            issue["slots"].append(
+                {k: v for k, v in slot_payload.items() if k in {"slot_id", "label", "theme", "constraints", "picks"}}
             )
+
+        if not now_slot_payload:
+            now_slot_payload = slots_payload[0]
+
+        issue["picks"] = now_slot_payload.get("picks", [])
 
         quarantine_rows: list[dict[str, Any]] = []
         if quarantine_out:
@@ -889,7 +1058,7 @@ def cmd_build(
             print(f"{k}={v}")
         log_line(
             "build_summary "
-            f"slot={slot} selected_tag={tag} run_id={run_id} "
+            f"slot={now_slot_id} selected_tag={now_slot_tag} run_id={run_id} "
             f"archive_path={paths.get('archive')} index_path={paths.get('index')}"
         )
 
