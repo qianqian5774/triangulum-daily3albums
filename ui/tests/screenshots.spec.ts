@@ -19,6 +19,9 @@ test("capture phase II screenshots", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await visitToday(page, "desktop");
   await page.screenshot({ path: path.join(outputDir, "today-desktop.png"), fullPage: true });
+  await page.click('[data-testid="ambient-toggle"]');
+  await page.waitForSelector("section.ambient-mode");
+  await page.screenshot({ path: path.join(outputDir, "today-ambient.png"), fullPage: true });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await visitToday(page, "mobile");

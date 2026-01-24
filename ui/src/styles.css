@@ -52,6 +52,28 @@ body {
   mix-blend-mode: screen;
 }
 
+.ambient-fade {
+  transition: opacity 0.6s ease;
+}
+
+.ambient-mode .ambient-fade {
+  opacity: 0.18;
+}
+
+.ambient-mode .slotcard-body,
+.ambient-mode .slotcard-badge {
+  opacity: 0.12;
+  transition: opacity 0.6s ease;
+}
+
+.ambient-mode .slotcard-cover {
+  animation: ambient-drift 26s ease-in-out infinite;
+}
+
+.ambient-mode .slotcard-cover img {
+  animation: ambient-breathe 18s ease-in-out infinite;
+}
+
 .respire {
   animation: respire 6s ease-in-out infinite;
 }
@@ -106,6 +128,28 @@ body {
   }
 }
 
+@keyframes ambient-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0.6%, -0.8%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes ambient-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.015);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marquee {
     animation: none;
@@ -125,5 +169,10 @@ body {
 
   .glitch-flash::after {
     display: none;
+  }
+
+  .ambient-mode .slotcard-cover,
+  .ambient-mode .slotcard-cover img {
+    animation: none;
   }
 }

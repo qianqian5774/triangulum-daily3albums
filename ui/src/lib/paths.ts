@@ -4,8 +4,9 @@ export function resolvePublicPath(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
-  const normalized = path.replace(/^\.\//, "");
-  return `${BASE_URL}${normalized}`;
+  const normalized = path.replace(/^\.\//, "").replace(/^\/+/, "");
+  const base = BASE_URL.endsWith("/") ? BASE_URL : `${BASE_URL}/`;
+  return `${base}${normalized}`;
 }
 
 export function appendCacheBuster(url: string, cacheKey?: string | null): string {

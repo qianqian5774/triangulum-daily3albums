@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
-import { appendCacheBuster, resolvePublicPath } from "../lib/paths";
+import { resolveCoverUrl } from "../lib/covers";
 import { t } from "../strings/t";
 import type { PickItem } from "../lib/types";
 
@@ -22,18 +22,6 @@ interface SlotCardProps {
   fetchPriority?: "high" | "auto" | "low";
 }
 
-function resolveCover(url: string, cacheKey?: string) {
-  const trimmed = url.trim();
-  if (!trimmed) {
-    return null;
-  }
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return null;
-  }
-  const safe = trimmed.replace(/^\//, "");
-  return appendCacheBuster(resolvePublicPath(safe), cacheKey);
-}
-
 export function SlotCard({
   pick,
   onSelect,
@@ -46,12 +34,19 @@ export function SlotCard({
 }: SlotCardProps) {
   const cardRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
-  const coverUrl = resolveCover(pick.cover.optimized_cover_url, cacheKey);
+  const [retryToken, setRetryToken] = useState<string | null>(null);
+  const [coverFailed, setCoverFailed] = useState(false);
+  const coverUrl = resolveCoverUrl(pick.cover.optimized_cover_url, cacheKey, retryToken);
   const isInteractive = Boolean(onSelect);
   const coverLayoutId = layoutId?.startsWith("card-") ? layoutId.replace("card-", "cover-") : undefined;
   const tiltX = useMotionValue(0);
   const tiltY = useMotionValue(0);
   const hover = useMotionValue(0);
+
+  useEffect(() => {
+    setRetryToken(null);
+    setCoverFailed(false);
+  }, [pick.cover.optimized_cover_url, cacheKey]);
 
   const tiltXSpring = useSpring(tiltX, { stiffness: 160, damping: 18 });
   const tiltYSpring = useSpring(tiltY, { stiffness: 160, damping: 18 });
@@ -100,7 +95,7 @@ export function SlotCard({
       ref={cardRef}
       layoutId={layoutId}
       data-testid={dataTestId}
-      onPointerUp={onSelect}
+      onClick={onSelect}
       onKeyDown={handleKeyDown}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -110,7 +105,7 @@ export function SlotCard({
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
       aria-label={isInteractive ? t("treatment.viewer.enter") : undefined}
-      className={`hud-border flex h-full flex-col overflow-hidden rounded-card bg-panel-800/70 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid ${
+      className={`slotcard hud-border flex h-full flex-col overflow-hidden rounded-card bg-panel-800/70 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid ${
         isInteractive
           ? "cursor-pointer transition-shadow duration-200 hover:border-acid-green/80 hover:drop-shadow-[0_0_18px_rgba(204,255,0,0.45)]"
           : ""
@@ -124,8 +119,8 @@ export function SlotCard({
         transformStyle: "preserve-3d"
       }}
     >
-      <div className="relative aspect-square w-full overflow-hidden bg-panel-900">
-        {coverUrl ? (
+      <div className="slotcard-cover relative aspect-square w-full overflow-hidden bg-panel-900">
+        {coverUrl && !coverFailed ? (
           <motion.img
             layoutId={coverLayoutId}
             src={coverUrl}
@@ -133,6 +128,13 @@ export function SlotCard({
             className="h-full w-full object-cover"
             loading={imageLoading}
             fetchPriority={fetchPriority}
+            onError={() => {
+              if (retryToken === null) {
+                setRetryToken(Date.now().toString());
+                return;
+              }
+              setCoverFailed(true);
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-panel-900 via-panel-700 to-panel-900">
@@ -141,7 +143,7 @@ export function SlotCard({
             </span>
           </div>
         )}
-        <div className="absolute left-4 top-4">
+        <div className="slotcard-badge absolute left-4 top-4">
           <span
             className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${slotStyles[pick.slot]}`}
           >
@@ -149,7 +151,7 @@ export function SlotCard({
           </span>
         </div>
       </div>
-      <div className="flex flex-1 flex-col gap-3 px-5 py-4">
+      <div className="slotcard-body flex flex-1 flex-col gap-3 px-5 py-4">
         <div>
           <h3 className="glitch-text text-lg font-semibold uppercase tracking-tightish text-clinical-white">
             {pick.title}
@@ -165,7 +167,7 @@ export function SlotCard({
         <div className="mt-auto flex flex-wrap gap-2 text-sm text-clinical-white/70">
           {pick.links?.musicbrainz && (
             <a
-              className="inline-flex min-h-[44px] items-center rounded-full border border-acid-green/30 px-3 py-2 uppercase tracking-[0.2em] text-acid-green transition hover:border-acid-green/70 hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+              className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-acid-green underline decoration-acid-green/60 underline-offset-4 transition hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
               href={pick.links.musicbrainz}
               onClick={(event) => event.stopPropagation()}
               target="_blank"
@@ -176,7 +178,7 @@ export function SlotCard({
           )}
           {pick.links?.youtube_search && (
             <a
-              className="inline-flex min-h-[44px] items-center rounded-full border border-clinical-white/30 px-3 py-2 uppercase tracking-[0.2em] text-clinical-white transition hover:border-clinical-white/70 hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
+              className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-clinical-white underline decoration-clinical-white/50 underline-offset-4 transition hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
               href={pick.links.youtube_search}
               onClick={(event) => event.stopPropagation()}
               target="_blank"
