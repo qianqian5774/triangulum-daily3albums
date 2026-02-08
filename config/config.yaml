@@ -349,3 +349,4 @@ scoring:
 build:
   max_tag_tries_per_slot: 8
   lastfm_max_pages: 6
+  ui_build_timeout_s: 300

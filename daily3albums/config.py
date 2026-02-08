@@ -87,6 +87,7 @@ class AppConfig:
     discogs_per_page: int
     decade_mode: str
     ignored_legacy_decade_keys: list[str]
+    ui_build_timeout_s: int
 
 
 def load_config(repo_root: Path) -> AppConfig:
@@ -112,6 +113,7 @@ def load_config(repo_root: Path) -> AppConfig:
     discogs_per_page = min(100, max(1, int(discogs_cfg.get("discogs_per_page", discogs_cfg.get("per_page", 100)))))
     raw_decade_mode = str(cfg.get("decade_mode", "off") or "off").strip().lower()
     decade_mode = "on" if raw_decade_mode == "on" else "off"
+    ui_build_timeout_s = int((cfg.get("build", {}) or {}).get("ui_build_timeout_s", 300))
     legacy_decade_keys = [
         key for key in ("decade_theme", "min_in_decade", "max_unknown_year", "decade_axis", "day_decade")
         if key in build_cfg or key in cfg
@@ -133,4 +135,5 @@ def load_config(repo_root: Path) -> AppConfig:
         discogs_per_page=discogs_per_page,
         decade_mode=decade_mode,
         ignored_legacy_decade_keys=legacy_decade_keys,
+        ui_build_timeout_s=max(1, int(ui_build_timeout_s)),
     )

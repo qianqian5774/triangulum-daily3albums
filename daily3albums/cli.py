@@ -211,6 +211,8 @@ def cmd_dry_run(
                 "mb_candidates_considered": out.get("mb_candidates_considered", 0),
                 "mb_candidates_normalized": out.get("mb_candidates_normalized", 0),
                 "mb_queries_attempted_total": out.get("mb_queries_attempted_total", 0),
+                "mb_search_queries_attempted_total": out.get("mb_search_queries_attempted_total", 0),
+                "mb_http_calls_total": out.get("mb_http_calls_total", 0),
                 "mb_budget_exceeded": out.get("mb_budget_exceeded", False),
                 "mb_cap_hit": out.get("mb_cap_hit", False),
                 "mb_time_spent_s": out.get("mb_time_spent_s", 0),
@@ -1024,17 +1026,37 @@ def cmd_build(
                         break
 
                     prefetched = int(out.get("prefilter_total", len(out.get("candidates") or [])))
+                    tags_with_attempts = [a for a in attempts_meta if isinstance(a, dict) and a.get("tag")]
+                    unique_tags_tried = len({a.get("tag") for a in tags_with_attempts})
+                    tags_skipped_cooldown = sum(
+                        1 for a in attempts_meta
+                        if isinstance(a, dict) and a.get("skipped") == "theme_cooldown"
+                    )
+                    fetch_windows_attempted = len(
+                        [a for a in tags_with_attempts if a.get("fetch_limit") is not None]
+                    )
+                    lastfm_pages_planned_effective = sum(
+                        int(a.get("lastfm_pages_planned", 0))
+                        for a in tags_with_attempts
+                        if a.get("fetch_limit") is not None
+                    )
                     diagnostics_summary["slot_progress"][str(slot_id)] = {
                         "slot_id": slot_id,
                         "current_tag": slot_tag,
-                        "tags_tried": len({a.get("tag") for a in attempts_meta if isinstance(a, dict) and a.get("tag")}),
-                        "pages_fetched": sum(int(a.get("lastfm_pages_fetched", 0)) for a in attempts_meta if isinstance(a, dict)),
+                        "tags_considered": len(tag_attempts),
+                        "tags_tried": unique_tags_tried,
+                        "tags_skipped_cooldown": tags_skipped_cooldown,
+                        "fetch_windows_attempted": fetch_windows_attempted,
+                        "pages_fetched": sum(int(a.get("lastfm_pages_fetched", 0)) for a in tags_with_attempts),
                         "pages_planned": len(tag_attempts) * max(1, int(lastfm_max_pages)),
+                        "lastfm_pages_planned_effective": lastfm_pages_planned_effective,
                         "top_rejection_reasons": _top_rejection_reasons(reject_counts),
                         "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
                         "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
                         "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
                         "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
+                        "mb_search_queries_attempted_total": int(out.get("mb_search_queries_attempted_total", 0)),
+                        "mb_http_calls_total": int(out.get("mb_http_calls_total", 0)),
                         "discogs_enabled": bool(out.get("discogs_enabled", False)),
                         "discogs_pages_fetched": int(out.get("discogs_pages_fetched", 0)),
                         "discogs_page_cap_hit": bool(out.get("discogs_page_cap_hit", False)),
@@ -1105,6 +1127,8 @@ def cmd_build(
                         "mb_candidates_considered": int(out.get("mb_candidates_considered", 0)),
                         "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
                         "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
+                        "mb_search_queries_attempted_total": int(out.get("mb_search_queries_attempted_total", 0)),
+                        "mb_http_calls_total": int(out.get("mb_http_calls_total", 0)),
                         "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
                         "mb_cap_hit": bool(out.get("mb_cap_hit", False)),
                         "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
@@ -1245,7 +1269,21 @@ def cmd_build(
         npm_exe = shutil.which("npm.cmd") or shutil.which("npm")
         if not npm_exe:
             raise SystemExit("UI build failed: npm not found. Install Node.js and ensure npm is on PATH.")
-        ui_build = subprocess.run([npm_exe, "--prefix", str(ui_dir), "run", "build"], check=False, cwd=repo_root)
+        ui_timeout_s = int(getattr(cfg, "ui_build_timeout_s", 300))
+        try:
+            ui_build = subprocess.run(
+                [npm_exe, "--prefix", str(ui_dir), "run", "build"],
+                check=False,
+                cwd=repo_root,
+                timeout=ui_timeout_s,
+            )
+        except subprocess.TimeoutExpired as exc:
+            print(
+                "BUILD ERROR: ui build timed out "
+                f"timeout_s={ui_timeout_s} cmd={' '.join(exc.cmd) if isinstance(exc.cmd, (list, tuple)) else exc.cmd}"
+            )
+            log_line(f"ui_build_timeout timeout_s={ui_timeout_s}")
+            return 2
         if ui_build.returncode != 0:
             print("BUILD ERROR: ui build failed. See npm output above.")
             return 2
