@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from daily3albums.config import load_env, load_config
-from daily3albums.request_broker import RequestBroker
+from daily3albums.request_broker import BrokerRequestError, RequestBroker
 from daily3albums.adapters import CoverArtArchiveAdapter, CoverArtResult, lastfm_tag_top_albums, musicbrainz_search_release_group
 from daily3albums.constraints import (
     ARTIST_COOLDOWN_DAYS,
@@ -68,7 +68,7 @@ def cmd_probe_lastfm(repo_root: Path, tag: str, limit: int, verbose: bool, raw: 
             print(json.dumps(j, ensure_ascii=False, indent=2))
             return 0
 
-        albums = lastfm_tag_top_albums(broker, api_key=env.lastfm_api_key, tag=tag, limit=limit)
+        albums = lastfm_tag_top_albums(broker, lastfm_api_key=env.lastfm_api_key, tag=tag, limit=limit)
         print(json.dumps([a.__dict__ for a in albums[:limit]], ensure_ascii=False, indent=2))
         return 0
     finally:
@@ -117,6 +117,7 @@ def cmd_dry_run(
     min_confidence = float(min_confidence)
     ambiguity_gap = float(ambiguity_gap)
     quarantine_out = (quarantine_out or "").strip() or None
+    prefilter_topn = int((cfg.raw.get("scoring", {}) or {}).get("mb_prefilter_topn", 120))
 
     try:
         out = run_dry_run(
@@ -131,6 +132,7 @@ def cmd_dry_run(
             ambiguity_gap=ambiguity_gap,
             mb_debug=mb_debug,
             quarantine_out=quarantine_out,
+            prefilter_topn=prefilter_topn,
         )
 
         print("\n== Candidates ==")
@@ -194,6 +196,8 @@ def cmd_dry_run(
 # ----------------------------
 # helpers (build)
 # ----------------------------
+
+MAX_TAG_TRIES_PER_SLOT = 8
 
 _DEFAULT_TAG_POOL = [
     "ambient",
@@ -381,6 +385,7 @@ def _weighted_sample(
     rng: random.Random,
     recent_ids: set[str],
     cooling_penalty: float | None,
+    temperature: float = 10.0,
 ) -> tuple[list[Any], int]:
     unique_items: list[tuple[Any, float, bool]] = []
     seen_rg: set[str] = set()
@@ -397,7 +402,7 @@ def _weighted_sample(
         unique_items.append((item, score, is_recent))
 
     scores = [s for _, s, _ in unique_items]
-    weights = _softmax_weights(scores)
+    weights = _softmax_weights(scores, temperature=temperature)
 
     if cooling_penalty is not None:
         adjusted = []
@@ -470,6 +475,7 @@ def _weighted_sample_unique_artists(
     recent_ids: set[str],
     cooling_penalty: float | None,
     log_line: callable,
+    temperature: float = 10.0,
 ) -> tuple[list[Any], int]:
     unique_items: list[tuple[Any, float, bool]] = []
     seen_rg: set[str] = set()
@@ -486,7 +492,7 @@ def _weighted_sample_unique_artists(
         unique_items.append((item, score, is_recent))
 
     scores = [s for _, s, _ in unique_items]
-    weights = _softmax_weights(scores)
+    weights = _softmax_weights(scores, temperature=temperature)
 
     if cooling_penalty is not None:
         adjusted = []
@@ -862,6 +868,7 @@ def cmd_build(
     type_flags = _type_flags_from_cfg(cfg)
 
     mb_search_limit = int(mb_search_limit)
+    prefilter_topn = int((cfg.raw.get("scoring", {}) or {}).get("mb_prefilter_topn", 120))
     quarantine_out = (quarantine_out or "").strip() or None
     out_public_dir = (repo_root / out_dir).resolve()
 
@@ -895,6 +902,8 @@ def cmd_build(
             tag_attempts = [pool[(start_index + i) % len(pool)] for i in range(len(pool))]
             if used_theme_keys:
                 tag_attempts = sorted(tag_attempts, key=lambda t: (theme_key_from_tag(t) in used_theme_keys, tag_attempts.index(t)))
+            max_tag_tries = int((cfg.raw.get("build", {}) or {}).get("max_tag_tries_per_slot", MAX_TAG_TRIES_PER_SLOT))
+            tag_attempts = tag_attempts[:max_tag_tries]
 
             picked: list[Any] = []
             picked_theme_tag = ""
@@ -913,11 +922,49 @@ def cmd_build(
                         continue
 
                 for fetch_limit in (max(n, 200), 800):
-                    out = run_dry_run(
-                        broker, env, tag=slot_tag, n=fetch_limit, topk=max(fetch_limit, topk), split_slots=False,
-                        mb_search_limit=mb_search_limit, min_confidence=float(min_confidence), ambiguity_gap=float(ambiguity_gap),
-                        mb_debug=mb_debug, quarantine_out=None,
+                    deepcut = (slot_id == 2)
+                    seed_key = f"{date_key}:{slot_id}:{slot_tag}"
+                    try:
+                        out = run_dry_run(
+                            broker,
+                            env,
+                            tag=slot_tag,
+                            n=fetch_limit,
+                            topk=max(fetch_limit, topk),
+                            deepcut=deepcut,
+                            seed_key=seed_key,
+                            split_slots=False,
+                            mb_search_limit=mb_search_limit,
+                            min_confidence=float(min_confidence),
+                            ambiguity_gap=float(ambiguity_gap),
+                            mb_debug=mb_debug,
+                            quarantine_out=None,
+                            prefilter_topn=prefilter_topn,
+                        )
+                    except BrokerRequestError as e:
+                        attempts_meta.append({
+                            "tag": slot_tag,
+                            "theme_key": theme_key,
+                            "fetch_limit": fetch_limit,
+                            "network_failed": True,
+                            "error": str(e),
+                            "candidate_count": 0,
+                            "candidate_count_after_light_prefilter": 0,
+                            "candidate_count_after_hard_filters": 0,
+                        })
+                        log_line(f"network_failed slot={slot_id} tag={slot_tag} fetch_limit={fetch_limit} error={e}")
+                        break
+
+                    prefetched = int(out.get("prefilter_total", len(out.get("candidates") or [])))
+                    topn = int(out.get("prefilter_topn", len(out.get("scored") or [])))
+                    normalized = int(out.get("normalized_count", len(out.get("scored") or [])))
+                    saved_calls = max(0, prefetched - normalized)
+                    log_line(
+                        f"prefilter slot={slot_id} tag={slot_tag} fetch_limit={fetch_limit} "
+                        f"fetched_candidates={prefetched} after_light_prefilter_topN={topn} "
+                        f"mb_normalized={normalized} saved_mb_calls={saved_calls}"
                     )
+
                     candidates = [s for s in (out.get("top") or []) if getattr(s, "n", None) is not None]
                     fetched_count = max(fetched_count, len(candidates))
                     eligible: list[Any] = []
@@ -959,10 +1006,19 @@ def cmd_build(
 
                     for k, v in local_reject.items():
                         reject_counts[k] += v
-                    attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "fetch_limit": fetch_limit, "candidate_count": len(candidates), "eligible": len(eligible)})
+                    attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "fetch_limit": fetch_limit, "candidate_count": prefetched, "candidate_count_after_light_prefilter": topn, "candidate_count_after_hard_filters": len(eligible), "reject_counts": dict(local_reject), "eligible": len(eligible)})
                     if len(eligible) >= 3:
                         rng = random.Random(f"{date_key}:{slot_id}:{theme_key}")
-                        picked, _ = _weighted_sample_unique_artists(eligible, count=3, rng=rng, recent_ids=recent_set, cooling_penalty=None, log_line=log_line)
+                        slot_temperature = 9.0 if slot_id == 0 else (10.0 if slot_id == 1 else 14.0)
+                        picked, _ = _weighted_sample_unique_artists(
+                            eligible,
+                            count=3,
+                            rng=rng,
+                            recent_ids=recent_set,
+                            cooling_penalty=None,
+                            log_line=log_line,
+                            temperature=slot_temperature,
+                        )
                         if len(picked) >= 3:
                             picked_theme_tag = slot_tag
                             picked_theme_key = theme_key
@@ -971,8 +1027,19 @@ def cmd_build(
                     break
 
             if len(picked) < 3:
-                print(f"BUILD ERROR: slot={slot_id} exhausted")
-                print(f"exhaustion slot={slot_id} attempts={attempts_meta} rejects={reject_counts}")
+                tried_tags = [a.get("tag") for a in attempts_meta if isinstance(a, dict) and a.get("tag")]
+                unique_tags = list(dict.fromkeys(tried_tags))
+                diag = {
+                    "slot_id": slot_id,
+                    "tags_tried": len(unique_tags),
+                    "max_tag_tries_per_slot": max_tag_tries,
+                    "tag_attempts": attempts_meta,
+                    "reject_counts": reject_counts,
+                }
+                print(f"BUILD ERROR: slot={slot_id} exhausted after {len(unique_tags)} tags (cap={max_tag_tries})")
+                print(f"exhaustion slot={slot_id} diagnostic={diag}")
+                log_line(f"slot_exhausted {json.dumps(diag, ensure_ascii=False)}")
+                exhaustion.append(diag)
                 return 2
 
             scored_items = sorted(picked, key=lambda s: float(getattr(s, "score", 0.0)), reverse=True)[:3]

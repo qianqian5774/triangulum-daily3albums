@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import random
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
 from daily3albums.adapters import (
-    LastFmTopAlbum,
     MbReleaseGroupSummary,
+    discogs_database_search,
     lastfm_tag_top_albums,
+    listenbrainz_metadata_release_groups,
+    listenbrainz_sitewide_release_groups,
     musicbrainz_best_release_group_match,
     musicbrainz_best_release_group_match_debug,
+    musicbrainz_get_release_group,
     musicbrainz_normalize_mbid_to_release_group,
     musicbrainz_normalize_mbid_to_release_group_debug,
 )
@@ -20,28 +26,39 @@ from daily3albums.adapters import (
 class Candidate:
     title: str
     artist: str
-    lastfm_mbid: str
-    lastfm_rank: int
-    image_url: str
+    image_url: Optional[str] = None
+    lastfm_rank: Optional[int] = None
+    lastfm_mbid: Optional[str] = None
+    sources: set[str] = field(default_factory=set)
+    source_ranks: dict[str, int] = field(default_factory=dict)
+    rg_mbid_hint: Optional[str] = None
+    artist_mbid_hint: Optional[str] = None
 
 
 @dataclass
-class Normalized:
-    mb_release_group_id: str
-    first_release_date: str
-    primary_type: str
-    confidence: float
-    source: str
+class NormalizedCandidate:
+    title: str
+    artist: str
+    mb_release_group_id: Optional[str]
     artist_mbids: list[str] = field(default_factory=list)
+    primary_type: Optional[str] = None
+    first_release_date: Optional[str] = None
+    confidence: float = 1.0
+    source: str = "hint"
 
 
 @dataclass
-class Scored:
+class ScoredCandidate:
+    score: float
     c: Candidate
-    n: Optional[Normalized]
-    score: int
-    reason: str
+    n: Optional[NormalizedCandidate]
+    debug: dict[str, Any] = field(default_factory=dict)
+    reason: str = ""
     mb_debug: list[str] = field(default_factory=list)
+
+
+Normalized = NormalizedCandidate
+Scored = ScoredCandidate
 
 
 def _safe_int(x: Any, default: int = 0) -> int:
@@ -51,36 +68,24 @@ def _safe_int(x: Any, default: int = 0) -> int:
         return default
 
 
-def _score(c: Candidate, n: Optional[Normalized]) -> tuple[int, str]:
-    score = 0
-    reasons: list[str] = []
+def _norm_key(s: str) -> str:
+    s = (s or "").lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[^\w\s]", "", s)
+    return s
 
-    if n and n.mb_release_group_id:
-        score += 20
-        reasons.append("mb:+20")
 
-        pt = (n.primary_type or "").lower()
-        if pt == "album":
-            score += 10
-            reasons.append("type:album:+10")
-        elif pt in ("ep", "single"):
-            score -= 5
-            reasons.append(f"type:{pt}:-5")
+def _light_album_key(artist: str, title: str) -> str:
+    return f"{_norm_key(artist)}::{_norm_key(title)}"
 
-        if n.first_release_date:
-            score += 2
-            reasons.append("date:+2")
 
-    rank_bonus = max(0, 20 - (c.lastfm_rank or 9999))
-    if rank_bonus:
-        score += rank_bonus
-        reasons.append(f"rank:+{rank_bonus}")
-
-    return score, ",".join(reasons)
+def _stable_shuffle(items: list[Any], seed: str) -> None:
+    h = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    r = random.Random(int(h[:16], 16))
+    r.shuffle(items)
 
 
 def _extract_reject_reason(dbg: list[str]) -> str:
-    # 尽量给出一个人类可读的原因
     for line in reversed(dbg):
         if "search:rejected ambiguous" in line:
             return "ambiguous"
@@ -100,172 +105,313 @@ def _write_quarantine_line(path: str, payload: dict[str, Any]) -> None:
 
 def _normalize_candidate(
     broker,
-    mb_user_agent: str,
+    env,
     c: Candidate,
-    mb_search_limit: int = 10,
-    min_confidence: float = 0.80,
-    ambiguity_gap: float = 0.06,
-    mb_debug: bool = False,
-) -> tuple[Optional[Normalized], list[str]]:
-    dbg: list[str] = []
+    debug: bool = False,
+) -> tuple[Optional[NormalizedCandidate], dict[str, Any]]:
+    dbg_lines: list[str] = []
+    norm: Optional[NormalizedCandidate] = None
 
-    # 1) mbid 确定性链路：release-group -> release -> release-group
     if c.lastfm_mbid:
         rg: MbReleaseGroupSummary | None
-        if mb_debug:
+        if debug:
             rg, src, debug_lines = musicbrainz_normalize_mbid_to_release_group_debug(
                 broker,
-                mb_user_agent=mb_user_agent,
+                mb_user_agent=env.mb_user_agent,
                 mbid=c.lastfm_mbid,
             )
-            dbg.append(f"mbid_present=yes src={src} ok={'yes' if rg else 'no'}")
-            dbg.extend(debug_lines)
+            dbg_lines.extend(debug_lines)
         else:
             rg, src = musicbrainz_normalize_mbid_to_release_group(
                 broker,
-                mb_user_agent=mb_user_agent,
+                mb_user_agent=env.mb_user_agent,
                 mbid=c.lastfm_mbid,
             )
-            dbg.append(f"mbid_present=yes src={src} ok={'yes' if rg else 'no'}")
-
         if rg is not None:
-            return (
-                Normalized(
-                    mb_release_group_id=rg.id,
-                    first_release_date=rg.first_release_date or "",
-                    primary_type=rg.primary_type or "",
-                    confidence=1.0,
-                    source=src,
-                    artist_mbids=list(rg.artist_mbids or []),
-                ),
-                dbg,
+            norm = NormalizedCandidate(
+                title=c.title,
+                artist=c.artist,
+                mb_release_group_id=rg.id,
+                artist_mbids=list(rg.artist_mbids or []),
+                primary_type=rg.primary_type,
+                first_release_date=rg.first_release_date,
+                confidence=1.0,
+                source=src,
             )
-    else:
-        dbg.append("mbid_present=no")
+            return norm, {"mb_debug": dbg_lines}
 
-    # 2) 文本搜索兜底：需要过置信度阈值 + 歧义护栏，否则宁缺毋滥
-    runner_up_conf: float | None = None
-    if mb_debug:
-        match, runner_up_conf, dbg2 = musicbrainz_best_release_group_match_debug(
-            broker,
-            mb_user_agent=mb_user_agent,
+    if c.rg_mbid_hint:
+        rg = musicbrainz_get_release_group(broker, env.mb_user_agent, c.rg_mbid_hint)
+        norm = NormalizedCandidate(
             title=c.title,
             artist=c.artist,
-            limit=mb_search_limit,
+            mb_release_group_id=c.rg_mbid_hint,
+            artist_mbids=list((rg.artist_mbids if rg else []) or ([c.artist_mbid_hint] if c.artist_mbid_hint else [])),
+            primary_type=rg.primary_type if rg else None,
+            first_release_date=rg.first_release_date if rg else None,
+            confidence=1.0,
+            source="hint:rg_mbid",
         )
-        dbg.extend(dbg2)
+        return norm, {"mb_debug": dbg_lines}
+
+    if debug:
+        match, _runner_up_conf, dbg2 = musicbrainz_best_release_group_match_debug(
+            broker,
+            mb_user_agent=env.mb_user_agent,
+            title=c.title,
+            artist=c.artist,
+            limit=10,
+        )
+        dbg_lines.extend(dbg2)
     else:
         match = musicbrainz_best_release_group_match(
             broker,
-            mb_user_agent=mb_user_agent,
+            mb_user_agent=env.mb_user_agent,
             title=c.title,
             artist=c.artist,
-            limit=mb_search_limit,
+            limit=10,
         )
 
     if match is None:
-        dbg.append("search:final=none")
-        return None, dbg
-
-    if match.confidence < min_confidence:
-        dbg.append(f"search:rejected confidence={match.confidence:.3f} < min={min_confidence:.3f}")
-        return None, dbg
-
-    if runner_up_conf is not None:
-        gap = float(match.confidence) - float(runner_up_conf)
-        if gap < float(ambiguity_gap):
-            dbg.append(
-                f"search:rejected ambiguous gap={gap:.3f} < ambiguity_gap={float(ambiguity_gap):.3f} "
-                f"best={float(match.confidence):.3f} runner={float(runner_up_conf):.3f}"
-            )
-            return None, dbg
+        return None, {"mb_debug": dbg_lines}
 
     rg = match.rg
-    return (
-        Normalized(
-            mb_release_group_id=rg.id,
-            first_release_date=rg.first_release_date or "",
-            primary_type=rg.primary_type or "",
-            confidence=float(match.confidence),
-            source=match.method,
-            artist_mbids=list(rg.artist_mbids or []),
-        ),
-        dbg,
+    norm = NormalizedCandidate(
+        title=c.title,
+        artist=c.artist,
+        mb_release_group_id=rg.id,
+        artist_mbids=list(rg.artist_mbids or []),
+        primary_type=rg.primary_type,
+        first_release_date=rg.first_release_date,
+        confidence=float(match.confidence),
+        source=match.method,
     )
+    return norm, {"mb_debug": dbg_lines}
 
 
-def _pick_slots(items: list[Scored]) -> dict[str, Optional[Scored]]:
+def _merge_candidates(cands: list[Candidate]) -> list[Candidate]:
+    merged: dict[str, Candidate] = {}
+    for c in cands:
+        k = _light_album_key(c.artist, c.title)
+        if k not in merged:
+            merged[k] = c
+            continue
+        m = merged[k]
+        m.sources |= c.sources
+        m.source_ranks.update(c.source_ranks)
+        if not m.image_url and c.image_url:
+            m.image_url = c.image_url
+        if c.lastfm_rank is not None:
+            if m.lastfm_rank is None or c.lastfm_rank < m.lastfm_rank:
+                m.lastfm_rank = c.lastfm_rank
+        if c.lastfm_mbid and not m.lastfm_mbid:
+            m.lastfm_mbid = c.lastfm_mbid
+        if c.rg_mbid_hint and not m.rg_mbid_hint:
+            m.rg_mbid_hint = c.rg_mbid_hint
+        if c.artist_mbid_hint and not m.artist_mbid_hint:
+            m.artist_mbid_hint = c.artist_mbid_hint
+    return list(merged.values())
+
+
+def _score(norm: Optional[NormalizedCandidate], cand: Candidate, *, deepcut: bool, seed_key: str) -> float:
+    src_bonus = max(0, len(cand.sources) - 1) * 6.0
+
+    def peak_head(r: int) -> float:
+        if r <= 0:
+            return 0.0
+        return max(0.0, 18.0 - r) * 0.8
+
+    def peak_tail(r: int) -> float:
+        if r <= 0:
+            return 0.0
+        return min(22.0, max(0.0, r - 60) * 0.12)
+
+    ranks = list(cand.source_ranks.values())
+    if cand.lastfm_rank is not None:
+        ranks.append(cand.lastfm_rank)
+    rank_score = 0.0
+    for r in ranks:
+        rank_score += peak_head(r) + peak_tail(r)
+
+    if deepcut:
+        for r in ranks:
+            if r <= 25:
+                rank_score -= (26 - r) * 0.9
+
+    qual = 0.0
+    if norm and norm.mb_release_group_id:
+        qual += 6.0
+    if norm and norm.primary_type == "Album":
+        qual += 2.5
+    if norm and norm.first_release_date:
+        qual += 1.0
+
+    h = hashlib.sha256((seed_key + _light_album_key(cand.artist, cand.title)).encode("utf-8")).hexdigest()
+    jitter = (int(h[:8], 16) / 0xFFFFFFFF - 0.5) * 0.6
+
+    return src_bonus + rank_score + qual + jitter
+
+
+def _pick_slots(items: list[ScoredCandidate]) -> dict[str, Optional[ScoredCandidate]]:
     if not items:
         return {"Headliner": None, "Lineage": None, "DeepCut": None}
-
     headliner = items[0]
 
-    def year_key(s: Scored) -> int:
+    def year_key(s: ScoredCandidate) -> int:
         if not s.n or not s.n.first_release_date:
             return 999999
         y = s.n.first_release_date[:4]
         return _safe_int(y, 999999)
 
     lineage = min(items, key=year_key)
-
-    deepcut = None
-    for s in items:
-        if s is headliner or s is lineage:
-            continue
-        deepcut = s
-        break
-
+    deepcut = next((s for s in items if s is not headliner and s is not lineage), None)
     return {"Headliner": headliner, "Lineage": lineage, "DeepCut": deepcut}
 
 
 def run_dry_run(
     broker,
     env,
+    *,
     tag: str,
-    n: int = 30,
-    topk: int = 10,
+    n: int = 200,
+    topk: int = 200,
+    deepcut: bool = False,
+    seed_key: str = "default",
     split_slots: bool = False,
     mb_search_limit: int = 10,
     min_confidence: float = 0.80,
     ambiguity_gap: float = 0.06,
     mb_debug: bool = False,
     quarantine_out: str | None = None,
-) -> dict[str, Any]:
+    prefilter_topn: int = 120,
+) -> dict:
+    del mb_search_limit, min_confidence, ambiguity_gap
     if not env.lastfm_api_key:
         raise RuntimeError("Missing env LASTFM_API_KEY")
     if not env.mb_user_agent:
         raise RuntimeError("Missing env MB_USER_AGENT")
 
-    albums: list[LastFmTopAlbum] = lastfm_tag_top_albums(broker, api_key=env.lastfm_api_key, tag=tag, limit=n)
+    base_page = 3 if deepcut else 1
+    page_span = 6 if deepcut else 2
+    h = int(hashlib.sha256(seed_key.encode("utf-8")).hexdigest()[:8], 16)
+    lastfm_page = base_page + (h % page_span)
+    lastfm_pages = [lastfm_page, lastfm_page + 1]
 
-    candidates: list[Candidate] = []
-    for a in albums:
-        candidates.append(
-            Candidate(
-                title=a.name,
-                artist=a.artist,
-                lastfm_mbid=a.mbid or "",
-                lastfm_rank=_safe_int(a.rank, 0),
-                image_url=a.image_extralarge or "",
-            )
-        )
+    discogs_page = (3 + (h % 6)) if deepcut else (1 + (h % 2))
+    discogs_per_page = 100
 
-    scored: list[Scored] = []
-    for c in candidates:
-        norm, dbg = _normalize_candidate(
+    lb_offset = (200 + (h % 800)) if deepcut else (0 + (h % 200))
+    lb_count = min(200, max(50, n))
+
+    raw: list[Candidate] = []
+    for p in lastfm_pages:
+        tops = lastfm_tag_top_albums(broker, env.lastfm_api_key, tag=tag, limit=50, page=p)
+        for a in tops:
+            c = Candidate(title=a.name, artist=a.artist, image_url=a.image_extralarge)
+            c.sources.add("lastfm")
+            c.lastfm_rank = a.rank
+            c.lastfm_mbid = a.mbid
+            if a.rank is not None:
+                c.source_ranks["lastfm"] = a.rank
+            raw.append(c)
+
+    if env.discogs_token:
+        ds = discogs_database_search(
             broker,
-            env.mb_user_agent,
-            c,
-            mb_search_limit=mb_search_limit,
-            min_confidence=min_confidence,
-            ambiguity_gap=ambiguity_gap,
-            mb_debug=mb_debug,
+            env.discogs_token,
+            q=tag,
+            page=discogs_page,
+            per_page=discogs_per_page,
         )
-        s, reason = _score(c, norm)
-        item = Scored(c=c, n=norm, score=s, reason=reason, mb_debug=dbg)
-        scored.append(item)
+        _stable_shuffle(ds, seed=f"{seed_key}:discogs:{discogs_page}")
+        for it in ds:
+            t = it.title or ""
+            if " - " in t:
+                artist, title = t.split(" - ", 1)
+            else:
+                artist, title = "", t
+            c = Candidate(title=title.strip(), artist=artist.strip(), image_url=it.cover_image)
+            c.sources.add("discogs")
+            if it.rank:
+                c.source_ranks["discogs"] = it.rank
+            raw.append(c)
 
-        # quarantine：只有最终没选出来的才写入
+    try:
+        lbs = listenbrainz_sitewide_release_groups(broker, count=lb_count, offset=lb_offset, range_="all_time")
+        mbids = [x.release_group_mbid for x in lbs if x.release_group_mbid]
+        meta: dict[str, Any] = {}
+        for i in range(0, len(mbids), 25):
+            part = mbids[i : i + 25]
+            j = listenbrainz_metadata_release_groups(broker, part, inc="artist tag release")
+            meta.update(j.get("release_groups") or j.get("payload", {}).get("release_groups") or {})
+
+        tag_l = tag.lower().strip()
+        for st in lbs:
+            rgid = st.release_group_mbid
+            m = meta.get(rgid) if isinstance(meta, dict) else None
+            if not m:
+                continue
+            rg = m.get("release_group") or {}
+            tags = rg.get("tags") or []
+            tag_names = []
+            for t in tags:
+                if isinstance(t, dict) and t.get("tag"):
+                    tag_names.append(str(t["tag"]).lower())
+                elif isinstance(t, str):
+                    tag_names.append(t.lower())
+            if tag_l not in tag_names:
+                continue
+            c = Candidate(
+                title=str(rg.get("title") or rg.get("name") or st.release_group_name).strip(),
+                artist=str(st.artist_name).strip(),
+                image_url=None,
+            )
+            c.sources.add("listenbrainz")
+            c.source_ranks["listenbrainz"] = st.rank
+            c.rg_mbid_hint = rgid
+            if st.artist_mbid:
+                c.artist_mbid_hint = st.artist_mbid
+            raw.append(c)
+    except Exception:
+        pass
+
+    merged = _merge_candidates(raw)
+
+    pre: list[tuple[float, Candidate]] = []
+    for c in merged:
+        light_bonus = 0.0
+        if c.lastfm_mbid:
+            light_bonus += 1.5
+        if c.rg_mbid_hint:
+            light_bonus += 1.5
+        pre.append((_score(None, c, deepcut=deepcut, seed_key=seed_key) + light_bonus, c))
+    pre.sort(key=lambda x: x[0], reverse=True)
+
+    prefilter_total = len(pre)
+    topn = max(1, int(prefilter_topn))
+    pre = pre[:topn]
+
+    scored: list[ScoredCandidate] = []
+    normalized_count = 0
+    for _s0, c in pre:
+        norm = None
+        dbg: dict[str, Any] = {}
+        if c.rg_mbid_hint and c.artist_mbid_hint:
+            norm = NormalizedCandidate(
+                title=c.title,
+                artist=c.artist,
+                mb_release_group_id=c.rg_mbid_hint,
+                artist_mbids=[c.artist_mbid_hint],
+                primary_type=None,
+                first_release_date=None,
+            )
+        else:
+            norm, dbg = _normalize_candidate(broker, env, c, debug=mb_debug)
+        normalized_count += 1
+
+        s = _score(norm, c, deepcut=deepcut, seed_key=seed_key)
+        scored.append(ScoredCandidate(score=s, c=c, n=norm, debug=dbg, mb_debug=dbg.get("mb_debug", [])))
+
         if quarantine_out and norm is None:
             payload = {
                 "tag": tag,
@@ -274,13 +420,21 @@ def run_dry_run(
                 "title": c.title,
                 "lastfm_mbid": c.lastfm_mbid,
                 "image_url": c.image_url,
-                "reject_reason": _extract_reject_reason(dbg),
-                # 保留一份证据（不要太长，避免文件爆炸）
-                "debug_tail": dbg[-30:],
+                "reject_reason": _extract_reject_reason(dbg.get("mb_debug", [])),
+                "debug_tail": dbg.get("mb_debug", [])[-30:],
             }
             _write_quarantine_line(quarantine_out, payload)
 
     scored.sort(key=lambda x: x.score, reverse=True)
     top = scored[:topk]
     slots = _pick_slots(top) if split_slots else {}
-    return {"candidates": candidates, "scored": scored, "top": top, "slots": slots}
+    candidates = [x.c for x in scored]
+    return {
+        "candidates": candidates,
+        "scored": scored,
+        "top": top,
+        "slots": slots,
+        "prefilter_total": prefilter_total,
+        "prefilter_topn": len(pre),
+        "normalized_count": normalized_count,
+    }

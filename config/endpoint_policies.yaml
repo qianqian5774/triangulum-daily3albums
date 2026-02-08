@@ -24,6 +24,16 @@
       max_delay_ms: 6000
       jitter: true
 
+  api.listenbrainz.org:
+    rate_limit_rps: 1
+    ttl_default: "24h"
+    negative_cache_ttl: "1h"
+
+  api.discogs.com:
+    rate_limit_rps: 1
+    ttl_default: "24h"
+    negative_cache_ttl: "1h"
+
 endpoints:
   lastfm.chart.*:
     ttl: "6h"

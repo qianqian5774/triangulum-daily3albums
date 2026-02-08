@@ -310,3 +310,30 @@ tag_pool:
   - alt-r&b
   - contemporary r&b
   - pbr&b
+candidates:
+  lastfm:
+    per_page: 50
+    pages_per_call: 2
+    deepcut_min_page: 3
+  discogs:
+    per_page: 100
+    deepcut_min_page: 3
+  listenbrainz:
+    count: 200
+    deepcut_min_offset: 200
+
+scoring:
+  multi_source_bonus: 6.0
+  head_keep_max_rank: 18
+  tail_boost_start_rank: 60
+  deepcut_head_penalty_rank: 25
+  temperature_by_slot:
+    "0": 9.0
+    "1": 10.0
+    "2": 14.0
+  mb_normalize_budget_cap: 140
+  mb_prefilter_topn: 120
+
+
+build:
+  max_tag_tries_per_slot: 8
