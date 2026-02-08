@@ -118,6 +118,10 @@ def cmd_dry_run(
     ambiguity_gap = float(ambiguity_gap)
     quarantine_out = (quarantine_out or "").strip() or None
     prefilter_topn = int((cfg.raw.get("scoring", {}) or {}).get("mb_prefilter_topn", 120))
+    candidate_cfg = (cfg.raw.get("candidates", {}) or {}).get("lastfm", {})
+    build_cfg = cfg.raw.get("build", {}) or {}
+    lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
+    lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
 
     try:
         out = run_dry_run(
@@ -133,6 +137,8 @@ def cmd_dry_run(
             mb_debug=mb_debug,
             quarantine_out=quarantine_out,
             prefilter_topn=prefilter_topn,
+            lastfm_page_start=lastfm_page_start,
+            lastfm_max_pages=lastfm_max_pages,
         )
 
         print("\n== Candidates ==")
@@ -837,6 +843,11 @@ def _deterministic_decade_theme(date_key: str) -> str:
     return decades[_hash_index(f"{date_key}:decade", len(decades))]
 
 
+def _top_rejection_reasons(reject_counts: dict[str, int], limit: int = 3) -> list[dict[str, int | str]]:
+    ordered = sorted(reject_counts.items(), key=lambda x: x[1], reverse=True)
+    return [{"reason": k, "count": int(v)} for k, v in ordered[:limit] if int(v) > 0]
+
+
 def cmd_build(
     repo_root: Path,
     tag: str,
@@ -852,6 +863,7 @@ def cmd_build(
     out_dir: str,
     date_override: str,
     theme: str,
+    diagnostics: bool,
 ) -> int:
     env = load_env(repo_root)
     cfg = load_config(repo_root)
@@ -869,6 +881,10 @@ def cmd_build(
 
     mb_search_limit = int(mb_search_limit)
     prefilter_topn = int((cfg.raw.get("scoring", {}) or {}).get("mb_prefilter_topn", 120))
+    candidate_cfg = (cfg.raw.get("candidates", {}) or {}).get("lastfm", {})
+    build_cfg = cfg.raw.get("build", {}) or {}
+    lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
+    lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
     quarantine_out = (quarantine_out or "").strip() or None
     out_public_dir = (repo_root / out_dir).resolve()
 
@@ -895,6 +911,7 @@ def cmd_build(
         used_artist_keys: set[str] = set()
         used_theme_keys: set[str] = set()
         exhaustion: list[dict[str, Any]] = []
+        diagnostics_summary = {"requests": {}, "timeouts": {}, "retries": {}, "slot_rejections": {}}
 
         for slot_id in range(3):
             pool = _get_tag_pool(cfg)
@@ -902,7 +919,7 @@ def cmd_build(
             tag_attempts = [pool[(start_index + i) % len(pool)] for i in range(len(pool))]
             if used_theme_keys:
                 tag_attempts = sorted(tag_attempts, key=lambda t: (theme_key_from_tag(t) in used_theme_keys, tag_attempts.index(t)))
-            max_tag_tries = int((cfg.raw.get("build", {}) or {}).get("max_tag_tries_per_slot", MAX_TAG_TRIES_PER_SLOT))
+            max_tag_tries = int(getattr(cfg, "max_tag_tries_per_slot", (cfg.raw.get("build", {}) or {}).get("max_tag_tries_per_slot", MAX_TAG_TRIES_PER_SLOT)))
             tag_attempts = tag_attempts[:max_tag_tries]
 
             picked: list[Any] = []
@@ -940,6 +957,8 @@ def cmd_build(
                             mb_debug=mb_debug,
                             quarantine_out=None,
                             prefilter_topn=prefilter_topn,
+                            lastfm_page_start=lastfm_page_start,
+                            lastfm_max_pages=lastfm_max_pages,
                         )
                     except BrokerRequestError as e:
                         attempts_meta.append({
@@ -1006,7 +1025,7 @@ def cmd_build(
 
                     for k, v in local_reject.items():
                         reject_counts[k] += v
-                    attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "fetch_limit": fetch_limit, "candidate_count": prefetched, "candidate_count_after_light_prefilter": topn, "candidate_count_after_hard_filters": len(eligible), "reject_counts": dict(local_reject), "eligible": len(eligible)})
+                    attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "fetch_limit": fetch_limit, "lastfm_pages_fetched": int(out.get("lastfm_pages_fetched", 0)), "lastfm_pages_planned": int(out.get("lastfm_pages_planned", 0)), "candidate_count": prefetched, "candidate_count_after_light_prefilter": topn, "candidate_count_after_hard_filters": len(eligible), "reject_counts": dict(local_reject), "eligible": len(eligible)})
                     if len(eligible) >= 3:
                         rng = random.Random(f"{date_key}:{slot_id}:{theme_key}")
                         slot_temperature = 9.0 if slot_id == 0 else (10.0 if slot_id == 1 else 14.0)
@@ -1029,12 +1048,15 @@ def cmd_build(
             if len(picked) < 3:
                 tried_tags = [a.get("tag") for a in attempts_meta if isinstance(a, dict) and a.get("tag")]
                 unique_tags = list(dict.fromkeys(tried_tags))
+                pages_fetched = sum(int(a.get("lastfm_pages_fetched", 0)) for a in attempts_meta if isinstance(a, dict))
                 diag = {
                     "slot_id": slot_id,
                     "tags_tried": len(unique_tags),
                     "max_tag_tries_per_slot": max_tag_tries,
+                    "pages_fetched": pages_fetched,
                     "tag_attempts": attempts_meta,
                     "reject_counts": reject_counts,
+                    "top_rejection_reasons": _top_rejection_reasons(reject_counts),
                 }
                 print(f"BUILD ERROR: slot={slot_id} exhausted after {len(unique_tags)} tags (cap={max_tag_tries})")
                 print(f"exhaustion slot={slot_id} diagnostic={diag}")
@@ -1070,6 +1092,15 @@ def cmd_build(
         decade_theme = (theme or "").strip() or _deterministic_decade_theme(date_key)
         decade_constraints = {"min_in_decade": 6, "max_unknown_year": 2}
 
+        broker_stats = broker.get_stats_snapshot()
+        diagnostics_summary["requests"] = {k: int(v.get("requests", 0)) for k, v in broker_stats.items()}
+        diagnostics_summary["timeouts"] = {k: int(v.get("timeouts", 0)) for k, v in broker_stats.items()}
+        diagnostics_summary["retries"] = {k: int(v.get("retries", 0)) for k, v in broker_stats.items()}
+        diagnostics_summary["slot_rejections"] = {
+            str(e.get("slot_id")): _top_rejection_reasons(e.get("reject_counts", {}))
+            for e in exhaustion if isinstance(e, dict)
+        }
+
         issue = {
             "output_schema_version": "1.0",
             "date": date_key,
@@ -1085,7 +1116,7 @@ def cmd_build(
             "slots": [],
             "generation": {"started_at": datetime.now().isoformat(timespec="seconds"), "versions": {"daily3albums": getattr(cfg, "version", None)}},
             "warnings": [],
-            "diagnostics": {"exhaustion": exhaustion},
+            "diagnostics": {"exhaustion": exhaustion, "summary": diagnostics_summary},
         }
 
         cover_version = issue["generation"].get("started_at")
@@ -1149,6 +1180,10 @@ def cmd_build(
 
         from daily3albums.artifact_writer import write_daily_artifacts
         paths = write_daily_artifacts(issue=issue, out_public_dir=out_public_dir, quarantine_rows=quarantine_rows or None)
+
+        if diagnostics:
+            print("\n== Diagnostics Summary ==")
+            print(json.dumps(diagnostics_summary, ensure_ascii=False, indent=2))
 
         print("BUILD OK")
         print(f"out={out_public_dir}")
@@ -1243,6 +1278,11 @@ def main() -> None:
         help="Theme of the day. If empty, use tag.",
     )
     p_build.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Print per-adapter request/timeout/retry and slot rejection summaries.",
+    )
+    p_build.add_argument(
         "--no-split-slots",
         dest="split_slots",
         action="store_false",
@@ -1292,6 +1332,7 @@ def main() -> None:
                 out_dir=args.out,
                 date_override=args.date,
                 theme=args.theme,
+                diagnostics=args.diagnostics,
             )
         )
 
