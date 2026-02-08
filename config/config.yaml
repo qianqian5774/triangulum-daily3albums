@@ -1,29 +1,51 @@
 ﻿schema_version: "1.0"
 output_schema_version: "1.0"
 
+# -----------------------------------------------------------------------------
+# 基础环境设置
+# -----------------------------------------------------------------------------
 timezone: "Asia/Shanghai"
 random_seed_strategy: "date"
 
+# -----------------------------------------------------------------------------
+# 历史与去重策略 (优化版)
+# -----------------------------------------------------------------------------
 history:
-  dedupe_same_rg_days: 60
-  dedupe_same_artist_days: 30
+  # 专辑去重：同一张专辑 60 天内不重复
+  dedupe_same_rg_days: 7
+  # 艺人去重：同一个艺人 7 天内不重复 (配合代码中的 7 天硬约束)
+  # 注意：如果设得太长(如30天)，在垂直风格(如IDM)中会极快耗尽候选池
+  dedupe_same_artist_days: 7
 
+# -----------------------------------------------------------------------------
+# 数据清洗与匹配器
+# -----------------------------------------------------------------------------
 normalizer:
+  # 最低置信度：Last.fm与MusicBrainz匹配的相似度门槛
   min_confidence: 0.72
+  # 歧义间隙：第一名与第二名分差小于此值时视为歧义
   ambiguity_gap: 0.08
+  # 歧义处理策略：quarantine (隔离人工审查) / drop (直接丢弃)
   hard_ambiguity_policy: "quarantine"
   top_k: 5
   weights:
-    title: 0.25
-    artist: 0.25
+    title: 0.30
+    artist: 0.30
     year: 0.15
     type: 0.15
-    evidence: 0.20
+    evidence: 0.10
 
+# -----------------------------------------------------------------------------
+# 全局排除规则
+# -----------------------------------------------------------------------------
 global_exclusions:
-  allow_primary_types: ["Album"]
-  exclude_secondary_types: ["Compilation","Live","Remix","Soundtrack"]
+  allow_primary_types: ["Album", "EP"]
+  exclude_secondary_types: ["Compilation", "Live", "Remix", "Soundtrack", "Demo", "Interview"]
 
+# -----------------------------------------------------------------------------
+# 时段权重策略 (Slots)
+# Q=Quality(排名), N=Newness(新度), D=Date(年代), T=Type, eps=Random
+# -----------------------------------------------------------------------------
 slots:
   Headliner:
     require_cover: true
@@ -33,36 +55,258 @@ slots:
     weights: {Q:0.25, N:0.10, D:0.20, T:0.35, eps:0.10}
   DeepCut:
     require_cover: true
-    weights: {Q:0.30, N:0.20, D:0.35, T:0.05, eps:0.10}
+    weights: {Q:0.20, N:0.20, D:0.35, T:0.05, eps:0.20}
 
-themes:
-  rotation: "daily"
-  items:
-    - name: "ambient drift"
-      seed_tags: ["ambient", "drone", "fourth world"]
-      adjacent_tags: ["minimalism", "electroacoustic", "new age"]
-    - name: "leftfield club"
-      seed_tags: ["uk bass", "leftfield", "electronic"]
-      adjacent_tags: ["breakbeat", "idm", "techno"]
-
-
+# -----------------------------------------------------------------------------
+# 类型允许开关 (CLI直接读取)
+# -----------------------------------------------------------------------------
 allow_types:
   album: true
   compilation: false
   live: false
-  ep: false
+  ep: true
   single: false
 
+# -----------------------------------------------------------------------------
+# 主题预设 (用于 themes: rotation 模式)
+# -----------------------------------------------------------------------------
+themes:
+  rotation: "daily"
+  items:
+    - name: "Cerebral Electronic"
+      seed_tags: ["idm", "glitch", "braindance"]
+      adjacent_tags: ["experimental", "drill and bass", "ambient techno"]
+    - name: "Wall of Sound"
+      seed_tags: ["shoegaze", "post-rock", "noise rock"]
+      adjacent_tags: ["dream pop", "space rock", "neo-psychedelia"]
+    - name: "Jazz Cafe"
+      seed_tags: ["cool jazz", "hard bop", "modal jazz"]
+      adjacent_tags: ["jazz fusion", "spiritual jazz", "nu jazz"]
+    - name: "Club Sweat"
+      seed_tags: ["techno", "deep house", "tech house"]
+      adjacent_tags: ["minimal techno", "detroit techno", "dub techno"]
+    - name: "Raw Energy"
+      seed_tags: ["post-punk", "art punk", "no wave"]
+      adjacent_tags: ["garage rock", "noise pop", "industrial"]
+    - name: "Synth Dreams"
+      seed_tags: ["synthpop", "dark wave", "minimal wave"]
+      adjacent_tags: ["electropop", "coldwave", "ebm"]
+    - name: "Abstract Beats"
+      seed_tags: ["trip-hop", "downtempo", "instrumental hip-hop"]
+      adjacent_tags: ["abstract hip-hop", "nu-jazz", "plunderphonics"]
+
+# -----------------------------------------------------------------------------
+# 标签池 (Tag Pool) - 全面扩展版
+# -----------------------------------------------------------------------------
 tag_pool:
+  # === Electronic: Intelligent / Ambient / Experimental (30+) ===
+  - idm
+  - glitch
   - ambient
   - drone
-  - electronic
+  - braindance
   - experimental
   - fourth world
-  - idm
-  - jazz
-  - minimalism
-  - new age
-  - post-rock
   - soundscape
+  - minimalism
+  - field recordings
+  - ambient techno
+  - dub techno
+  - glitch hop
+  - folktronica
+  - indietronica
+  - microhouse
+  - clicks and cuts
+  - lowercaset
+  - hauntology
+  - plunderphonics
+  - illbient
+  - dark ambient
+  - space ambient
+  - isolationism
+  - berlin school
+  - sound collage
+  - electroacoustic
+  - musique concrete
+  - modern composition
+  - tape music
+  - library music
+
+  # === Electronic: Dance / Club / Bass (40+) ===
   - techno
+  - house
+  - deep house
+  - tech house
+  - minimal techno
+  - detroit techno
+  - dubstep
+  - burial-esque
+  - future garage
+  - uk garage
+  - 2-step
+  - drum and bass
+  - jungle
+  - liquid funk
+  - breakbeat
+  - acid house
+  - acid techno
+  - electro
+  - electroclash
+  - ghetto tech
+  - footwork
+  - juke
+  - grime
+  - uk bass
+  - deconstructed club
+  - outsider house
+  - lo-fi house
+  - progressive house
+  - trance
+  - goa trance
+  - psytrance
+  - hardstyle
+  - gabber
+  - breakcore
+  - happy hardcore
+  - eurodance
+  - italo disco
+  - synthwave
+  - vaporwave
+
+  # === Rock: Indie / Alternative / Art (40+) ===
+  - indie rock
+  - alternative rock
+  - post-rock
+  - shoegaze
+  - dream pop
+  - math rock
+  - noise rock
+  - slowcore
+  - sadcore
+  - space rock
+  - neo-psychedelia
+  - psychedelic rock
+  - krautrock
+  - art rock
+  - experimental rock
+  - lo-fi
+  - jangle pop
+  - twee pop
+  - paisley underground
+  - madchester
+  - britpop
+  - grunge
+  - midwest emo
+  - emo
+  - screamo
+  - post-hardcore
+  - slacker rock
+  - bedroom pop
+  - hypnagogic pop
+  - canterbury scene
+  - progressive rock
+  - zeuhl
+  - rock in opposition
+  - stoner rock
+  - desert rock
+  - sludge
+  - drone metal
+
+  # === Punk / Post-Punk / New Wave (30+) ===
+  - punk
+  - post-punk
+  - new wave
+  - no wave
+  - coldwave
+  - dark wave
+  - minimal wave
+  - gothic rock
+  - industrial
+  - ebm
+  - synth-punk
+  - dance-punk
+  - art punk
+  - protopunk
+  - garage rock
+  - garage punk
+  - hardcore punk
+  - melodic hardcore
+  - crust punk
+  - d-beat
+  - anarcho-punk
+  - riot grrrl
+  - queercore
+  - skate punk
+  - pop punk
+  - power pop
+  - pub rock
+  - street punk
+  - deathrock
+  - post-punk revival
+
+  # === Jazz / Fusion / Soul (35+) ===
+  - jazz
+  - cool jazz
+  - hard bop
+  - bebop
+  - modal jazz
+  - free jazz
+  - avant-garde jazz
+  - spiritual jazz
+  - jazz fusion
+  - jazz-funk
+  - acid jazz
+  - nu jazz
+  - dark jazz
+  - doom jazz
+  - ethio-jazz
+  - afro-jazz
+  - latin jazz
+  - bossa nova
+  - samba
+  - tropicalia
+  - mpb
+  - soul
+  - neo-soul
+  - funk
+  - p-funk
+  - psychedelic soul
+  - quiet storm
+  - sophisti-pop
+  - smooth jazz
+  - third stream
+  - ecm style
+  - japanese jazz
+  - city pop
+
+  # === Pop / Electronic Pop / Hip Hop (30+) ===
+  - art pop
+  - synthpop
+  - electropop
+  - disco
+  - nu-disco
+  - indie pop
+  - chamber pop
+  - baroque pop
+  - sunshine pop
+  - bubblegum bass
+  - hyperpop
+  - pc music
+  - glitch pop
+  - trip-hop
+  - downtempo
+  - abstract hip-hop
+  - instrumental hip-hop
+  - cloud rap
+  - jazz rap
+  - experimental hip-hop
+  - industrial hip-hop
+  - chopper
+  - phonk
+  - lo-fi hip hop
+  - shibuya-kei
+  - k-pop
+  - j-pop
+  - alt-r&b
+  - contemporary r&b
+  - pbr&b
