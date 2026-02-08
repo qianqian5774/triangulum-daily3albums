@@ -10,7 +10,7 @@ from typing import Any
 
 
 ARTIST_COOLDOWN_DAYS = 7
-STYLE_COOLDOWN_DAYS = 3
+THEME_COOLDOWN_DAYS = 3
 
 
 @dataclass
@@ -46,13 +46,21 @@ def artist_keys_from_parts(artist_mbids: list[str] | None, artist_credit: str) -
     return [fallback] if fallback else []
 
 
+def theme_key_from_tag(tag: str) -> str:
+    return normalize_text(tag) or "unknown"
+
+
 def style_key_from_parts(primary_tag: str, primary_type: str | None, first_release_year: int | None) -> str:
-    tag = normalize_text(primary_tag) or "unknown"
-    ptype = normalize_text(primary_type or "") or "unknown"
-    decade = "unknown"
-    if first_release_year:
-        decade = f"{(int(first_release_year) // 10) * 10}s"
-    return f"{tag}:{ptype}:{decade}"
+    del primary_type, first_release_year
+    return theme_key_from_tag(primary_tag)
+
+
+def _parse_decade_theme(value: str) -> tuple[int, int] | None:
+    m = re.match(r"^\s*(\d{3})0s\s*$", str(value or ""), flags=re.IGNORECASE)
+    if not m:
+        return None
+    start = int(m.group(1)) * 10
+    return start, start + 9
 
 
 def load_history_index(archive_dir: Path, current_date_key: str, max_lookback_days: int = 14) -> HistoryIndex:
@@ -76,6 +84,7 @@ def load_history_index(archive_dir: Path, current_date_key: str, max_lookback_da
             continue
         slots = payload.get("slots") or []
         for slot in slots:
+            slot_theme_key = theme_key_from_tag(slot.get("theme_key") or slot.get("theme") or "")
             for pick in slot.get("picks") or []:
                 album_key = pick.get("album_key") or album_key_from_parts(
                     pick.get("rg_mbid", ""), pick.get("title", ""), pick.get("artist_credit", ""), pick.get("first_release_year")
@@ -85,10 +94,11 @@ def load_history_index(archive_dir: Path, current_date_key: str, max_lookback_da
                 for artist_key in (pick.get("artist_keys") or artist_keys_from_parts(pick.get("artist_mbids") or [], pick.get("artist_credit", ""))):
                     if artist_key and artist_key not in artist_last_seen:
                         artist_last_seen[artist_key] = day
-                style_key = pick.get("style_key") or style_key_from_parts(
-                    ((pick.get("tags") or [{}])[0] or {}).get("name", ""),
-                    pick.get("primary_type"),
-                    pick.get("first_release_year"),
+                style_key = (
+                    pick.get("style_key")
+                    or pick.get("theme_key")
+                    or slot_theme_key
+                    or style_key_from_parts(((pick.get("tags") or [{}])[0] or {}).get("name", ""), None, None)
                 )
                 if style_key and style_key not in style_last_seen:
                     style_last_seen[style_key] = day
@@ -108,7 +118,12 @@ def validate_today_constraints(issue: dict[str, Any], history: HistoryIndex) -> 
         errors.append("duplicate album_key in same day")
 
     seen_artists: set[str] = set()
-    seen_styles: set[str] = set()
+    decade_theme = issue.get("decade_theme") or issue.get("theme_of_day")
+    decade_range = _parse_decade_theme(decade_theme)
+    known_year_count = 0
+    in_decade_count = 0
+    unknown_year_count = 0
+
     for pick in picks:
         artist_keys = set(pick.get("artist_keys") or [])
         overlap = seen_artists.intersection(artist_keys)
@@ -117,9 +132,6 @@ def validate_today_constraints(issue: dict[str, Any], history: HistoryIndex) -> 
         seen_artists.update(artist_keys)
 
         style_key = pick.get("style_key", "")
-        if style_key in seen_styles:
-            errors.append(f"duplicate style_key in same day: {style_key}")
-        seen_styles.add(style_key)
 
         for key in artist_keys:
             last = history.artist_last_seen.get(key)
@@ -129,7 +141,25 @@ def validate_today_constraints(issue: dict[str, Any], history: HistoryIndex) -> 
                 errors.append(f"artist cooldown violation: {key} seen at {last}")
 
         last_style = history.style_last_seen.get(style_key)
-        if last_style and _date_delta_days(date_key, last_style) <= STYLE_COOLDOWN_DAYS:
-            errors.append(f"style cooldown violation: {style_key} seen at {last_style}")
+        if style_key and last_style and _date_delta_days(date_key, last_style) <= THEME_COOLDOWN_DAYS:
+            errors.append(f"theme cooldown violation: {style_key} seen at {last_style}")
+
+        year = pick.get("first_release_year")
+        if isinstance(year, int):
+            known_year_count += 1
+            if decade_range and decade_range[0] <= year <= decade_range[1]:
+                in_decade_count += 1
+        else:
+            unknown_year_count += 1
+
+    if decade_range:
+        min_in_decade = int(issue.get("constraints", {}).get("min_in_decade", 6))
+        max_unknown = int(issue.get("constraints", {}).get("max_unknown_year", 2))
+        if in_decade_count < min_in_decade:
+            errors.append(
+                f"decade coverage violation: in_decade={in_decade_count} < required={min_in_decade} for {decade_theme}"
+            )
+        if unknown_year_count > max_unknown:
+            errors.append(f"unknown year violation: unknown={unknown_year_count} > allowed={max_unknown}")
 
     return errors

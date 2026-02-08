@@ -45,6 +45,14 @@ themes:
       seed_tags: ["uk bass", "leftfield", "electronic"]
       adjacent_tags: ["breakbeat", "idm", "techno"]
 
+
+allow_types:
+  album: true
+  compilation: false
+  live: false
+  ep: false
+  single: false
+
 tag_pool:
   - ambient
   - drone
