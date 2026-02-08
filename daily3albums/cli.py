@@ -938,7 +938,7 @@ def cmd_build(
                         attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "skipped": "theme_cooldown", "last_seen": last_theme_day})
                         continue
 
-                for fetch_limit in (max(n, 200), 800):
+                for fetch_limit in (max(n, 200), 400):
                     deepcut = (slot_id == 2)
                     seed_key = f"{date_key}:{slot_id}:{slot_tag}"
                     try:
