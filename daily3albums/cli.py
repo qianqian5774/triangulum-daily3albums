@@ -107,6 +107,7 @@ def cmd_dry_run(
     ambiguity_gap: float,
     mb_debug: bool,
     quarantine_out: str,
+    diagnostics: bool,
 ) -> int:
     env = load_env(repo_root)
     cfg = load_config(repo_root)
@@ -117,9 +118,12 @@ def cmd_dry_run(
     min_confidence = float(min_confidence)
     ambiguity_gap = float(ambiguity_gap)
     quarantine_out = (quarantine_out or "").strip() or None
-    prefilter_topn = int((cfg.raw.get("scoring", {}) or {}).get("mb_prefilter_topn", 120))
+    prefilter_topn = int(getattr(cfg, "coarse_top_n_per_slot", 120))
     candidate_cfg = (cfg.raw.get("candidates", {}) or {}).get("lastfm", {})
     build_cfg = cfg.raw.get("build", {}) or {}
+    mb_max_queries_per_candidate = int(getattr(cfg, "mb_max_queries_per_candidate", 3))
+    mb_max_candidates_per_slot = int(getattr(cfg, "mb_max_candidates_per_slot", 120))
+    mb_time_budget_s_per_slot = float(getattr(cfg, "mb_time_budget_s_per_slot", 90.0))
     lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
     lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
 
@@ -139,6 +143,9 @@ def cmd_dry_run(
             prefilter_topn=prefilter_topn,
             lastfm_page_start=lastfm_page_start,
             lastfm_max_pages=lastfm_max_pages,
+            mb_max_queries_per_candidate=mb_max_queries_per_candidate,
+            mb_max_candidates_per_slot=mb_max_candidates_per_slot,
+            mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
         )
 
         print("\n== Candidates ==")
@@ -190,11 +197,25 @@ def cmd_dry_run(
                 pt = ss.n.primary_type if ss.n else ""
                 print(f"{name}: score={ss.score} | {dt} | {pt} | {rg} | {ss.c.artist} - {ss.c.title}")
 
+        if diagnostics:
+            print("\n== MB Diagnostics ==")
+            print(json.dumps({
+                "mb_candidates_considered": out.get("mb_candidates_considered", 0),
+                "mb_candidates_normalized": out.get("mb_candidates_normalized", 0),
+                "mb_queries_attempted_total": out.get("mb_queries_attempted_total", 0),
+                "mb_budget_exceeded": out.get("mb_budget_exceeded", False),
+                "mb_cap_hit": out.get("mb_cap_hit", False),
+                "mb_time_spent_s": out.get("mb_time_spent_s", 0),
+            }, ensure_ascii=False, indent=2))
+
         if quarantine_out:
             print("\n== Quarantine ==")
             print(f"written_to={quarantine_out}")
 
         return 0
+    except KeyboardInterrupt:
+        _print_interrupt_diagnostics(broker=broker, diagnostics_summary=None)
+        return 130
     finally:
         broker.close()
 
@@ -880,9 +901,12 @@ def cmd_build(
     type_flags = _type_flags_from_cfg(cfg)
 
     mb_search_limit = int(mb_search_limit)
-    prefilter_topn = int((cfg.raw.get("scoring", {}) or {}).get("mb_prefilter_topn", 120))
+    prefilter_topn = int(getattr(cfg, "coarse_top_n_per_slot", 120))
     candidate_cfg = (cfg.raw.get("candidates", {}) or {}).get("lastfm", {})
     build_cfg = cfg.raw.get("build", {}) or {}
+    mb_max_queries_per_candidate = int(getattr(cfg, "mb_max_queries_per_candidate", 3))
+    mb_max_candidates_per_slot = int(getattr(cfg, "mb_max_candidates_per_slot", 120))
+    mb_time_budget_s_per_slot = float(getattr(cfg, "mb_time_budget_s_per_slot", 90.0))
     lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
     lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
     quarantine_out = (quarantine_out or "").strip() or None
@@ -911,7 +935,7 @@ def cmd_build(
         used_artist_keys: set[str] = set()
         used_theme_keys: set[str] = set()
         exhaustion: list[dict[str, Any]] = []
-        diagnostics_summary = {"requests": {}, "timeouts": {}, "retries": {}, "slot_rejections": {}}
+        diagnostics_summary = {"requests": {}, "timeouts": {}, "retries": {}, "slot_rejections": {}, "slot_progress": {}}
 
         for slot_id in range(3):
             pool = _get_tag_pool(cfg)
@@ -959,6 +983,9 @@ def cmd_build(
                             prefilter_topn=prefilter_topn,
                             lastfm_page_start=lastfm_page_start,
                             lastfm_max_pages=lastfm_max_pages,
+                            mb_max_queries_per_candidate=mb_max_queries_per_candidate,
+                            mb_max_candidates_per_slot=mb_max_candidates_per_slot,
+                            mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
                         )
                     except BrokerRequestError as e:
                         attempts_meta.append({
@@ -975,6 +1002,18 @@ def cmd_build(
                         break
 
                     prefetched = int(out.get("prefilter_total", len(out.get("candidates") or [])))
+                    diagnostics_summary["slot_progress"][str(slot_id)] = {
+                        "slot_id": slot_id,
+                        "current_tag": slot_tag,
+                        "tags_tried": len({a.get("tag") for a in attempts_meta if isinstance(a, dict) and a.get("tag")}),
+                        "pages_fetched": sum(int(a.get("lastfm_pages_fetched", 0)) for a in attempts_meta if isinstance(a, dict)),
+                        "pages_planned": len(tag_attempts) * max(1, int(lastfm_max_pages)),
+                        "top_rejection_reasons": _top_rejection_reasons(reject_counts),
+                        "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
+                        "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
+                        "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
+                        "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
+                    }
                     topn = int(out.get("prefilter_topn", len(out.get("scored") or [])))
                     normalized = int(out.get("normalized_count", len(out.get("scored") or [])))
                     saved_calls = max(0, prefetched - normalized)
@@ -1025,7 +1064,24 @@ def cmd_build(
 
                     for k, v in local_reject.items():
                         reject_counts[k] += v
-                    attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "fetch_limit": fetch_limit, "lastfm_pages_fetched": int(out.get("lastfm_pages_fetched", 0)), "lastfm_pages_planned": int(out.get("lastfm_pages_planned", 0)), "candidate_count": prefetched, "candidate_count_after_light_prefilter": topn, "candidate_count_after_hard_filters": len(eligible), "reject_counts": dict(local_reject), "eligible": len(eligible)})
+                    attempts_meta.append({
+                        "tag": slot_tag,
+                        "theme_key": theme_key,
+                        "fetch_limit": fetch_limit,
+                        "lastfm_pages_fetched": int(out.get("lastfm_pages_fetched", 0)),
+                        "lastfm_pages_planned": int(out.get("lastfm_pages_planned", 0)),
+                        "candidate_count": prefetched,
+                        "candidate_count_after_light_prefilter": topn,
+                        "candidate_count_after_hard_filters": len(eligible),
+                        "reject_counts": dict(local_reject),
+                        "eligible": len(eligible),
+                        "mb_candidates_considered": int(out.get("mb_candidates_considered", 0)),
+                        "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
+                        "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
+                        "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
+                        "mb_cap_hit": bool(out.get("mb_cap_hit", False)),
+                        "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
+                    })
                     if len(eligible) >= 3:
                         rng = random.Random(f"{date_key}:{slot_id}:{theme_key}")
                         slot_temperature = 9.0 if slot_id == 0 else (10.0 if slot_id == 1 else 14.0)
@@ -1190,9 +1246,29 @@ def cmd_build(
         for k, v in paths.items():
             print(f"{k}={v}")
         return 0
+    except KeyboardInterrupt:
+        _print_interrupt_diagnostics(broker=broker, diagnostics_summary=diagnostics_summary)
+        return 130
     finally:
         broker.close()
 
+
+
+def _print_interrupt_diagnostics(
+    *,
+    broker: RequestBroker | None,
+    diagnostics_summary: dict[str, Any] | None,
+) -> None:
+    print("Interrupted by user (Ctrl+C)")
+    if broker is not None:
+        try:
+            print("\n== Adapter Stats ==")
+            print(json.dumps(broker.get_stats_snapshot(), ensure_ascii=False, indent=2))
+        except Exception:
+            pass
+    if diagnostics_summary:
+        print("\n== Slot Progress ==")
+        print(json.dumps(diagnostics_summary.get("slot_progress", {}), ensure_ascii=False, indent=2))
 
 # ----------------------------
 # CLI entry
@@ -1236,6 +1312,11 @@ def main() -> None:
         type=str,
         default="",
         help="Write rejected/none candidates as JSONL (one JSON per line), e.g. .state/quarantine.jsonl",
+    )
+    p_dry.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Print MB and progress diagnostics.",
     )
 
     # build
@@ -1300,41 +1381,50 @@ def main() -> None:
     if args.cmd == "probe-mb":
         raise SystemExit(cmd_probe_mb(repo_root, artist=args.artist, title=args.title, limit=args.limit, verbose=args.verbose))
     if args.cmd == "dry-run":
-        raise SystemExit(
-            cmd_dry_run(
-                repo_root,
-                tag=args.tag,
-                n=args.n,
-                topk=args.topk,
-                verbose=args.verbose,
-                split_slots=args.split_slots,
-                mb_search_limit=args.mb_search_limit,
-                min_confidence=args.min_confidence,
-                ambiguity_gap=args.ambiguity_gap,
-                mb_debug=args.mb_debug,
-                quarantine_out=args.quarantine_out,
+        try:
+            raise SystemExit(
+                cmd_dry_run(
+                    repo_root,
+                    tag=args.tag,
+                    n=args.n,
+                    topk=args.topk,
+                    verbose=args.verbose,
+                    split_slots=args.split_slots,
+                    mb_search_limit=args.mb_search_limit,
+                    min_confidence=args.min_confidence,
+                    ambiguity_gap=args.ambiguity_gap,
+                    mb_debug=args.mb_debug,
+                    quarantine_out=args.quarantine_out,
+                    diagnostics=args.diagnostics,
+                )
             )
-        )
+        except KeyboardInterrupt:
+            _print_interrupt_diagnostics(broker=None, diagnostics_summary=None)
+            raise SystemExit(130)
     if args.cmd == "build":
-        raise SystemExit(
-            cmd_build(
-                repo_root,
-                tag=args.tag,
-                n=args.n,
-                topk=args.topk,
-                verbose=args.verbose,
-                split_slots=args.split_slots,
-                mb_search_limit=args.mb_search_limit,
-                min_confidence=args.min_confidence,
-                ambiguity_gap=args.ambiguity_gap,
-                mb_debug=args.mb_debug,
-                quarantine_out=args.quarantine_out,
-                out_dir=args.out,
-                date_override=args.date,
-                theme=args.theme,
-                diagnostics=args.diagnostics,
+        try:
+            raise SystemExit(
+                cmd_build(
+                    repo_root,
+                    tag=args.tag,
+                    n=args.n,
+                    topk=args.topk,
+                    verbose=args.verbose,
+                    split_slots=args.split_slots,
+                    mb_search_limit=args.mb_search_limit,
+                    min_confidence=args.min_confidence,
+                    ambiguity_gap=args.ambiguity_gap,
+                    mb_debug=args.mb_debug,
+                    quarantine_out=args.quarantine_out,
+                    out_dir=args.out,
+                    date_override=args.date,
+                    theme=args.theme,
+                    diagnostics=args.diagnostics,
+                )
             )
-        )
+        except KeyboardInterrupt:
+            _print_interrupt_diagnostics(broker=None, diagnostics_summary=None)
+            raise SystemExit(130)
 
     raise SystemExit(2)
 
