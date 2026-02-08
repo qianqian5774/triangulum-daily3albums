@@ -37,3 +37,21 @@
 endpoints:
   lastfm.chart.*:
     ttl: "6h"
+
+
+adapter_policies:
+  LastFmAdapter:
+    timeout:
+      connect: 10
+      read: 25
+      write: 10
+      pool: 10
+    max_retries: 2
+
+  MusicBrainzAdapter:
+    timeout:
+      connect: 10
+      read: 18
+      write: 10
+      pool: 10
+    max_retries: 1

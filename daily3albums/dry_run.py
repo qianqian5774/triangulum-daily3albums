@@ -284,6 +284,8 @@ def run_dry_run(
     mb_debug: bool = False,
     quarantine_out: str | None = None,
     prefilter_topn: int = 120,
+    lastfm_page_start: int = 1,
+    lastfm_max_pages: int = 6,
 ) -> dict:
     del mb_search_limit, min_confidence, ambiguity_gap
     if not env.lastfm_api_key:
@@ -291,11 +293,16 @@ def run_dry_run(
     if not env.mb_user_agent:
         raise RuntimeError("Missing env MB_USER_AGENT")
 
-    base_page = 3 if deepcut else 1
-    page_span = 6 if deepcut else 2
     h = int(hashlib.sha256(seed_key.encode("utf-8")).hexdigest()[:8], 16)
-    lastfm_page = base_page + (h % page_span)
-    lastfm_pages = [lastfm_page, lastfm_page + 1]
+    page_start = max(1, int(lastfm_page_start))
+    max_pages = max(1, int(lastfm_max_pages))
+    hard_cap = 1000
+    deepcut_offset = (h % 2) if deepcut else 0
+    bounded_start = min(page_start + deepcut_offset, hard_cap)
+    bounded_end = min(page_start + max_pages - 1, hard_cap)
+    if bounded_start > bounded_end:
+        bounded_start = bounded_end
+    lastfm_pages = list(range(bounded_start, bounded_end + 1))
 
     discogs_page = (3 + (h % 6)) if deepcut else (1 + (h % 2))
     discogs_per_page = 100
@@ -304,7 +311,9 @@ def run_dry_run(
     lb_count = min(200, max(50, n))
 
     raw: list[Candidate] = []
+    pages_fetched = 0
     for p in lastfm_pages:
+        pages_fetched += 1
         tops = lastfm_tag_top_albums(broker, env.lastfm_api_key, tag=tag, limit=50, page=p)
         for a in tops:
             c = Candidate(title=a.name, artist=a.artist, image_url=a.image_extralarge)
@@ -430,6 +439,8 @@ def run_dry_run(
     slots = _pick_slots(top) if split_slots else {}
     candidates = [x.c for x in scored]
     return {
+        "lastfm_pages_fetched": pages_fetched,
+        "lastfm_pages_planned": len(lastfm_pages),
         "candidates": candidates,
         "scored": scored,
         "top": top,

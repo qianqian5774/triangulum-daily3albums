@@ -74,6 +74,9 @@ class AppConfig:
     raw: dict
     policies: dict
     timezone: str
+    lastfm_page_start: int
+    lastfm_max_pages: int
+    max_tag_tries_per_slot: int
 
 
 def load_config(repo_root: Path) -> AppConfig:
@@ -81,4 +84,16 @@ def load_config(repo_root: Path) -> AppConfig:
     policies = load_yaml(repo_root / "config" / "endpoint_policies.yaml")
     tz_override = os.environ.get("DAILY3ALBUMS_TZ")
     tz = (tz_override or cfg.get("timezone") or "Asia/Shanghai").strip()
-    return AppConfig(raw=cfg, policies=policies, timezone=tz)
+    candidate_lastfm_cfg = (cfg.get("candidates", {}) or {}).get("lastfm", {})
+    build_cfg = cfg.get("build", {}) or {}
+    lastfm_page_start = int(candidate_lastfm_cfg.get("lastfm_page_start", candidate_lastfm_cfg.get("page_start", 1)))
+    lastfm_max_pages = int(candidate_lastfm_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6)))
+    max_tag_tries_per_slot = int(build_cfg.get("max_tag_tries_per_slot", 8))
+    return AppConfig(
+        raw=cfg,
+        policies=policies,
+        timezone=tz,
+        lastfm_page_start=lastfm_page_start,
+        lastfm_max_pages=lastfm_max_pages,
+        max_tag_tries_per_slot=max_tag_tries_per_slot,
+    )

@@ -315,6 +315,8 @@ candidates:
     per_page: 50
     pages_per_call: 2
     deepcut_min_page: 3
+    lastfm_page_start: 1
+    lastfm_max_pages: 6
   discogs:
     per_page: 100
     deepcut_min_page: 3
@@ -337,3 +339,4 @@ scoring:
 
 build:
   max_tag_tries_per_slot: 8
+  lastfm_max_pages: 6

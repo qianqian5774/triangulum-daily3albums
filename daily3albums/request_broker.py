@@ -68,7 +68,7 @@ def _get_adapter_logger(repo_root: Path) -> logging.Logger:
 
 @dataclass
 class RetryPolicy:
-    max_attempts: int = 4
+    max_attempts: int = 3
     base_delay_ms: int = 400
     max_delay_ms: int = 6000
     jitter: bool = True
@@ -80,6 +80,12 @@ class HostPolicy:
     ttl_default_s: int = 86400
     negative_cache_ttl_s: int = 3600
     retry: RetryPolicy = field(default_factory=RetryPolicy)
+
+
+@dataclass
+class AdapterPolicy:
+    timeout: httpx.Timeout
+    retry: RetryPolicy
 
 
 class BrokerRequestError(RuntimeError):
@@ -96,10 +102,11 @@ class RequestBroker:
         repo_root: Path,
         endpoint_policies: dict,
         logger: Optional[Callable[[str], None]] = None,
-        timeout_s: float = 30.0,
+        timeout_s: float = 25.0,
         connect_timeout_s: float = 10.0,
-        read_timeout_s: float = 30.0,
-        write_timeout_s: float = 30.0,
+        read_timeout_s: float = 25.0,
+        write_timeout_s: float = 10.0,
+        pool_timeout_s: float = 10.0,
     ) -> None:
         self.repo_root = repo_root
         self.policies_raw = endpoint_policies or {}
@@ -108,7 +115,9 @@ class RequestBroker:
         self.connect_timeout_s = float(connect_timeout_s)
         self.read_timeout_s = float(read_timeout_s)
         self.write_timeout_s = float(write_timeout_s)
+        self.pool_timeout_s = float(pool_timeout_s)
         self.adapter_logger = _get_adapter_logger(repo_root)
+        self.stats: dict[str, dict[str, int]] = {}
 
         self.state_dir = repo_root / ".state"
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -139,9 +148,18 @@ class RequestBroker:
                 connect=self.connect_timeout_s,
                 read=self.read_timeout_s,
                 write=self.write_timeout_s,
+                pool=self.pool_timeout_s,
             ),
             follow_redirects=True,
         )
+
+    def _record_stat(self, adapter_name: str | None, key: str, inc: int = 1) -> None:
+        adapter = adapter_name or "unknown"
+        bucket = self.stats.setdefault(adapter, {"requests": 0, "timeouts": 0, "retries": 0, "failures": 0})
+        bucket[key] = int(bucket.get(key, 0)) + inc
+
+    def get_stats_snapshot(self) -> dict[str, dict[str, int]]:
+        return {k: dict(v) for k, v in self.stats.items()}
 
     def close(self) -> None:
         try:
@@ -247,6 +265,46 @@ class RequestBroker:
             retry=rp,
         )
 
+    def _adapter_policy(self, adapter_name: str | None, host_policy: HostPolicy) -> AdapterPolicy:
+        default_retry = host_policy.retry
+        timeout = httpx.Timeout(
+            timeout=self.timeout_s,
+            connect=self.connect_timeout_s,
+            read=self.read_timeout_s,
+            write=self.write_timeout_s,
+            pool=self.pool_timeout_s,
+        )
+        configured = ((self.policies_raw or {}).get("adapter_policies") or {}).get(adapter_name or "", {})
+        default_adapter_policies = {
+            "LastFmAdapter": {"timeout": {"connect": 10, "read": 25, "write": 10, "pool": 10}, "max_retries": 2},
+            "MusicBrainzAdapter": {"timeout": {"connect": 10, "read": 18, "write": 10, "pool": 10}, "max_retries": 1},
+        }
+        base = default_adapter_policies.get(adapter_name or "", {})
+        policy = {**base, **(configured if isinstance(configured, dict) else {})}
+        timeout_raw = policy.get("timeout") if isinstance(policy, dict) else {}
+        timeout_cfg = timeout_raw if isinstance(timeout_raw, dict) else {}
+
+        timeout = httpx.Timeout(
+            timeout=float(timeout_cfg.get("read", self.read_timeout_s)),
+            connect=float(timeout_cfg.get("connect", self.connect_timeout_s)),
+            read=float(timeout_cfg.get("read", self.read_timeout_s)),
+            write=float(timeout_cfg.get("write", self.write_timeout_s)),
+            pool=float(timeout_cfg.get("pool", self.pool_timeout_s)),
+        )
+
+        max_retries = policy.get("max_retries") if isinstance(policy, dict) else None
+        if max_retries is None:
+            retry = default_retry
+        else:
+            retry = RetryPolicy(
+                max_attempts=max(1, int(max_retries) + 1),
+                base_delay_ms=default_retry.base_delay_ms,
+                max_delay_ms=default_retry.max_delay_ms,
+                jitter=default_retry.jitter,
+            )
+
+        return AdapterPolicy(timeout=timeout, retry=retry)
+
     def _rate_limit(self, host: str, adapter_name: str | None, url: str) -> None:
         pol = self._host_policy(host)
         rps = max(pol.rate_limit_rps, 0.01)
@@ -310,7 +368,7 @@ class RequestBroker:
         headers: Optional[dict] = None,
         ttl_override_s: Optional[int] = None,
         adapter_name: str | None = None,
-    ) -> bytes:
+    ) -> bytes | None:
         fixture_body = self._fixture_bytes(url)
         if fixture_body is not None:
             self._log_adapter_activity(
@@ -361,23 +419,38 @@ class RequestBroker:
         )
 
         pol = self._host_policy(host)
+        adapter_policy = self._adapter_policy(adapter_name, pol)
+        self._log_adapter_activity(
+            adapter_name=adapter_name,
+            action="policy",
+            url=url,
+            details=(
+                f"timeout_connect={adapter_policy.timeout.connect} "
+                f"timeout_read={adapter_policy.timeout.read} "
+                f"timeout_write={adapter_policy.timeout.write} "
+                f"timeout_pool={adapter_policy.timeout.pool} "
+                f"max_attempts={adapter_policy.retry.max_attempts}"
+            ),
+        )
         ttl_ok = int(ttl_override_s) if ttl_override_s is not None else pol.ttl_default_s
 
         attempt = 0
         while True:
             attempt += 1
+            self._record_stat(adapter_name, "requests")
             self._rate_limit(host, adapter_name=adapter_name, url=url)
 
             try:
-                resp = self.client.get(url, headers=headers)
+                resp = self.client.get(url, headers=headers, timeout=adapter_policy.timeout)
                 status = int(resp.status_code)
 
                 if status == 429 or 500 <= status <= 599:
-                    if attempt < pol.retry.max_attempts:
-                        delay = min(pol.retry.max_delay_ms, pol.retry.base_delay_ms * (2 ** (attempt - 1)))
-                        if pol.retry.jitter:
+                    if attempt < adapter_policy.retry.max_attempts:
+                        delay = min(adapter_policy.retry.max_delay_ms, adapter_policy.retry.base_delay_ms * (2 ** (attempt - 1)))
+                        if adapter_policy.retry.jitter:
                             delay = int(delay * (0.6 + 0.8 * random.random()))
                         self._log(f"RETRY status={status} attempt={attempt} delay_ms={delay} url={_redact_url(url)}")
+                        self._record_stat(adapter_name, "retries")
                         self._log_adapter_activity(
                             adapter_name=adapter_name,
                             action="retry",
@@ -411,14 +484,24 @@ class RequestBroker:
                     cache="write-negative",
                     error=f"HTTP_{status}",
                 )
-                raise RuntimeError(f"HTTP {status} for {_redact_url(url)}")
+                self._record_stat(adapter_name, "failures")
+                self.adapter_logger.error(
+                    "request_failed adapter=%s url=%s exc_type=HTTPStatusError attempts=%s",
+                    adapter_name or "unknown",
+                    _redact_url(url),
+                    attempt,
+                )
+                raise BrokerRequestError(adapter_name=adapter_name, url=url, cause=RuntimeError(f"HTTP_{status}"))
 
             except (httpx.TimeoutException, httpx.TransportError) as e:
-                if attempt < pol.retry.max_attempts:
-                    delay = min(pol.retry.max_delay_ms, pol.retry.base_delay_ms * (2 ** (attempt - 1)))
-                    if pol.retry.jitter:
+                if isinstance(e, httpx.TimeoutException):
+                    self._record_stat(adapter_name, "timeouts")
+                if attempt < adapter_policy.retry.max_attempts:
+                    delay = min(adapter_policy.retry.max_delay_ms, adapter_policy.retry.base_delay_ms * (2 ** (attempt - 1)))
+                    if adapter_policy.retry.jitter:
                         delay = int(delay * (0.6 + 0.8 * random.random()))
                     self._log(f"RETRY error={type(e).__name__} attempt={attempt} delay_ms={delay} url={_redact_url(url)}")
+                    self._record_stat(adapter_name, "retries")
                     self._log_adapter_activity(
                         adapter_name=adapter_name,
                         action="retry",
@@ -428,6 +511,14 @@ class RequestBroker:
                     )
                     time.sleep(delay / 1000.0)
                     continue
+                self._record_stat(adapter_name, "failures")
+                self.adapter_logger.error(
+                    "request_failed adapter=%s url=%s exc_type=%s attempts=%s",
+                    adapter_name or "unknown",
+                    _redact_url(url),
+                    type(e).__name__,
+                    attempt,
+                )
                 self._log_adapter_activity(
                     adapter_name=adapter_name,
                     action="error",
@@ -449,6 +540,8 @@ class RequestBroker:
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}{q}" if q else url
         raw = self.get(url, headers=headers, ttl_override_s=ttl_override_s, adapter_name=adapter_name)
+        if raw is None:
+            return None
         try:
             return json.loads(raw.decode("utf-8"))
         except Exception as e:
