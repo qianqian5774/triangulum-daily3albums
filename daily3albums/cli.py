@@ -872,11 +872,6 @@ def _primary_type_allowed(primary_type: str | None, flags: dict[str, bool]) -> b
     return True
 
 
-def _deterministic_decade_theme(date_key: str) -> str:
-    decades = [f"{y}s" for y in range(1960, 2020, 10)]
-    return decades[_hash_index(f"{date_key}:decade", len(decades))]
-
-
 def _top_rejection_reasons(reject_counts: dict[str, int], limit: int = 3) -> list[dict[str, int | str]]:
     ordered = sorted(reject_counts.items(), key=lambda x: x[1], reverse=True)
     return [{"reason": k, "count": int(v)} for k, v in ordered[:limit] if int(v) > 0]
@@ -902,6 +897,12 @@ def cmd_build(
     env = load_env(repo_root)
     cfg = load_config(repo_root)
     build_logger = _get_build_logger(repo_root)
+
+    if getattr(cfg, "ignored_legacy_decade_keys", []):
+        ignored_keys = ", ".join(sorted(set(cfg.ignored_legacy_decade_keys)))
+        msg = f"decade_* settings ignored: decade_mode={cfg.decade_mode} ({ignored_keys})"
+        print(f"BUILD WARN: {msg}")
+        build_logger.warning(msg)
 
     def log_line(msg: str) -> None:
         if verbose:
@@ -1176,8 +1177,7 @@ def cmd_build(
             slots_payload.append(slot_payload)
             exhaustion.append({"slot_id": slot_id, "attempts": attempts_meta, "reject_counts": reject_counts, "fetched_count": fetched_count})
 
-        decade_theme = (theme or "").strip() or _deterministic_decade_theme(date_key)
-        decade_constraints = {"min_in_decade": 6, "max_unknown_year": 2}
+        effective_theme = (theme or "").strip() or (tag or "").strip() or "auto"
 
         broker_stats = broker.get_stats_snapshot()
         diagnostics_summary["requests"] = {k: int(v.get("requests", 0)) for k, v in broker_stats.items()}
@@ -1192,14 +1192,14 @@ def cmd_build(
             "output_schema_version": "1.0",
             "date": date_key,
             "run_id": run_id,
-            "theme_of_day": decade_theme,
-            "decade_theme": decade_theme,
+            "theme_of_day": effective_theme,
+            "decade_theme": None,
             "slot": now_slot_id,
             "now_slot_id": now_slot_id,
             "run_at": beijing_now.isoformat(timespec="seconds"),
             "lineage_source": None,
             "picks": [],
-            "constraints": {**decade_constraints, "min_confidence": float(min_confidence), "ambiguity_gap": float(ambiguity_gap)},
+            "constraints": {"min_confidence": float(min_confidence), "ambiguity_gap": float(ambiguity_gap)},
             "slots": [],
             "generation": {"started_at": datetime.now().isoformat(timespec="seconds"), "versions": {"daily3albums": getattr(cfg, "version", None)}},
             "warnings": [],
@@ -1212,7 +1212,7 @@ def cmd_build(
             for slot_name, s in zip(slot_names, scored_items):
                 rg_id = getattr(getattr(s, "n", None), "mb_release_group_id", "") or ""
                 cover_result = cover_adapter.fetch_cover(rg_id) if rg_id else None
-                item = _pick_to_issue_item(tag=slot_payload.get("theme") or decade_theme, slot=slot_name, s=s, cover_version=cover_version, cover_result=cover_result)
+                item = _pick_to_issue_item(tag=slot_payload.get("theme") or effective_theme, slot=slot_name, s=s, cover_version=cover_version, cover_result=cover_result)
                 item["style_key"] = slot_payload.get("theme_key")
                 item["theme_key"] = slot_payload.get("theme_key")
                 slot_payload["picks"].append(item)
@@ -1222,14 +1222,6 @@ def cmd_build(
         issue["picks"] = now_slot_payload.get("picks", [])
 
         errors = validate_today_constraints(issue, history_index)
-        if errors:
-            issue["constraints"]["min_in_decade"] = 5
-            issue["warnings"].append("degrade_step_c:min_in_decade=5")
-            errors = validate_today_constraints(issue, history_index)
-        if errors:
-            issue["constraints"]["max_unknown_year"] = 3
-            issue["warnings"].append("degrade_step_c:max_unknown_year=3")
-            errors = validate_today_constraints(issue, history_index)
         if errors:
             for err in errors:
                 print(f"BUILD ERROR: constraint validator: {err}")
@@ -1270,6 +1262,7 @@ def cmd_build(
 
         if diagnostics:
             print("\n== Diagnostics Summary ==")
+            print("Decade constraints: OFF")
             print(json.dumps(diagnostics_summary, ensure_ascii=False, indent=2))
 
         print("BUILD OK")

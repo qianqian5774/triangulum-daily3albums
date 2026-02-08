@@ -116,7 +116,7 @@ sessionStorage.removeItem("tri_debug_time");
 - Hard constraints: same-day album uniqueness, same-day main-artist disjointness, 7-day artist cooldown, and type gating (Album allowed by default; unknown type is allowed).
 - Slot theme model: each slot picks one `theme` from `tag_pool`; every pick in the slot uses `style_key == theme_key` (normalized theme).
 - Theme cooldown: exact `theme_key` cannot repeat within 3 days.
-- Decade theme: one daily decade target with minimum in-decade picks and unknown-year ceiling; validator can apply the documented minimal relaxation ladder in build diagnostics.
+- Decade constraints are disabled by default (`decade_mode: off`), so build validation no longer enforces decade coverage or unknown-year ceilings.
 
 ## Notes on caching
 
