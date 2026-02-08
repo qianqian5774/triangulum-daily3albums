@@ -85,6 +85,8 @@ class AppConfig:
     discogs_page_start: int
     discogs_max_pages: int
     discogs_per_page: int
+    decade_mode: str
+    ignored_legacy_decade_keys: list[str]
 
 
 def load_config(repo_root: Path) -> AppConfig:
@@ -108,6 +110,12 @@ def load_config(repo_root: Path) -> AppConfig:
     discogs_page_start = max(1, int(discogs_cfg.get("discogs_page_start", discogs_cfg.get("page_start", 1))))
     discogs_max_pages = max(1, int(discogs_cfg.get("discogs_max_pages", discogs_cfg.get("max_pages", 3))))
     discogs_per_page = min(100, max(1, int(discogs_cfg.get("discogs_per_page", discogs_cfg.get("per_page", 100)))))
+    raw_decade_mode = str(cfg.get("decade_mode", "off") or "off").strip().lower()
+    decade_mode = "on" if raw_decade_mode == "on" else "off"
+    legacy_decade_keys = [
+        key for key in ("decade_theme", "min_in_decade", "max_unknown_year", "decade_axis", "day_decade")
+        if key in build_cfg or key in cfg
+    ]
     return AppConfig(
         raw=cfg,
         policies=policies,
@@ -123,4 +131,6 @@ def load_config(repo_root: Path) -> AppConfig:
         discogs_page_start=discogs_page_start,
         discogs_max_pages=discogs_max_pages,
         discogs_per_page=discogs_per_page,
+        decade_mode=decade_mode,
+        ignored_legacy_decade_keys=legacy_decade_keys,
     )

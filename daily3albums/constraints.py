@@ -55,14 +55,6 @@ def style_key_from_parts(primary_tag: str, primary_type: str | None, first_relea
     return theme_key_from_tag(primary_tag)
 
 
-def _parse_decade_theme(value: str) -> tuple[int, int] | None:
-    m = re.match(r"^\s*(\d{3})0s\s*$", str(value or ""), flags=re.IGNORECASE)
-    if not m:
-        return None
-    start = int(m.group(1)) * 10
-    return start, start + 9
-
-
 def load_history_index(archive_dir: Path, current_date_key: str, max_lookback_days: int = 14) -> HistoryIndex:
     album_keys: set[str] = set()
     artist_last_seen: dict[str, str] = {}
@@ -118,12 +110,6 @@ def validate_today_constraints(issue: dict[str, Any], history: HistoryIndex) -> 
         errors.append("duplicate album_key in same day")
 
     seen_artists: set[str] = set()
-    decade_theme = issue.get("decade_theme") or issue.get("theme_of_day")
-    decade_range = _parse_decade_theme(decade_theme)
-    known_year_count = 0
-    in_decade_count = 0
-    unknown_year_count = 0
-
     for pick in picks:
         artist_keys = set(pick.get("artist_keys") or [])
         overlap = seen_artists.intersection(artist_keys)
@@ -143,23 +129,5 @@ def validate_today_constraints(issue: dict[str, Any], history: HistoryIndex) -> 
         last_style = history.style_last_seen.get(style_key)
         if style_key and last_style and _date_delta_days(date_key, last_style) <= THEME_COOLDOWN_DAYS:
             errors.append(f"theme cooldown violation: {style_key} seen at {last_style}")
-
-        year = pick.get("first_release_year")
-        if isinstance(year, int):
-            known_year_count += 1
-            if decade_range and decade_range[0] <= year <= decade_range[1]:
-                in_decade_count += 1
-        else:
-            unknown_year_count += 1
-
-    if decade_range:
-        min_in_decade = int(issue.get("constraints", {}).get("min_in_decade", 6))
-        max_unknown = int(issue.get("constraints", {}).get("max_unknown_year", 2))
-        if in_decade_count < min_in_decade:
-            errors.append(
-                f"decade coverage violation: in_decade={in_decade_count} < required={min_in_decade} for {decade_theme}"
-            )
-        if unknown_year_count > max_unknown:
-            errors.append(f"unknown year violation: unknown={unknown_year_count} > allowed={max_unknown}")
 
     return errors
