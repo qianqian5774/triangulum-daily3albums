@@ -15,7 +15,6 @@ from daily3albums.adapters import (
     lastfm_tag_top_albums,
     listenbrainz_metadata_release_groups,
     listenbrainz_sitewide_release_groups,
-    musicbrainz_best_release_group_match,
     musicbrainz_best_release_group_match_debug,
     musicbrainz_get_release_group,
     musicbrainz_normalize_mbid_to_release_group,
@@ -113,6 +112,35 @@ def _normalize_candidate(
     mb_max_queries_per_candidate: int = 3,
 ) -> tuple[Optional[NormalizedCandidate], dict[str, Any]]:
     dbg_lines: list[str] = []
+    mb_search_queries_attempted = 0
+
+    def _mb_http_calls_snapshot() -> int | None:
+        if not hasattr(broker, "get_stats_snapshot"):
+            return None
+        try:
+            snapshot = broker.get_stats_snapshot()  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        bucket = snapshot.get("MusicBrainzAdapter") if isinstance(snapshot, dict) else None
+        if not isinstance(bucket, dict):
+            return 0
+        return int(bucket.get("requests", 0))
+
+    mb_calls_before = _mb_http_calls_snapshot()
+
+    def _diag_payload() -> dict[str, Any]:
+        nonlocal mb_search_queries_attempted
+        mb_calls_after = _mb_http_calls_snapshot()
+        mb_http_calls = 0
+        if mb_calls_before is not None and mb_calls_after is not None:
+            mb_http_calls = max(0, int(mb_calls_after) - int(mb_calls_before))
+        return {
+            "mb_debug": dbg_lines,
+            "mb_search_queries_attempted": int(mb_search_queries_attempted),
+            "mb_http_calls": int(mb_http_calls),
+            # legacy key: kept for compatibility
+            "mb_queries_attempted": int(mb_http_calls or mb_search_queries_attempted),
+        }
 
     def _extract_mb_queries_attempted(lines: list[str]) -> int:
         attempted = 0
@@ -149,44 +177,38 @@ def _normalize_candidate(
                 confidence=1.0,
                 source=src,
             )
-            return norm, {"mb_debug": dbg_lines, "mb_queries_attempted": _extract_mb_queries_attempted(dbg_lines)}
+            return norm, _diag_payload()
 
     if c.rg_mbid_hint:
         rg = musicbrainz_get_release_group(broker, env.mb_user_agent, c.rg_mbid_hint)
-        norm = NormalizedCandidate(
-            title=c.title,
-            artist=c.artist,
-            mb_release_group_id=c.rg_mbid_hint,
-            artist_mbids=list((rg.artist_mbids if rg else []) or ([c.artist_mbid_hint] if c.artist_mbid_hint else [])),
-            primary_type=rg.primary_type if rg else None,
-            first_release_date=rg.first_release_date if rg else None,
-            confidence=1.0,
-            source="hint:rg_mbid",
-        )
-        return norm, {"mb_debug": dbg_lines, "mb_queries_attempted": _extract_mb_queries_attempted(dbg_lines)}
+        if rg is not None:
+            norm = NormalizedCandidate(
+                title=c.title,
+                artist=c.artist,
+                mb_release_group_id=c.rg_mbid_hint,
+                artist_mbids=list((rg.artist_mbids if rg else []) or ([c.artist_mbid_hint] if c.artist_mbid_hint else [])),
+                primary_type=rg.primary_type if rg else None,
+                first_release_date=rg.first_release_date if rg else None,
+                confidence=1.0,
+                source="hint:rg_mbid",
+            )
+            return norm, _diag_payload()
+        dbg_lines.append("hint:rg_mbid_unresolved")
 
+    match, _runner_up_conf, dbg2 = musicbrainz_best_release_group_match_debug(
+        broker,
+        mb_user_agent=env.mb_user_agent,
+        title=c.title,
+        artist=c.artist,
+        limit=int(mb_search_limit),
+        max_queries_per_candidate=int(mb_max_queries_per_candidate),
+    )
     if debug:
-        match, _runner_up_conf, dbg2 = musicbrainz_best_release_group_match_debug(
-            broker,
-            mb_user_agent=env.mb_user_agent,
-            title=c.title,
-            artist=c.artist,
-            limit=int(mb_search_limit),
-            max_queries_per_candidate=int(mb_max_queries_per_candidate),
-        )
         dbg_lines.extend(dbg2)
-    else:
-        match = musicbrainz_best_release_group_match(
-            broker,
-            mb_user_agent=env.mb_user_agent,
-            title=c.title,
-            artist=c.artist,
-            limit=int(mb_search_limit),
-            max_queries_per_candidate=int(mb_max_queries_per_candidate),
-        )
+    mb_search_queries_attempted = _extract_mb_queries_attempted(dbg2)
 
     if match is None:
-        return None, {"mb_debug": dbg_lines, "mb_queries_attempted": _extract_mb_queries_attempted(dbg_lines)}
+        return None, _diag_payload()
 
     rg = match.rg
     norm = NormalizedCandidate(
@@ -199,7 +221,7 @@ def _normalize_candidate(
         confidence=float(match.confidence),
         source=match.method,
     )
-    return norm, {"mb_debug": dbg_lines, "mb_queries_attempted": _extract_mb_queries_attempted(dbg_lines)}
+    return norm, _diag_payload()
 
 
 def _merge_candidates(cands: list[Candidate]) -> list[Candidate]:
@@ -449,6 +471,8 @@ def run_dry_run(
     mb_candidates_considered = 0
     mb_candidates_normalized = 0
     mb_queries_attempted_total = 0
+    mb_search_queries_attempted_total = 0
+    mb_http_calls_total = 0
     mb_budget_exceeded = False
     mb_cap_hit = False
 
@@ -466,25 +490,17 @@ def run_dry_run(
             break
         norm = None
         dbg: dict[str, Any] = {}
-        if c.rg_mbid_hint and c.artist_mbid_hint:
-            norm = NormalizedCandidate(
-                title=c.title,
-                artist=c.artist,
-                mb_release_group_id=c.rg_mbid_hint,
-                artist_mbids=[c.artist_mbid_hint],
-                primary_type=None,
-                first_release_date=None,
-            )
-        else:
-            norm, dbg = _normalize_candidate(
-                broker,
-                env,
-                c,
-                debug=mb_debug,
-                mb_search_limit=int(mb_search_limit),
-                mb_max_queries_per_candidate=int(mb_max_queries_per_candidate),
-            )
-            mb_queries_attempted_total += int(dbg.get("mb_queries_attempted", 0))
+        norm, dbg = _normalize_candidate(
+            broker,
+            env,
+            c,
+            debug=mb_debug,
+            mb_search_limit=int(mb_search_limit),
+            mb_max_queries_per_candidate=int(mb_max_queries_per_candidate),
+        )
+        mb_search_queries_attempted_total += int(dbg.get("mb_search_queries_attempted", 0))
+        mb_http_calls_total += int(dbg.get("mb_http_calls", 0))
+        mb_queries_attempted_total += int(dbg.get("mb_queries_attempted", 0))
         mb_candidates_normalized += 1
         normalized_count += 1
 
@@ -521,6 +537,8 @@ def run_dry_run(
         "mb_candidates_considered": mb_candidates_considered,
         "mb_candidates_normalized": mb_candidates_normalized,
         "mb_queries_attempted_total": mb_queries_attempted_total,
+        "mb_search_queries_attempted_total": mb_search_queries_attempted_total,
+        "mb_http_calls_total": mb_http_calls_total,
         "mb_budget_exceeded": mb_budget_exceeded,
         "mb_cap_hit": mb_cap_hit,
         "mb_time_spent_s": round(time.monotonic() - started, 3),
