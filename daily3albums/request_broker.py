@@ -82,18 +82,32 @@ class HostPolicy:
     retry: RetryPolicy = field(default_factory=RetryPolicy)
 
 
+class BrokerRequestError(RuntimeError):
+    def __init__(self, adapter_name: str | None, url: str, cause: Exception) -> None:
+        self.adapter_name = adapter_name or "unknown"
+        self.url = url
+        self.cause = cause
+        super().__init__(f"{self.adapter_name} request failed url={_redact_url(url)} cause={type(cause).__name__}: {cause}")
+
+
 class RequestBroker:
     def __init__(
         self,
         repo_root: Path,
         endpoint_policies: dict,
         logger: Optional[Callable[[str], None]] = None,
-        timeout_s: float = 20.0,
+        timeout_s: float = 30.0,
+        connect_timeout_s: float = 10.0,
+        read_timeout_s: float = 30.0,
+        write_timeout_s: float = 30.0,
     ) -> None:
         self.repo_root = repo_root
         self.policies_raw = endpoint_policies or {}
         self.logger = logger
         self.timeout_s = float(timeout_s)
+        self.connect_timeout_s = float(connect_timeout_s)
+        self.read_timeout_s = float(read_timeout_s)
+        self.write_timeout_s = float(write_timeout_s)
         self.adapter_logger = _get_adapter_logger(repo_root)
 
         self.state_dir = repo_root / ".state"
@@ -120,7 +134,12 @@ class RequestBroker:
         self._host_last_ts: dict[str, float] = {}
 
         self.client = httpx.Client(
-            timeout=httpx.Timeout(self.timeout_s),
+            timeout=httpx.Timeout(
+                timeout=self.timeout_s,
+                connect=self.connect_timeout_s,
+                read=self.read_timeout_s,
+                write=self.write_timeout_s,
+            ),
             follow_redirects=True,
         )
 
@@ -204,10 +223,17 @@ class RequestBroker:
         h = hosts.get(host, {}) if isinstance(hosts, dict) else {}
 
         retry_raw = h.get("retry", {}) if isinstance(h, dict) else {}
+        max_attempts_cfg = retry_raw.get("max_attempts")
+        max_retries_cfg = retry_raw.get("max_retries")
+        if max_retries_cfg is None and max_attempts_cfg is not None:
+            try:
+                max_retries_cfg = max(0, int(max_attempts_cfg) - 1)
+            except Exception:
+                max_retries_cfg = 2
         rp = RetryPolicy(
-            max_attempts=int(retry_raw.get("max_attempts", 4)),
-            base_delay_ms=int(retry_raw.get("base_delay_ms", 400)),
-            max_delay_ms=int(retry_raw.get("max_delay_ms", 6000)),
+            max_attempts=max(1, int(max_retries_cfg if max_retries_cfg is not None else 2) + 1),
+            base_delay_ms=int(retry_raw.get("base_delay_ms", 500)),
+            max_delay_ms=int(retry_raw.get("max_delay_ms", 5000)),
             jitter=bool(retry_raw.get("jitter", True)),
         )
 
@@ -408,15 +434,20 @@ class RequestBroker:
                     url=url,
                     error=type(e).__name__,
                 )
-                raise
+                raise BrokerRequestError(adapter_name=adapter_name, url=url, cause=e) from e
 
     def get_json(
         self,
         url: str,
         headers: Optional[dict] = None,
+        params: Optional[dict[str, Any]] = None,
         ttl_override_s: Optional[int] = None,
         adapter_name: str | None = None,
     ) -> Any:
+        if params:
+            q = urlencode([(k, str(v)) for k, v in params.items() if v is not None])
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}{q}" if q else url
         raw = self.get(url, headers=headers, ttl_override_s=ttl_override_s, adapter_name=adapter_name)
         try:
             return json.loads(raw.decode("utf-8"))

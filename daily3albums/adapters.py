@@ -108,21 +108,21 @@ class CoverArtArchiveAdapter:
 
 def lastfm_tag_top_albums(
     broker: RequestBroker,
-    api_key: str,
+    lastfm_api_key: str,
     tag: str,
-    limit: int = 30,
+    limit: int = 50,
     page: int = 1,
 ) -> list[LastFmTopAlbum]:
+    url = "https://ws.audioscrobbler.com/2.0/"
     params = {
         "method": "tag.getTopAlbums",
         "tag": tag,
-        "limit": str(limit),
-        "page": str(page),
-        "api_key": api_key,
+        "api_key": lastfm_api_key,
         "format": "json",
+        "limit": limit,
+        "page": page,
     }
-    url = "https://ws.audioscrobbler.com/2.0/?" + urlencode(params)
-    j = broker.get_json(url, adapter_name="LastfmAdapter")
+    j = broker.get_json(url, params=params, adapter_name="LastFmAdapter")
 
     # Last.fm 错误会以 JSON 返回：{"error":..., "message":...}
     if isinstance(j, dict) and "error" in j:
@@ -750,3 +750,96 @@ def musicbrainz_best_release_group_match_debug(
     runner_up_conf = top2.confidence if (top2 is not None and top2.rg.id != top1.rg.id) else None
     dbg.append(f"final:conf={top1.confidence:.3f} runner={runner_up_conf if runner_up_conf is not None else 'none'} via={top1.method} note={top1.note}")
     return top1, runner_up_conf, dbg
+
+
+@dataclass
+class DiscogsSearchItem:
+    title: str
+    year: int | None
+    cover_image: str | None
+    master_id: int | None
+    resource_url: str | None
+    rank: int | None
+
+
+def discogs_database_search(
+    broker: RequestBroker,
+    token: str,
+    *,
+    q: str,
+    page: int = 1,
+    per_page: int = 100,
+    type_: str = "master",
+    format_: str = "album",
+) -> list[DiscogsSearchItem]:
+    url = "https://api.discogs.com/database/search"
+    headers = {"Authorization": f"Discogs token={token}"}
+    params = {
+        "q": q,
+        "type": type_,
+        "format": format_,
+        "page": page,
+        "per_page": per_page,
+    }
+    j = broker.get_json(url, headers=headers, params=params, adapter_name="DiscogsAdapter")
+    out: list[DiscogsSearchItem] = []
+    for idx, it in enumerate(j.get("results", []) or [], start=1):
+        out.append(
+            DiscogsSearchItem(
+                title=str(it.get("title") or "").strip(),
+                year=(int(it["year"]) if isinstance(it.get("year"), int) else None),
+                cover_image=it.get("cover_image"),
+                master_id=(int(it["master_id"]) if it.get("master_id") is not None else None),
+                resource_url=it.get("resource_url"),
+                rank=idx,
+            )
+        )
+    return out
+
+
+@dataclass
+class ListenBrainzReleaseGroupStat:
+    release_group_name: str
+    release_group_mbid: str
+    artist_name: str
+    artist_mbid: str | None
+    listen_count: int | None
+    rank: int
+
+
+def listenbrainz_sitewide_release_groups(
+    broker: RequestBroker,
+    *,
+    count: int = 200,
+    offset: int = 0,
+    range_: str = "all_time",
+) -> list[ListenBrainzReleaseGroupStat]:
+    url = "https://api.listenbrainz.org/1/stats/sitewide/release-groups"
+    params = {"count": count, "offset": offset, "range": range_}
+    j = broker.get_json(url, params=params, adapter_name="ListenBrainzAdapter")
+
+    items = j.get("release_groups") or j.get("payload", {}).get("release_groups") or []
+    out: list[ListenBrainzReleaseGroupStat] = []
+    for i, it in enumerate(items, start=1):
+        out.append(
+            ListenBrainzReleaseGroupStat(
+                release_group_name=str(it.get("release_group_name") or "").strip(),
+                release_group_mbid=str(it.get("release_group_mbid") or "").strip(),
+                artist_name=str(it.get("artist_name") or "").strip(),
+                artist_mbid=(str(it.get("artist_mbid")).strip() if it.get("artist_mbid") else None),
+                listen_count=(int(it["listen_count"]) if it.get("listen_count") is not None else None),
+                rank=i,
+            )
+        )
+    return out
+
+
+def listenbrainz_metadata_release_groups(
+    broker: RequestBroker,
+    release_group_mbids: list[str],
+    *,
+    inc: str = "artist tag release",
+) -> dict[str, Any]:
+    url = "https://api.listenbrainz.org/1/metadata/release_group/"
+    params = {"release_group_mbids": ",".join(release_group_mbids), "inc": inc}
+    return broker.get_json(url, params=params, adapter_name="ListenBrainzAdapter")
