@@ -20,11 +20,12 @@ from daily3albums.request_broker import RequestBroker
 from daily3albums.adapters import CoverArtArchiveAdapter, CoverArtResult, lastfm_tag_top_albums, musicbrainz_search_release_group
 from daily3albums.constraints import (
     ARTIST_COOLDOWN_DAYS,
-    STYLE_COOLDOWN_DAYS,
+    THEME_COOLDOWN_DAYS,
     album_key_from_parts,
     artist_keys_from_parts,
     load_history_index,
     style_key_from_parts,
+    theme_key_from_tag,
     validate_today_constraints,
 )
 from daily3albums.dry_run import run_dry_run
@@ -798,6 +799,38 @@ def _ensure_nonblank_index_html(out_public_dir: Path, web_dir: Path) -> None:
 # build
 # ----------------------------
 
+
+def _type_flags_from_cfg(cfg: Any) -> dict[str, bool]:
+    defaults = {"album": True, "compilation": False, "live": False, "ep": False, "single": False}
+    node = cfg.raw.get("allow_types") if hasattr(cfg, "raw") else None
+    if isinstance(node, dict):
+        for k in defaults:
+            if k in node:
+                defaults[k] = bool(node.get(k))
+    return defaults
+
+
+def _is_various_artists_name(name: str) -> bool:
+    n = (name or "").strip().lower()
+    return n in {"various artists", "various", "v/a", "va"}
+
+
+def _primary_type_allowed(primary_type: str | None, flags: dict[str, bool]) -> bool:
+    if not primary_type:
+        return True
+    key = str(primary_type).strip().lower()
+    if key == "album":
+        return flags.get("album", True)
+    if key in {"compilation", "live", "ep", "single"}:
+        return bool(flags.get(key, False))
+    return True
+
+
+def _deterministic_decade_theme(date_key: str) -> str:
+    decades = [f"{y}s" for y in range(1960, 2020, 10)]
+    return decades[_hash_index(f"{date_key}:decade", len(decades))]
+
+
 def cmd_build(
     repo_root: Path,
     tag: str,
@@ -826,12 +859,10 @@ def cmd_build(
     logger = print if verbose else None
     broker = RequestBroker(repo_root=repo_root, endpoint_policies=cfg.policies, logger=logger)
     cover_adapter = CoverArtArchiveAdapter(broker)
+    type_flags = _type_flags_from_cfg(cfg)
 
     mb_search_limit = int(mb_search_limit)
-    min_confidence = float(min_confidence)
-    ambiguity_gap = float(ambiguity_gap)
     quarantine_out = (quarantine_out or "").strip() or None
-
     out_public_dir = (repo_root / out_dir).resolve()
 
     try:
@@ -853,46 +884,44 @@ def cmd_build(
 
         slot_names = ["Headliner", "Lineage", "DeepCut"]
         slots_payload: list[dict[str, Any]] = []
-        now_slot_payload: dict[str, Any] | None = None
-        now_slot_tag = ""
-        now_constraints = {"ambiguity_gap": ambiguity_gap, "min_confidence": min_confidence}
         used_album_keys: set[str] = set()
         used_artist_keys: set[str] = set()
-        used_style_keys: set[str] = set()
-
-        slot_topk_attempts = [min(n, topk), min(n, topk + 10), min(n, topk + 20)]
-        slot_topk_attempts = [k for i, k in enumerate(slot_topk_attempts) if k and k not in slot_topk_attempts[:i]]
+        used_theme_keys: set[str] = set()
+        exhaustion: list[dict[str, Any]] = []
 
         for slot_id in range(3):
-            slot_tag = _select_tag_for_slot(tag, cfg, date_key, slot_id, log_line)
-            if slot_id == now_slot_id:
-                now_slot_tag = slot_tag
-            rng = random.Random(f"{date_key}:{slot_id}:{slot_tag}")
+            pool = _get_tag_pool(cfg)
+            start_index = _hash_index(f"{date_key}:{slot_id}", len(pool))
+            tag_attempts = [pool[(start_index + i) % len(pool)] for i in range(len(pool))]
+            if used_theme_keys:
+                tag_attempts = sorted(tag_attempts, key=lambda t: (theme_key_from_tag(t) in used_theme_keys, tag_attempts.index(t)))
 
             picked: list[Any] = []
-            used_min_conf = min_confidence
-            used_gap = ambiguity_gap
-            candidate_count = 0
-            cooling_hits = 0
-            final_rg_ids: list[str] = []
+            picked_theme_tag = ""
+            picked_theme_key = ""
+            reject_counts = {"va": 0, "type": 0, "artist_cooldown": 0, "artist_same_day": 0, "album_collision": 0}
+            fetched_count = 0
+            attempts_meta: list[dict[str, Any]] = []
 
-            for conf, gap in _threshold_steps(min_confidence, ambiguity_gap):
-                for slot_topk in slot_topk_attempts:
+            for slot_tag in tag_attempts:
+                theme_key = theme_key_from_tag(slot_tag)
+                last_theme_day = history_index.style_last_seen.get(theme_key)
+                if last_theme_day:
+                    delta = (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last_theme_day).date()).days
+                    if delta <= THEME_COOLDOWN_DAYS:
+                        attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "skipped": "theme_cooldown", "last_seen": last_theme_day})
+                        continue
+
+                for fetch_limit in (max(n, 200), 800):
                     out = run_dry_run(
-                        broker,
-                        env,
-                        tag=slot_tag,
-                        n=n,
-                        topk=slot_topk,
-                        split_slots=split_slots,
-                        mb_search_limit=mb_search_limit,
-                        min_confidence=conf,
-                        ambiguity_gap=gap,
-                        mb_debug=mb_debug,
-                        quarantine_out=None,
+                        broker, env, tag=slot_tag, n=fetch_limit, topk=max(fetch_limit, topk), split_slots=False,
+                        mb_search_limit=mb_search_limit, min_confidence=float(min_confidence), ambiguity_gap=float(ambiguity_gap),
+                        mb_debug=mb_debug, quarantine_out=None,
                     )
                     candidates = [s for s in (out.get("top") or []) if getattr(s, "n", None) is not None]
-                    eligible_candidates: list[Any] = []
+                    fetched_count = max(fetched_count, len(candidates))
+                    eligible: list[Any] = []
+                    local_reject = {k: 0 for k in reject_counts}
                     for candidate in candidates:
                         nobj = getattr(candidate, "n", None)
                         cobj = getattr(candidate, "c", None)
@@ -905,70 +934,48 @@ def cmd_build(
 
                         album_key = album_key_from_parts(rg_id, title, artist, year)
                         artist_keys = set(artist_keys_from_parts(artist_mbids, artist))
-                        style_key = style_key_from_parts(slot_tag, ptype, year)
-
+                        if _is_various_artists_name(artist):
+                            local_reject["va"] += 1
+                            continue
+                        if not _primary_type_allowed(ptype, type_flags):
+                            local_reject["type"] += 1
+                            continue
                         if album_key in used_album_keys:
+                            local_reject["album_collision"] += 1
                             continue
                         if artist_keys.intersection(used_artist_keys):
+                            local_reject["artist_same_day"] += 1
                             continue
-                        if style_key in used_style_keys:
+                        violate_cooldown = False
+                        for key in artist_keys:
+                            last = history_index.artist_last_seen.get(key)
+                            if last and (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last).date()).days <= ARTIST_COOLDOWN_DAYS:
+                                violate_cooldown = True
+                                break
+                        if violate_cooldown:
+                            local_reject["artist_cooldown"] += 1
                             continue
-                        if any(
-                            (bjt_date_key != last and (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last).date()).days <= ARTIST_COOLDOWN_DAYS)
-                            for key in artist_keys
-                            for last in [history_index.artist_last_seen.get(key)]
-                            if last
-                        ):
-                            continue
-                        last_style_day = history_index.style_last_seen.get(style_key)
-                        if last_style_day and (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last_style_day).date()).days <= STYLE_COOLDOWN_DAYS:
-                            continue
-                        eligible_candidates.append(candidate)
+                        eligible.append(candidate)
 
-                    candidate_count = len(eligible_candidates)
-                    for cooling_penalty in (0.0, 0.2, None):
-                        picked, cooling_hits = _weighted_sample_unique_artists(
-                            eligible_candidates,
-                            count=3,
-                            rng=rng,
-                            recent_ids=recent_set,
-                            cooling_penalty=cooling_penalty,
-                            log_line=log_line,
-                        )
-                        final_rg_ids = [
-                            getattr(getattr(s, "n", None), "mb_release_group_id", "") for s in picked
-                        ]
-                        log_line(
-                            "pick_attempt "
-                            f"slot={slot_id} tag={slot_tag} "
-                            f"min_confidence={conf:.2f} ambiguity_gap={gap:.2f} "
-                            f"candidate_count={candidate_count} topk={slot_topk} "
-                            f"cooling_penalty={'off' if cooling_penalty is None else cooling_penalty} "
-                            f"cooling_hits={cooling_hits} picks={final_rg_ids}"
-                        )
+                    for k, v in local_reject.items():
+                        reject_counts[k] += v
+                    attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "fetch_limit": fetch_limit, "candidate_count": len(candidates), "eligible": len(eligible)})
+                    if len(eligible) >= 3:
+                        rng = random.Random(f"{date_key}:{slot_id}:{theme_key}")
+                        picked, _ = _weighted_sample_unique_artists(eligible, count=3, rng=rng, recent_ids=recent_set, cooling_penalty=None, log_line=log_line)
                         if len(picked) >= 3:
-                            used_min_conf = conf
-                            used_gap = gap
+                            picked_theme_tag = slot_tag
+                            picked_theme_key = theme_key
                             break
-                    if len(picked) >= 3:
-                        break
                 if len(picked) >= 3:
                     break
 
             if len(picked) < 3:
-                print(
-                    "BUILD ERROR: cannot satisfy no-repeat / cooldown constraints "
-                    f"for slot={slot_id} tag={slot_tag} after relaxing thresholds."
-                )
+                print(f"BUILD ERROR: slot={slot_id} exhausted")
+                print(f"exhaustion slot={slot_id} attempts={attempts_meta} rejects={reject_counts}")
                 return 2
 
-            scored_items = sorted(picked, key=lambda s: float(getattr(s, "score", 0.0)), reverse=True)
-            if split_slots:
-                slots = _assign_slots(scored_items)
-                scored_items = [slots.get(name) for name in slot_names if slots.get(name) is not None]
-            else:
-                scored_items = scored_items[:3]
-
+            scored_items = sorted(picked, key=lambda s: float(getattr(s, "score", 0.0)), reverse=True)[:3]
             for selected in scored_items:
                 nobj = getattr(selected, "n", None)
                 cobj = getattr(selected, "c", None)
@@ -976,105 +983,72 @@ def cmd_build(
                 title = getattr(cobj, "title", "") if cobj else ""
                 artist = getattr(cobj, "artist", "") if cobj else ""
                 year = _safe_year(getattr(nobj, "first_release_date", None) if nobj else None)
-                ptype = getattr(nobj, "primary_type", None) if nobj else None
                 artist_mbids = list(getattr(nobj, "artist_mbids", []) or []) if nobj else []
                 used_album_keys.add(album_key_from_parts(rg_id, title, artist, year))
                 used_artist_keys.update(artist_keys_from_parts(artist_mbids, artist))
-                used_style_keys.add(style_key_from_parts(slot_tag, ptype, year))
 
+            used_theme_keys.add(picked_theme_key)
             slot_payload = {
                 "slot_id": slot_id,
                 "window_label": _slot_label(slot_id),
-                "theme": slot_tag,
-                "constraints": {"ambiguity_gap": used_gap, "min_confidence": used_min_conf},
+                "theme": picked_theme_tag,
+                "theme_key": picked_theme_key,
+                "constraints": {"min_confidence": float(min_confidence), "ambiguity_gap": float(ambiguity_gap)},
                 "picks": [],
+                "scored_items": scored_items,
             }
-
-            if slot_id == now_slot_id:
-                now_constraints = slot_payload["constraints"]
-
             slots_payload.append(slot_payload)
+            exhaustion.append({"slot_id": slot_id, "attempts": attempts_meta, "reject_counts": reject_counts, "fetched_count": fetched_count})
 
-            if slot_id == now_slot_id:
-                now_slot_payload = slot_payload
-
-            slot_payload["scored_items"] = scored_items
-
-        if quarantine_out and now_slot_tag:
-            run_dry_run(
-                broker,
-                env,
-                tag=now_slot_tag,
-                n=n,
-                topk=topk,
-                split_slots=split_slots,
-                mb_search_limit=mb_search_limit,
-                min_confidence=now_constraints["min_confidence"],
-                ambiguity_gap=now_constraints["ambiguity_gap"],
-                mb_debug=mb_debug,
-                quarantine_out=quarantine_out,
-            )
-
-        theme_of_day = (theme or "").strip() or now_slot_tag
+        decade_theme = (theme or "").strip() or _deterministic_decade_theme(date_key)
+        decade_constraints = {"min_in_decade": 6, "max_unknown_year": 2}
 
         issue = {
             "output_schema_version": "1.0",
             "date": date_key,
             "run_id": run_id,
-            "theme_of_day": theme_of_day,
+            "theme_of_day": decade_theme,
+            "decade_theme": decade_theme,
             "slot": now_slot_id,
             "now_slot_id": now_slot_id,
             "run_at": beijing_now.isoformat(timespec="seconds"),
             "lineage_source": None,
             "picks": [],
-            "constraints": now_constraints,
+            "constraints": {**decade_constraints, "min_confidence": float(min_confidence), "ambiguity_gap": float(ambiguity_gap)},
             "slots": [],
-            "generation": {
-                "started_at": datetime.now().isoformat(timespec="seconds"),
-                "versions": {"daily3albums": getattr(cfg, "version", None)},
-            },
+            "generation": {"started_at": datetime.now().isoformat(timespec="seconds"), "versions": {"daily3albums": getattr(cfg, "version", None)}},
             "warnings": [],
+            "diagnostics": {"exhaustion": exhaustion},
         }
-        if issue["date"] != bjt_date_key:
-            print(
-                "BUILD ERROR: today.json date must match Asia/Shanghai date. "
-                f"issue_date={issue['date']} bjt_date={bjt_date_key}"
-            )
-            return 2
 
         cover_version = issue["generation"].get("started_at")
         for slot_payload in slots_payload:
             scored_items = slot_payload.pop("scored_items", [])
-            slot_payload["picks"] = []
             for slot_name, s in zip(slot_names, scored_items):
                 rg_id = getattr(getattr(s, "n", None), "mb_release_group_id", "") or ""
                 cover_result = cover_adapter.fetch_cover(rg_id) if rg_id else None
-                slot_payload["picks"].append(
-                    _pick_to_issue_item(
-                        tag=slot_payload.get("theme") or theme_of_day,
-                        slot=slot_name,
-                        s=s,
-                        cover_version=cover_version,
-                        cover_result=cover_result,
-                    )
-                )
-            issue["slots"].append(
-                {
-                    k: v
-                    for k, v in slot_payload.items()
-                    if k in {"slot_id", "window_label", "theme", "constraints", "picks"}
-                }
-            )
+                item = _pick_to_issue_item(tag=slot_payload.get("theme") or decade_theme, slot=slot_name, s=s, cover_version=cover_version, cover_result=cover_result)
+                item["style_key"] = slot_payload.get("theme_key")
+                item["theme_key"] = slot_payload.get("theme_key")
+                slot_payload["picks"].append(item)
+            issue["slots"].append({k: v for k, v in slot_payload.items() if k in {"slot_id", "window_label", "theme", "theme_key", "constraints", "picks"}})
 
-        if not now_slot_payload:
-            now_slot_payload = slots_payload[0]
-
+        now_slot_payload = next((s for s in issue["slots"] if s.get("slot_id") == now_slot_id), issue["slots"][0])
         issue["picks"] = now_slot_payload.get("picks", [])
 
-        validation_errors = validate_today_constraints(issue, history_index)
-        if validation_errors:
-            for err in validation_errors:
+        errors = validate_today_constraints(issue, history_index)
+        if errors:
+            issue["constraints"]["min_in_decade"] = 5
+            issue["warnings"].append("degrade_step_c:min_in_decade=5")
+            errors = validate_today_constraints(issue, history_index)
+        if errors:
+            issue["constraints"]["max_unknown_year"] = 3
+            issue["warnings"].append("degrade_step_c:max_unknown_year=3")
+            errors = validate_today_constraints(issue, history_index)
+        if errors:
+            for err in errors:
                 print(f"BUILD ERROR: constraint validator: {err}")
+            print(f"exhaustion_report={json.dumps(exhaustion, ensure_ascii=False)}")
             return 2
 
         quarantine_rows: list[dict[str, Any]] = []
@@ -1087,70 +1061,32 @@ def cmd_build(
         ui_dir = repo_root / "ui"
         ui_dist_dir = ui_dir / "dist"
         web_dir = repo_root / "web"
-
         if not ui_dir.exists():
             print("BUILD ERROR: ui/ directory is missing. Cannot build frontend.")
             return 2
-
         print("BUILD: ui bundle")
         npm_exe = shutil.which("npm.cmd") or shutil.which("npm")
         if not npm_exe:
             raise SystemExit("UI build failed: npm not found. Install Node.js and ensure npm is on PATH.")
-
-        ui_build = subprocess.run(
-            [npm_exe, "--prefix", str(ui_dir), "run", "build"],
-            check=False,
-            cwd=repo_root,
-        )
+        ui_build = subprocess.run([npm_exe, "--prefix", str(ui_dir), "run", "build"], check=False, cwd=repo_root)
         if ui_build.returncode != 0:
             print("BUILD ERROR: ui build failed. See npm output above.")
             return 2
-
         if not ui_dist_dir.exists():
             print("BUILD ERROR: ui/dist is missing after build.")
             return 2
 
-        # Copy web shells + ui dist into public output
         out_public_dir.mkdir(parents=True, exist_ok=True)
         _copy_tree_overwrite(web_dir, out_public_dir)
         _copy_tree_overwrite(ui_dist_dir, out_public_dir)
 
-        # HARD GUARD: refuse to publish blank site
-        web_index = web_dir / "index.html"
-        web_archive = web_dir / "archive.html"
-        if (not web_index.exists()) or web_index.stat().st_size == 0:
-            print("BUILD ERROR: web/index.html is missing or empty. Refusing to publish a blank homepage.")
-            print("Fix: create a real web/index.html (non-empty), then rerun build.")
-            return 2
-        if (not web_archive.exists()) or web_archive.stat().st_size == 0:
-            print("BUILD ERROR: web/archive.html is missing or empty. Refusing to publish a blank archive page.")
-            print("Fix: create a real web/archive.html (non-empty), then rerun build.")
-            return 2
-
-        out_index = out_public_dir / "index.html"
-        out_archive = out_public_dir / "archive.html"
-        if (not out_index.exists()) or out_index.stat().st_size == 0:
-            print("BUILD ERROR: output index.html is missing or empty after copying ui/dist.")
-            return 2
-        if (not out_archive.exists()) or out_archive.stat().st_size == 0:
-            print("BUILD ERROR: output archive.html is missing or empty after copying ui/dist.")
-            return 2
-
-        # Write artifacts
-        from daily3albums.artifact_writer import write_daily_artifacts  # type: ignore
-
+        from daily3albums.artifact_writer import write_daily_artifacts
         paths = write_daily_artifacts(issue=issue, out_public_dir=out_public_dir, quarantine_rows=quarantine_rows or None)
 
         print("BUILD OK")
         print(f"out={out_public_dir}")
         for k, v in paths.items():
             print(f"{k}={v}")
-        log_line(
-            "build_summary "
-            f"slot={now_slot_id} selected_tag={now_slot_tag} run_id={run_id} "
-            f"archive_path={paths.get('archive')} index_path={paths.get('index')}"
-        )
-
         return 0
     finally:
         broker.close()

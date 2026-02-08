@@ -110,6 +110,14 @@ sessionStorage.removeItem("tri_debug_time");
 
 ---
 
+## Generator constraints (current)
+
+- Date/slot/cooldown math uses **Asia/Shanghai (BJT)** only.
+- Hard constraints: same-day album uniqueness, same-day main-artist disjointness, 7-day artist cooldown, and type gating (Album allowed by default; unknown type is allowed).
+- Slot theme model: each slot picks one `theme` from `tag_pool`; every pick in the slot uses `style_key == theme_key` (normalized theme).
+- Theme cooldown: exact `theme_key` cannot repeat within 3 days.
+- Decade theme: one daily decade target with minimum in-decade picks and unknown-year ceiling; validator can apply the documented minimal relaxation ladder in build diagnostics.
+
 ## Notes on caching
 
 Browsers/CDNs may cache `today.json`. At critical boundaries (especially OFFLINE → SLOT0 at 06:00 BJT), the UI may force a cache-busting fetch:
