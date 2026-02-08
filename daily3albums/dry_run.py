@@ -4,6 +4,7 @@ import hashlib
 import json
 import random
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -108,9 +109,19 @@ def _normalize_candidate(
     env,
     c: Candidate,
     debug: bool = False,
+    mb_search_limit: int = 10,
+    mb_max_queries_per_candidate: int = 3,
 ) -> tuple[Optional[NormalizedCandidate], dict[str, Any]]:
     dbg_lines: list[str] = []
-    norm: Optional[NormalizedCandidate] = None
+
+    def _extract_mb_queries_attempted(lines: list[str]) -> int:
+        attempted = 0
+        for line in lines:
+            if line.startswith("search:queries_attempted="):
+                m = re.search(r"queries_attempted=(\d+)", line)
+                if m:
+                    attempted = int(m.group(1))
+        return attempted
 
     if c.lastfm_mbid:
         rg: MbReleaseGroupSummary | None
@@ -138,7 +149,7 @@ def _normalize_candidate(
                 confidence=1.0,
                 source=src,
             )
-            return norm, {"mb_debug": dbg_lines}
+            return norm, {"mb_debug": dbg_lines, "mb_queries_attempted": _extract_mb_queries_attempted(dbg_lines)}
 
     if c.rg_mbid_hint:
         rg = musicbrainz_get_release_group(broker, env.mb_user_agent, c.rg_mbid_hint)
@@ -152,7 +163,7 @@ def _normalize_candidate(
             confidence=1.0,
             source="hint:rg_mbid",
         )
-        return norm, {"mb_debug": dbg_lines}
+        return norm, {"mb_debug": dbg_lines, "mb_queries_attempted": _extract_mb_queries_attempted(dbg_lines)}
 
     if debug:
         match, _runner_up_conf, dbg2 = musicbrainz_best_release_group_match_debug(
@@ -160,7 +171,8 @@ def _normalize_candidate(
             mb_user_agent=env.mb_user_agent,
             title=c.title,
             artist=c.artist,
-            limit=10,
+            limit=int(mb_search_limit),
+            max_queries_per_candidate=int(mb_max_queries_per_candidate),
         )
         dbg_lines.extend(dbg2)
     else:
@@ -169,11 +181,12 @@ def _normalize_candidate(
             mb_user_agent=env.mb_user_agent,
             title=c.title,
             artist=c.artist,
-            limit=10,
+            limit=int(mb_search_limit),
+            max_queries_per_candidate=int(mb_max_queries_per_candidate),
         )
 
     if match is None:
-        return None, {"mb_debug": dbg_lines}
+        return None, {"mb_debug": dbg_lines, "mb_queries_attempted": _extract_mb_queries_attempted(dbg_lines)}
 
     rg = match.rg
     norm = NormalizedCandidate(
@@ -186,7 +199,7 @@ def _normalize_candidate(
         confidence=float(match.confidence),
         source=match.method,
     )
-    return norm, {"mb_debug": dbg_lines}
+    return norm, {"mb_debug": dbg_lines, "mb_queries_attempted": _extract_mb_queries_attempted(dbg_lines)}
 
 
 def _merge_candidates(cands: list[Candidate]) -> list[Candidate]:
@@ -286,8 +299,11 @@ def run_dry_run(
     prefilter_topn: int = 120,
     lastfm_page_start: int = 1,
     lastfm_max_pages: int = 6,
+    mb_max_queries_per_candidate: int = 3,
+    mb_max_candidates_per_slot: int = 120,
+    mb_time_budget_s_per_slot: float = 90.0,
 ) -> dict:
-    del mb_search_limit, min_confidence, ambiguity_gap
+    del min_confidence, ambiguity_gap
     if not env.lastfm_api_key:
         raise RuntimeError("Missing env LASTFM_API_KEY")
     if not env.mb_user_agent:
@@ -400,9 +416,27 @@ def run_dry_run(
     topn = max(1, int(prefilter_topn))
     pre = pre[:topn]
 
+    candidate_cap = max(1, int(mb_max_candidates_per_slot))
+    mb_budget_s = max(0.001, float(mb_time_budget_s_per_slot))
+    started = time.monotonic()
+    mb_candidates_considered = 0
+    mb_candidates_normalized = 0
+    mb_queries_attempted_total = 0
+    mb_budget_exceeded = False
+    mb_cap_hit = False
+
     scored: list[ScoredCandidate] = []
     normalized_count = 0
     for _s0, c in pre:
+        mb_candidates_considered += 1
+        elapsed = time.monotonic() - started
+        if elapsed >= mb_budget_s:
+            mb_budget_exceeded = True
+            mb_cap_hit = True
+            break
+        if mb_candidates_normalized >= candidate_cap:
+            mb_cap_hit = True
+            break
         norm = None
         dbg: dict[str, Any] = {}
         if c.rg_mbid_hint and c.artist_mbid_hint:
@@ -415,7 +449,16 @@ def run_dry_run(
                 first_release_date=None,
             )
         else:
-            norm, dbg = _normalize_candidate(broker, env, c, debug=mb_debug)
+            norm, dbg = _normalize_candidate(
+                broker,
+                env,
+                c,
+                debug=mb_debug,
+                mb_search_limit=int(mb_search_limit),
+                mb_max_queries_per_candidate=int(mb_max_queries_per_candidate),
+            )
+            mb_queries_attempted_total += int(dbg.get("mb_queries_attempted", 0))
+        mb_candidates_normalized += 1
         normalized_count += 1
 
         s = _score(norm, c, deepcut=deepcut, seed_key=seed_key)
@@ -448,4 +491,12 @@ def run_dry_run(
         "prefilter_total": prefilter_total,
         "prefilter_topn": len(pre),
         "normalized_count": normalized_count,
+        "mb_candidates_considered": mb_candidates_considered,
+        "mb_candidates_normalized": mb_candidates_normalized,
+        "mb_queries_attempted_total": mb_queries_attempted_total,
+        "mb_budget_exceeded": mb_budget_exceeded,
+        "mb_cap_hit": mb_cap_hit,
+        "mb_time_spent_s": round(time.monotonic() - started, 3),
+        "mb_max_candidates_per_slot": candidate_cap,
+        "mb_time_budget_s_per_slot": mb_budget_s,
     }

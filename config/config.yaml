@@ -28,6 +28,9 @@ normalizer:
   # 歧义处理策略：quarantine (隔离人工审查) / drop (直接丢弃)
   hard_ambiguity_policy: "quarantine"
   top_k: 5
+  mb_max_queries_per_candidate: 3
+  mb_max_candidates_per_slot: 120
+  mb_time_budget_s_per_slot: 90.0
   weights:
     title: 0.30
     artist: 0.30
@@ -335,6 +338,7 @@ scoring:
     "2": 14.0
   mb_normalize_budget_cap: 140
   mb_prefilter_topn: 120
+  coarse_top_n_per_slot: 120
 
 
 build:

@@ -625,9 +625,15 @@ def musicbrainz_best_release_group_match(
     title: str,
     artist: str,
     limit: int = 10,
+    max_queries_per_candidate: int = 3,
 ) -> MbBestMatch | None:
     best, _runner_up_conf, _ = musicbrainz_best_release_group_match_debug(
-        broker, mb_user_agent=mb_user_agent, title=title, artist=artist, limit=limit
+        broker,
+        mb_user_agent=mb_user_agent,
+        title=title,
+        artist=artist,
+        limit=limit,
+        max_queries_per_candidate=max_queries_per_candidate,
     )
     return best
 
@@ -638,6 +644,7 @@ def musicbrainz_best_release_group_match_debug(
     title: str,
     artist: str,
     limit: int = 10,
+    max_queries_per_candidate: int = 3,
 ) -> tuple[MbBestMatch | None, float | None, list[str]]:
     """
     兜底：当没有可用 mbid 时，用文本搜索并做“最像的”选择。
@@ -664,6 +671,9 @@ def musicbrainz_best_release_group_match_debug(
         ("search:clean_loose", f"releasegroup:{clean_title} AND artist:{clean_artist}"),
         ("search:title_only", f"releasegroup:{clean_title}"),
     ]
+    max_queries = max(1, int(max_queries_per_candidate))
+    queries_attempted = 0
+    query_cap_hit = False
 
     top1: MbBestMatch | None = None
     top2: MbBestMatch | None = None
@@ -701,6 +711,11 @@ def musicbrainz_best_release_group_match_debug(
             top2 = cand
 
     for method, q in attempts:
+        if queries_attempted >= max_queries:
+            query_cap_hit = True
+            dbg.append(f"search:query_cap_reached max={max_queries}")
+            break
+        queries_attempted += 1
         rgs = musicbrainz_search_release_group_by_query(broker, mb_user_agent=mb_user_agent, query=q, limit=limit)
         dbg.append(f"{method}:results={len(rgs)} query={q}")
         if not rgs:
@@ -742,6 +757,8 @@ def musicbrainz_best_release_group_match_debug(
             )
             if top1.confidence >= 0.92:
                 break
+
+    dbg.append(f"search:queries_attempted={queries_attempted} query_cap_hit={str(query_cap_hit).lower()} max={max_queries}")
 
     if top1 is None:
         dbg.append("final:none")

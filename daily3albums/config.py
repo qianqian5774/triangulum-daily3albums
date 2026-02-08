@@ -77,6 +77,10 @@ class AppConfig:
     lastfm_page_start: int
     lastfm_max_pages: int
     max_tag_tries_per_slot: int
+    mb_max_queries_per_candidate: int
+    mb_max_candidates_per_slot: int
+    mb_time_budget_s_per_slot: float
+    coarse_top_n_per_slot: int
 
 
 def load_config(repo_root: Path) -> AppConfig:
@@ -89,6 +93,12 @@ def load_config(repo_root: Path) -> AppConfig:
     lastfm_page_start = int(candidate_lastfm_cfg.get("lastfm_page_start", candidate_lastfm_cfg.get("page_start", 1)))
     lastfm_max_pages = int(candidate_lastfm_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6)))
     max_tag_tries_per_slot = int(build_cfg.get("max_tag_tries_per_slot", 8))
+    normalizer_cfg = cfg.get("normalizer", {}) or {}
+    scoring_cfg = cfg.get("scoring", {}) or {}
+    mb_max_queries_per_candidate = int(normalizer_cfg.get("mb_max_queries_per_candidate", 3))
+    mb_max_candidates_per_slot = int(normalizer_cfg.get("mb_max_candidates_per_slot", 120))
+    mb_time_budget_s_per_slot = float(normalizer_cfg.get("mb_time_budget_s_per_slot", 90.0))
+    coarse_top_n_per_slot = int(scoring_cfg.get("coarse_top_n_per_slot", scoring_cfg.get("mb_prefilter_topn", 120)))
     return AppConfig(
         raw=cfg,
         policies=policies,
@@ -96,4 +106,8 @@ def load_config(repo_root: Path) -> AppConfig:
         lastfm_page_start=lastfm_page_start,
         lastfm_max_pages=lastfm_max_pages,
         max_tag_tries_per_slot=max_tag_tries_per_slot,
+        mb_max_queries_per_candidate=mb_max_queries_per_candidate,
+        mb_max_candidates_per_slot=mb_max_candidates_per_slot,
+        mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
+        coarse_top_n_per_slot=coarse_top_n_per_slot,
     )
