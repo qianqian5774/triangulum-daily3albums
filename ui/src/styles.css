@@ -74,6 +74,56 @@ body {
   animation: ambient-breathe 18s ease-in-out infinite;
 }
 
+.ambient-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: auto;
+  background: rgba(4, 8, 14, 0.88);
+  overflow: hidden;
+}
+
+.ambient-gradient {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 20% 30%, rgba(204, 255, 0, 0.18), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(90, 130, 255, 0.14), transparent 36%);
+  animation: ambient-fog 24s ease-in-out infinite alternate;
+}
+
+.ambient-noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.18) 0,
+    rgba(255, 255, 255, 0.18) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  animation: ambient-scanline 7s linear infinite;
+}
+
+.ambient-ghost {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(28px, 8vw, 72px);
+  letter-spacing: 0.22em;
+  color: rgba(229, 255, 229, 0.18);
+  text-shadow: 0 0 30px rgba(204, 255, 0, 0.24);
+  animation: ambient-ghost 12s ease-in-out infinite;
+}
+
+.ambient-exit-hint {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+}
+
 .respire {
   animation: respire 6s ease-in-out infinite;
 }
@@ -147,6 +197,36 @@ body {
   }
   50% {
     transform: scale(1.015);
+  }
+}
+
+@keyframes ambient-fog {
+  from {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 3%, 0) scale(1.08);
+  }
+}
+
+@keyframes ambient-scanline {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(120px);
+  }
+}
+
+@keyframes ambient-ghost {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: translate(-50%, -50%) scale(1.03);
   }
 }
 

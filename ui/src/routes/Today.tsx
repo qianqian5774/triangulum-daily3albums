@@ -3,6 +3,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "r
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
+import { AmbientOverlay } from "../components/AmbientOverlay";
 import { SlotCard } from "../components/SlotCard";
 import { TreatmentViewerOverlay } from "../components/TreatmentViewerOverlay";
 import { FLAGS } from "../config/flags";
@@ -646,6 +647,39 @@ export function TodayRoute() {
   };
 
   useEffect(() => {
+    if (!ambientActive) {
+      return;
+    }
+    let lastX: number | null = null;
+    let lastY: number | null = null;
+    const exitAmbient = (event: Event) => {
+      if (event instanceof MouseEvent) {
+        if (lastX !== null && lastY !== null) {
+          const dx = Math.abs(event.clientX - lastX);
+          const dy = Math.abs(event.clientY - lastY);
+          if (dx < 12 && dy < 12) {
+            lastX = event.clientX;
+            lastY = event.clientY;
+            return;
+          }
+        }
+        lastX = event.clientX;
+        lastY = event.clientY;
+      }
+      setAmbientActive(false);
+    };
+
+    window.addEventListener("keydown", exitAmbient);
+    window.addEventListener("click", exitAmbient);
+    window.addEventListener("mousemove", exitAmbient);
+    return () => {
+      window.removeEventListener("keydown", exitAmbient);
+      window.removeEventListener("click", exitAmbient);
+      window.removeEventListener("mousemove", exitAmbient);
+    };
+  }, [ambientActive]);
+
+  useEffect(() => {
     const marqueeSource =
       nowState === "OFFLINE" ? archivedIssue?.picks ?? [] : activeSlot?.picks ?? displayIssue?.picks ?? [];
     const marqueeItems = marqueeSource.map((pick) => `${pick.title} — ${pick.artist_credit}`);
@@ -779,6 +813,27 @@ export function TodayRoute() {
             <button
               type="button"
               className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              onClick={() => applyDebugShift(-60)}
+            >
+              -1 minute
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              onClick={() => applyDebugShift(-3600)}
+            >
+              -1 hour
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              onClick={() => applyDebugShift(-86400)}
+            >
+              -1 day
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
               onClick={() => applyDebugShift(60)}
             >
               {t("today.debug.addMinute")}
@@ -819,13 +874,13 @@ export function TodayRoute() {
                 {slots.map((slot) => {
                   const isActive = slot.slot_id === (activeSlot?.slot_id ?? slot.slot_id);
                   const thumbPick = slot.picks[0];
+                  const isLocked = nowSlotId !== null ? slot.slot_id > nowSlotId : true;
                   const thumbUrl = thumbPick
                     ? resolveCoverUrl(
                         thumbPick.cover.optimized_cover_url,
                         thumbPick.cover.cover_version ?? coverCacheKey
                       )
                     : null;
-                  const isLocked = nowSlotId !== null ? slot.slot_id > nowSlotId : true;
                   return (
                     <button
                       key={slot.slot_id}
@@ -841,7 +896,11 @@ export function TodayRoute() {
                       }`}
                     >
                       <div className="h-14 w-14 overflow-hidden rounded-md border border-panel-700/60 bg-panel-800">
-                        {thumbUrl ? (
+                        {isLocked ? (
+                          <div className="flex h-full w-full items-center justify-center font-mono text-lg text-clinical-white/50">
+                            ?
+                          </div>
+                        ) : thumbUrl ? (
                           <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-[8px] uppercase tracking-[0.3em] text-clinical-white/30">
@@ -852,7 +911,7 @@ export function TodayRoute() {
                       <div className="flex flex-1 flex-col gap-1">
                         <span className="text-xs uppercase tracking-[0.3em]">{slot.window_label}</span>
                         <span className="text-[11px] uppercase tracking-[0.2em] text-clinical-white/50">
-                          {slot.theme}
+                          {isLocked ? "???" : slot.theme}
                         </span>
                       </div>
                       {isLocked ? (
@@ -931,6 +990,7 @@ export function TodayRoute() {
           {t("today.loading")}
         </div>
       )}
+      {ambientActive ? <AmbientOverlay onExit={() => setAmbientActive(false)} /> : null}
     </section>
   );
 }

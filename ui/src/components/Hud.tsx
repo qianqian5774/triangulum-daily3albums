@@ -37,8 +37,8 @@ export function Hud({
   lastSuccess
 }: HudProps) {
   return (
-    <header className="hud-border sticky top-0 z-20 bg-panel-900/90 backdrop-blur-lg">
-      <div className="flex flex-wrap items-center gap-4 px-4 py-3 md:px-6">
+    <header className="hud-border sticky top-4 z-20 mx-auto w-[min(96%,60rem)] rounded-card bg-panel-900/90 backdrop-blur-lg pointer-events-none">
+      <div className="flex flex-wrap items-center justify-center gap-6 px-4 py-3 text-center md:px-6">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-[0.4em] text-clinical-white/50">{t("hud.labels.bjt")}</span>
           <span className="font-mono text-2xl tracking-[0.35em] respire">{bjtTime}</span>
@@ -55,7 +55,7 @@ export function Hud({
             </span>
           ) : null}
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-6">
+        <div className="flex flex-wrap items-center justify-center gap-6">
           <div className="flex items-center gap-3">
             <span className="text-[10px] uppercase tracking-[0.4em] text-clinical-white/50">
               {t("hud.labels.status")}
