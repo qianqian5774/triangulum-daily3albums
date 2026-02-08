@@ -302,6 +302,10 @@ def run_dry_run(
     mb_max_queries_per_candidate: int = 3,
     mb_max_candidates_per_slot: int = 120,
     mb_time_budget_s_per_slot: float = 90.0,
+    discogs_enabled: bool = True,
+    discogs_page_start: int = 1,
+    discogs_max_pages: int = 3,
+    discogs_per_page: int = 100,
 ) -> dict:
     del min_confidence, ambiguity_gap
     if not env.lastfm_api_key:
@@ -320,8 +324,14 @@ def run_dry_run(
         bounded_start = bounded_end
     lastfm_pages = list(range(bounded_start, bounded_end + 1))
 
-    discogs_page = (3 + (h % 6)) if deepcut else (1 + (h % 2))
-    discogs_per_page = 100
+    d_page_start = max(1, int(discogs_page_start))
+    d_max_page = max(1, int(discogs_max_pages))
+    d_hard_cap = 100
+    d_offset = (h % 2) if deepcut else 0
+    discogs_requested_page = min(d_page_start + d_offset, d_hard_cap)
+    discogs_page_cap_hit = discogs_requested_page > d_max_page
+    discogs_page = min(discogs_requested_page, d_max_page)
+    discogs_per_page = min(100, max(1, int(discogs_per_page)))
 
     lb_offset = (200 + (h % 800)) if deepcut else (0 + (h % 200))
     lb_count = min(200, max(50, n))
@@ -340,26 +350,43 @@ def run_dry_run(
                 c.source_ranks["lastfm"] = a.rank
             raw.append(c)
 
-    if env.discogs_token:
-        ds = discogs_database_search(
-            broker,
-            env.discogs_token,
-            q=tag,
-            page=discogs_page,
-            per_page=discogs_per_page,
-        )
-        _stable_shuffle(ds, seed=f"{seed_key}:discogs:{discogs_page}")
-        for it in ds:
-            t = it.title or ""
-            if " - " in t:
-                artist, title = t.split(" - ", 1)
+    discogs_diag = {
+        "discogs_enabled": bool(discogs_enabled),
+        "discogs_pages_fetched": 0,
+        "discogs_page_cap_hit": bool(discogs_page_cap_hit),
+        "discogs_failed": False,
+        "discogs_failed_status": None,
+        "discogs_cached_negative_used": False,
+    }
+
+    if env.discogs_token and discogs_enabled:
+        try:
+            ds = discogs_database_search(
+                broker,
+                env.discogs_token,
+                q=tag,
+                page=discogs_page,
+                per_page=discogs_per_page,
+            )
+            adapter_diag = getattr(broker, "_discogs_last_diagnostics", None)
+            if isinstance(adapter_diag, dict):
+                discogs_diag.update({k: adapter_diag.get(k) for k in discogs_diag.keys() if k in adapter_diag})
             else:
-                artist, title = "", t
-            c = Candidate(title=title.strip(), artist=artist.strip(), image_url=it.cover_image)
-            c.sources.add("discogs")
-            if it.rank:
-                c.source_ranks["discogs"] = it.rank
-            raw.append(c)
+                discogs_diag["discogs_pages_fetched"] = 1
+            _stable_shuffle(ds, seed=f"{seed_key}:discogs:{discogs_page}")
+            for it in ds:
+                t = it.title or ""
+                if " - " in t:
+                    artist, title = t.split(" - ", 1)
+                else:
+                    artist, title = "", t
+                c = Candidate(title=title.strip(), artist=artist.strip(), image_url=it.cover_image)
+                c.sources.add("discogs")
+                if it.rank:
+                    c.source_ranks["discogs"] = it.rank
+                raw.append(c)
+        except Exception:
+            discogs_diag["discogs_failed"] = True
 
     try:
         lbs = listenbrainz_sitewide_release_groups(broker, count=lb_count, offset=lb_offset, range_="all_time")
@@ -499,4 +526,5 @@ def run_dry_run(
         "mb_time_spent_s": round(time.monotonic() - started, 3),
         "mb_max_candidates_per_slot": candidate_cap,
         "mb_time_budget_s_per_slot": mb_budget_s,
+        **discogs_diag,
     }

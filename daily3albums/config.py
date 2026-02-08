@@ -81,6 +81,10 @@ class AppConfig:
     mb_max_candidates_per_slot: int
     mb_time_budget_s_per_slot: float
     coarse_top_n_per_slot: int
+    discogs_enabled: bool
+    discogs_page_start: int
+    discogs_max_pages: int
+    discogs_per_page: int
 
 
 def load_config(repo_root: Path) -> AppConfig:
@@ -99,6 +103,11 @@ def load_config(repo_root: Path) -> AppConfig:
     mb_max_candidates_per_slot = int(normalizer_cfg.get("mb_max_candidates_per_slot", 120))
     mb_time_budget_s_per_slot = float(normalizer_cfg.get("mb_time_budget_s_per_slot", 90.0))
     coarse_top_n_per_slot = int(scoring_cfg.get("coarse_top_n_per_slot", scoring_cfg.get("mb_prefilter_topn", 120)))
+    discogs_cfg = (cfg.get("candidates", {}) or {}).get("discogs", {}) or {}
+    discogs_enabled = bool(discogs_cfg.get("enabled", True))
+    discogs_page_start = max(1, int(discogs_cfg.get("discogs_page_start", discogs_cfg.get("page_start", 1))))
+    discogs_max_pages = max(1, int(discogs_cfg.get("discogs_max_pages", discogs_cfg.get("max_pages", 3))))
+    discogs_per_page = min(100, max(1, int(discogs_cfg.get("discogs_per_page", discogs_cfg.get("per_page", 100)))))
     return AppConfig(
         raw=cfg,
         policies=policies,
@@ -110,4 +119,8 @@ def load_config(repo_root: Path) -> AppConfig:
         mb_max_candidates_per_slot=mb_max_candidates_per_slot,
         mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
         coarse_top_n_per_slot=coarse_top_n_per_slot,
+        discogs_enabled=discogs_enabled,
+        discogs_page_start=discogs_page_start,
+        discogs_max_pages=discogs_max_pages,
+        discogs_per_page=discogs_per_page,
     )

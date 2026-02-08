@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from daily3albums.config import load_env, load_config
-from daily3albums.request_broker import BrokerRequestError, RequestBroker
+from daily3albums.request_broker import BrokerRequestError, RequestBroker, RequestFailed
 from daily3albums.adapters import CoverArtArchiveAdapter, CoverArtResult, lastfm_tag_top_albums, musicbrainz_search_release_group
 from daily3albums.constraints import (
     ARTIST_COOLDOWN_DAYS,
@@ -126,6 +126,10 @@ def cmd_dry_run(
     mb_time_budget_s_per_slot = float(getattr(cfg, "mb_time_budget_s_per_slot", 90.0))
     lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
     lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
+    discogs_enabled = bool(getattr(cfg, "discogs_enabled", True))
+    discogs_page_start = int(getattr(cfg, "discogs_page_start", 1))
+    discogs_max_pages = int(getattr(cfg, "discogs_max_pages", 3))
+    discogs_per_page = int(getattr(cfg, "discogs_per_page", 100))
 
     try:
         out = run_dry_run(
@@ -146,6 +150,10 @@ def cmd_dry_run(
             mb_max_queries_per_candidate=mb_max_queries_per_candidate,
             mb_max_candidates_per_slot=mb_max_candidates_per_slot,
             mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
+            discogs_enabled=discogs_enabled,
+            discogs_page_start=discogs_page_start,
+            discogs_max_pages=discogs_max_pages,
+            discogs_per_page=discogs_per_page,
         )
 
         print("\n== Candidates ==")
@@ -206,6 +214,11 @@ def cmd_dry_run(
                 "mb_budget_exceeded": out.get("mb_budget_exceeded", False),
                 "mb_cap_hit": out.get("mb_cap_hit", False),
                 "mb_time_spent_s": out.get("mb_time_spent_s", 0),
+                "discogs_enabled": out.get("discogs_enabled", False),
+                "discogs_pages_fetched": out.get("discogs_pages_fetched", 0),
+                "discogs_page_cap_hit": out.get("discogs_page_cap_hit", False),
+                "discogs_failed_status": out.get("discogs_failed_status"),
+                "discogs_cached_negative_used": out.get("discogs_cached_negative_used", False),
             }, ensure_ascii=False, indent=2))
 
         if quarantine_out:
@@ -909,6 +922,10 @@ def cmd_build(
     mb_time_budget_s_per_slot = float(getattr(cfg, "mb_time_budget_s_per_slot", 90.0))
     lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
     lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
+    discogs_enabled = bool(getattr(cfg, "discogs_enabled", True))
+    discogs_page_start = int(getattr(cfg, "discogs_page_start", 1))
+    discogs_max_pages = int(getattr(cfg, "discogs_max_pages", 3))
+    discogs_per_page = int(getattr(cfg, "discogs_per_page", 100))
     quarantine_out = (quarantine_out or "").strip() or None
     out_public_dir = (repo_root / out_dir).resolve()
 
@@ -986,8 +1003,12 @@ def cmd_build(
                             mb_max_queries_per_candidate=mb_max_queries_per_candidate,
                             mb_max_candidates_per_slot=mb_max_candidates_per_slot,
                             mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
+                            discogs_enabled=discogs_enabled,
+                            discogs_page_start=discogs_page_start,
+                            discogs_max_pages=discogs_max_pages,
+                            discogs_per_page=discogs_per_page,
                         )
-                    except BrokerRequestError as e:
+                    except (BrokerRequestError, RequestFailed) as e:
                         attempts_meta.append({
                             "tag": slot_tag,
                             "theme_key": theme_key,
@@ -1013,6 +1034,11 @@ def cmd_build(
                         "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
                         "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
                         "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
+                        "discogs_enabled": bool(out.get("discogs_enabled", False)),
+                        "discogs_pages_fetched": int(out.get("discogs_pages_fetched", 0)),
+                        "discogs_page_cap_hit": bool(out.get("discogs_page_cap_hit", False)),
+                        "discogs_failed_status": out.get("discogs_failed_status"),
+                        "discogs_cached_negative_used": bool(out.get("discogs_cached_negative_used", False)),
                     }
                     topn = int(out.get("prefilter_topn", len(out.get("scored") or [])))
                     normalized = int(out.get("normalized_count", len(out.get("scored") or [])))
@@ -1081,6 +1107,11 @@ def cmd_build(
                         "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
                         "mb_cap_hit": bool(out.get("mb_cap_hit", False)),
                         "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
+                        "discogs_enabled": bool(out.get("discogs_enabled", False)),
+                        "discogs_pages_fetched": int(out.get("discogs_pages_fetched", 0)),
+                        "discogs_page_cap_hit": bool(out.get("discogs_page_cap_hit", False)),
+                        "discogs_failed_status": out.get("discogs_failed_status"),
+                        "discogs_cached_negative_used": bool(out.get("discogs_cached_negative_used", False)),
                     })
                     if len(eligible) >= 3:
                         rng = random.Random(f"{date_key}:{slot_id}:{theme_key}")

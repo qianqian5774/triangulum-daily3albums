@@ -8,7 +8,7 @@ from urllib.parse import urlencode, quote_plus
 import re
 import unicodedata
 
-from daily3albums.request_broker import RequestBroker
+from daily3albums.request_broker import RequestBroker, RequestFailed
 
 
 def _ensure_list(x: Any) -> list:
@@ -789,6 +789,29 @@ def discogs_database_search(
     type_: str = "master",
     format_: str = "album",
 ) -> list[DiscogsSearchItem]:
+    requested_page = max(1, int(page))
+    page = requested_page
+    per_page = min(100, max(1, int(per_page)))
+    cap_hit = False
+    max_pages = None
+    try:
+        host_policy = broker._host_policy("api.discogs.com")
+        adapter_policy = broker._adapter_policy("DiscogsAdapter", host_policy)
+        max_pages = adapter_policy.max_pages
+    except Exception:
+        max_pages = None
+    if max_pages is not None and page > max_pages:
+        cap_hit = True
+        page = max_pages
+        try:
+            broker.adapter_logger.warning(
+                "adapter=DiscogsAdapter action=discogs_page_cap_hit requested=%s max=%s",
+                int(requested_page),
+                int(max_pages),
+            )
+        except Exception:
+            pass
+
     url = "https://api.discogs.com/database/search"
     headers = {"Authorization": f"Discogs token={token}"}
     params = {
@@ -798,8 +821,39 @@ def discogs_database_search(
         "page": page,
         "per_page": per_page,
     }
-    j = broker.get_json(url, headers=headers, params=params, adapter_name="DiscogsAdapter")
+    diagnostics = {
+        "discogs_failed": False,
+        "discogs_failed_status": None,
+        "discogs_cached_negative_used": False,
+        "discogs_page_cap_hit": cap_hit,
+        "discogs_pages_fetched": 0,
+    }
+    try:
+        j = broker.get_json(url, headers=headers, params=params, adapter_name="DiscogsAdapter")
+    except RequestFailed as e:
+        diagnostics["discogs_failed"] = True
+        diagnostics["discogs_failed_status"] = int(e.status)
+        diagnostics["discogs_cached_negative_used"] = bool(e.cached)
+        setattr(broker, "_discogs_last_diagnostics", diagnostics)
+        return []
+    except Exception:
+        diagnostics["discogs_failed"] = True
+        setattr(broker, "_discogs_last_diagnostics", diagnostics)
+        return []
+
+    if j is None:
+        fail = broker.get_last_failure("DiscogsAdapter") if hasattr(broker, "get_last_failure") else None
+        diagnostics["discogs_failed"] = True
+        diagnostics["discogs_failed_status"] = int(fail.get("status", 0)) if isinstance(fail, dict) and fail.get("status") is not None else None
+        diagnostics["discogs_cached_negative_used"] = bool(fail.get("cached", False)) if isinstance(fail, dict) else False
+        setattr(broker, "_discogs_last_diagnostics", diagnostics)
+        return []
+
+    diagnostics["discogs_pages_fetched"] = 1
+    setattr(broker, "_discogs_last_diagnostics", diagnostics)
     out: list[DiscogsSearchItem] = []
+    if not isinstance(j, dict):
+        return []
     for idx, it in enumerate(j.get("results", []) or [], start=1):
         out.append(
             DiscogsSearchItem(

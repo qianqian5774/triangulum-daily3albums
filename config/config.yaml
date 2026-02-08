@@ -321,6 +321,10 @@ candidates:
     lastfm_page_start: 1
     lastfm_max_pages: 6
   discogs:
+    enabled: true
+    discogs_page_start: 1
+    discogs_max_pages: 3
+    discogs_per_page: 100
     per_page: 100
     deepcut_min_page: 3
   listenbrainz:
