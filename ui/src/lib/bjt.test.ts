@@ -1,6 +1,6 @@
 // ui/src/lib/bjt.test.ts
 import { describe, it, expect } from "vitest";
-import { addDays, parseDebugTime, resolveNowState, shiftDebugTime } from "./bjt";
+import { addDays, parseDebugTime, readDebugTimeParam, resolveNowState, shiftDebugTime } from "./bjt";
 
 const seconds = (hour: number, minute: number, second: number) =>
   hour * 3600 + minute * 60 + second;
@@ -25,6 +25,11 @@ describe("debug time parsing", () => {
     expect(parts?.hour).toBe(5);
   });
 
+  it("parses debug time without seconds", () => {
+    const parts = parseDebugTime("2024-03-20T05:59");
+    expect(parts?.second).toBe(0);
+  });
+
   it("rejects invalid debug time", () => {
     expect(parseDebugTime("2024-03-20")).toBeNull();
   });
@@ -32,6 +37,11 @@ describe("debug time parsing", () => {
   it("shifts across day boundary", () => {
     const shifted = shiftDebugTime("2024-03-20T23:59:50", 20);
     expect(shifted).toBe("2024-03-21T00:00:10");
+  });
+
+  it("reads URL encoded debug_time", () => {
+    const value = readDebugTimeParam("?debug_time=2024-03-20T05%3A59%3A50");
+    expect(value).toBe("2024-03-20T05:59:50");
   });
 });
 

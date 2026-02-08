@@ -21,6 +21,7 @@ interface SlotCardProps {
   imageLoading?: "eager" | "lazy";
   fetchPriority?: "high" | "auto" | "low";
   disableLinks?: boolean;
+  locked?: boolean;
 }
 
 export function SlotCard({
@@ -32,14 +33,15 @@ export function SlotCard({
   cacheKey,
   imageLoading = "lazy",
   fetchPriority = "auto",
-  disableLinks = false
+  disableLinks = false,
+  locked = false
 }: SlotCardProps) {
   const cardRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const [retryToken, setRetryToken] = useState<string | null>(null);
   const [coverFailed, setCoverFailed] = useState(false);
   const coverUrl = resolveCoverUrl(pick.cover.optimized_cover_url, cacheKey, retryToken);
-  const isInteractive = Boolean(onSelect);
+  const isInteractive = Boolean(onSelect) && !locked;
   const coverLayoutId = layoutId?.startsWith("card-") ? layoutId.replace("card-", "cover-") : undefined;
   const tiltX = useMotionValue(0);
   const tiltY = useMotionValue(0);
@@ -122,7 +124,7 @@ export function SlotCard({
       }}
     >
       <div className="slotcard-cover relative aspect-square w-full overflow-hidden bg-panel-900">
-        {coverUrl && !coverFailed ? (
+        {!locked && coverUrl && !coverFailed ? (
           <motion.img
             layoutId={coverLayoutId}
             src={coverUrl}
@@ -140,8 +142,8 @@ export function SlotCard({
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-panel-900 via-panel-700 to-panel-900">
-            <span className="font-mono text-xs uppercase tracking-[0.4em] text-clinical-white/40">
-              {t("treatment.cover.missing")}
+            <span className="font-mono text-2xl uppercase tracking-[0.4em] text-clinical-white/40">
+              {locked ? "?" : t("treatment.cover.missing")}
             </span>
           </div>
         )}
@@ -156,17 +158,17 @@ export function SlotCard({
       <div className="slotcard-body flex flex-1 flex-col gap-3 px-5 py-4">
         <div>
           <h3 className="glitch-text text-lg font-semibold uppercase tracking-tightish text-clinical-white">
-            {pick.title}
+            {locked ? "LOCKED" : pick.title}
           </h3>
           <p className="text-sm text-clinical-white/60">
-            {pick.artist_credit || t("treatment.cover.unknownArtist")}
+            {locked ? "???" : pick.artist_credit || t("treatment.cover.unknownArtist")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-clinical-white/50">
-          {pick.first_release_year && <span>{pick.first_release_year}</span>}
-          {pick.tags?.[0]?.name && <span>#{pick.tags[0].name}</span>}
+          {!locked && pick.first_release_year && <span>{pick.first_release_year}</span>}
+          {!locked && pick.tags?.[0]?.name && <span>#{pick.tags[0].name}</span>}
         </div>
-        {!disableLinks ? (
+        {!disableLinks && !locked ? (
           <div className="mt-auto flex flex-wrap gap-2 text-sm text-clinical-white/70">
             {pick.links?.musicbrainz && (
               <a

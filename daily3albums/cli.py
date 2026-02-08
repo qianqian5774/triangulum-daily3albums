@@ -18,6 +18,15 @@ from typing import Any
 from daily3albums.config import load_env, load_config
 from daily3albums.request_broker import RequestBroker
 from daily3albums.adapters import CoverArtArchiveAdapter, CoverArtResult, lastfm_tag_top_albums, musicbrainz_search_release_group
+from daily3albums.constraints import (
+    ARTIST_COOLDOWN_DAYS,
+    STYLE_COOLDOWN_DAYS,
+    album_key_from_parts,
+    artist_keys_from_parts,
+    load_history_index,
+    style_key_from_parts,
+    validate_today_constraints,
+)
 from daily3albums.dry_run import run_dry_run
 
 
@@ -625,6 +634,10 @@ def _pick_to_issue_item(
     optimized_cover_url = cover_url or "assets/placeholder.svg"
 
     artist_mbids = list(getattr(n, "artist_mbids", []) or []) if n else []
+    first_release_year = _safe_year(frd)
+    album_key = album_key_from_parts(rg_id, title, artist, first_release_year)
+    artist_keys = artist_keys_from_parts(artist_mbids, artist)
+    style_key = style_key_from_parts(tag, ptype, first_release_year)
 
     return {
         "slot": slot,
@@ -632,8 +645,11 @@ def _pick_to_issue_item(
         "title": title,
         "artist_credit": artist,
         "artist_mbids": artist_mbids,
-        "first_release_year": _safe_year(frd),
+        "first_release_year": first_release_year,
         "primary_type": ptype,
+        "album_key": album_key,
+        "artist_keys": artist_keys,
+        "style_key": style_key,
         "secondary_types": [],
         "tags": [{"name": tag, "source": "lastfm"}],
         "popularity": None,
@@ -833,12 +849,16 @@ def cmd_build(
 
         recent_ids = _load_recent_stable_ids(out_public_dir, max_runs=9)
         recent_set = set(recent_ids)
+        history_index = load_history_index(out_public_dir / "data" / "archive", current_date_key=bjt_date_key, max_lookback_days=14)
 
         slot_names = ["Headliner", "Lineage", "DeepCut"]
         slots_payload: list[dict[str, Any]] = []
         now_slot_payload: dict[str, Any] | None = None
         now_slot_tag = ""
         now_constraints = {"ambiguity_gap": ambiguity_gap, "min_confidence": min_confidence}
+        used_album_keys: set[str] = set()
+        used_artist_keys: set[str] = set()
+        used_style_keys: set[str] = set()
 
         slot_topk_attempts = [min(n, topk), min(n, topk + 10), min(n, topk + 20)]
         slot_topk_attempts = [k for i, k in enumerate(slot_topk_attempts) if k and k not in slot_topk_attempts[:i]]
@@ -872,10 +892,43 @@ def cmd_build(
                         quarantine_out=None,
                     )
                     candidates = [s for s in (out.get("top") or []) if getattr(s, "n", None) is not None]
-                    candidate_count = len(candidates)
+                    eligible_candidates: list[Any] = []
+                    for candidate in candidates:
+                        nobj = getattr(candidate, "n", None)
+                        cobj = getattr(candidate, "c", None)
+                        rg_id = getattr(nobj, "mb_release_group_id", "") if nobj else ""
+                        title = getattr(cobj, "title", "") if cobj else ""
+                        artist = getattr(cobj, "artist", "") if cobj else ""
+                        year = _safe_year(getattr(nobj, "first_release_date", None) if nobj else None)
+                        ptype = getattr(nobj, "primary_type", None) if nobj else None
+                        artist_mbids = list(getattr(nobj, "artist_mbids", []) or []) if nobj else []
+
+                        album_key = album_key_from_parts(rg_id, title, artist, year)
+                        artist_keys = set(artist_keys_from_parts(artist_mbids, artist))
+                        style_key = style_key_from_parts(slot_tag, ptype, year)
+
+                        if album_key in used_album_keys:
+                            continue
+                        if artist_keys.intersection(used_artist_keys):
+                            continue
+                        if style_key in used_style_keys:
+                            continue
+                        if any(
+                            (bjt_date_key != last and (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last).date()).days <= ARTIST_COOLDOWN_DAYS)
+                            for key in artist_keys
+                            for last in [history_index.artist_last_seen.get(key)]
+                            if last
+                        ):
+                            continue
+                        last_style_day = history_index.style_last_seen.get(style_key)
+                        if last_style_day and (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last_style_day).date()).days <= STYLE_COOLDOWN_DAYS:
+                            continue
+                        eligible_candidates.append(candidate)
+
+                    candidate_count = len(eligible_candidates)
                     for cooling_penalty in (0.0, 0.2, None):
                         picked, cooling_hits = _weighted_sample_unique_artists(
-                            candidates,
+                            eligible_candidates,
                             count=3,
                             rng=rng,
                             recent_ids=recent_set,
@@ -904,7 +957,7 @@ def cmd_build(
 
             if len(picked) < 3:
                 print(
-                    "BUILD ERROR: cannot assemble 3 distinct-artist picks "
+                    "BUILD ERROR: cannot satisfy no-repeat / cooldown constraints "
                     f"for slot={slot_id} tag={slot_tag} after relaxing thresholds."
                 )
                 return 2
@@ -915,6 +968,19 @@ def cmd_build(
                 scored_items = [slots.get(name) for name in slot_names if slots.get(name) is not None]
             else:
                 scored_items = scored_items[:3]
+
+            for selected in scored_items:
+                nobj = getattr(selected, "n", None)
+                cobj = getattr(selected, "c", None)
+                rg_id = getattr(nobj, "mb_release_group_id", "") if nobj else ""
+                title = getattr(cobj, "title", "") if cobj else ""
+                artist = getattr(cobj, "artist", "") if cobj else ""
+                year = _safe_year(getattr(nobj, "first_release_date", None) if nobj else None)
+                ptype = getattr(nobj, "primary_type", None) if nobj else None
+                artist_mbids = list(getattr(nobj, "artist_mbids", []) or []) if nobj else []
+                used_album_keys.add(album_key_from_parts(rg_id, title, artist, year))
+                used_artist_keys.update(artist_keys_from_parts(artist_mbids, artist))
+                used_style_keys.add(style_key_from_parts(slot_tag, ptype, year))
 
             slot_payload = {
                 "slot_id": slot_id,
@@ -1004,6 +1070,12 @@ def cmd_build(
             now_slot_payload = slots_payload[0]
 
         issue["picks"] = now_slot_payload.get("picks", [])
+
+        validation_errors = validate_today_constraints(issue, history_index)
+        if validation_errors:
+            for err in validation_errors:
+                print(f"BUILD ERROR: constraint validator: {err}")
+            return 2
 
         quarantine_rows: list[dict[str, Any]] = []
         if quarantine_out:
