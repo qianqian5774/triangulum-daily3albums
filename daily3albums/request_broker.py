@@ -86,6 +86,10 @@ class HostPolicy:
 class AdapterPolicy:
     timeout: httpx.Timeout
     retry: RetryPolicy
+    fatal_4xx: bool = True
+    treat_404_as_empty: bool = False
+    negative_cache_ttl_s: int | None = None
+    max_pages: int | None = None
 
 
 class BrokerRequestError(RuntimeError):
@@ -94,6 +98,17 @@ class BrokerRequestError(RuntimeError):
         self.url = url
         self.cause = cause
         super().__init__(f"{self.adapter_name} request failed url={_redact_url(url)} cause={type(cause).__name__}: {cause}")
+
+
+class RequestFailed(RuntimeError):
+    def __init__(self, adapter_name: str | None, url: str, status: int, *, cached: bool = False) -> None:
+        self.adapter_name = adapter_name or "unknown"
+        self.url = url
+        self.status = int(status)
+        self.cached = bool(cached)
+        super().__init__(
+            f"{self.adapter_name} request failed url={_redact_url(url)} status={self.status} cached={str(self.cached).lower()}"
+        )
 
 
 class RequestBroker:
@@ -118,6 +133,7 @@ class RequestBroker:
         self.pool_timeout_s = float(pool_timeout_s)
         self.adapter_logger = _get_adapter_logger(repo_root)
         self.stats: dict[str, dict[str, int]] = {}
+        self.last_failure: dict[str, dict[str, Any]] = {}
 
         self.state_dir = repo_root / ".state"
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -157,6 +173,24 @@ class RequestBroker:
         adapter = adapter_name or "unknown"
         bucket = self.stats.setdefault(adapter, {"requests": 0, "timeouts": 0, "retries": 0, "failures": 0})
         bucket[key] = int(bucket.get(key, 0)) + inc
+
+    def _record_failure(self, adapter_name: str | None, status: int, *, cached: bool, non_fatal: bool) -> None:
+        self._record_stat(adapter_name, "failures")
+        self._record_stat(adapter_name, f"status_{int(status)}")
+        if cached:
+            self._record_stat(adapter_name, "cached_negative_used")
+        if non_fatal:
+            self._record_stat(adapter_name, "non_fatal_failures")
+        adapter = adapter_name or "unknown"
+        self.last_failure[adapter] = {
+            "status": int(status),
+            "cached": bool(cached),
+            "non_fatal": bool(non_fatal),
+        }
+
+    def get_last_failure(self, adapter_name: str) -> dict[str, Any] | None:
+        payload = self.last_failure.get(adapter_name)
+        return dict(payload) if isinstance(payload, dict) else None
 
     def get_stats_snapshot(self) -> dict[str, dict[str, int]]:
         return {k: dict(v) for k, v in self.stats.items()}
@@ -303,7 +337,36 @@ class RequestBroker:
                 jitter=default_retry.jitter,
             )
 
-        return AdapterPolicy(timeout=timeout, retry=retry)
+        fatal_4xx = bool(policy.get("fatal_4xx", True)) if isinstance(policy, dict) else True
+        treat_404_as_empty = bool(policy.get("treat_404_as_empty", False)) if isinstance(policy, dict) else False
+        raw_neg_ttl = policy.get("negative_cache_ttl_s") if isinstance(policy, dict) else None
+        raw_max_pages = policy.get("max_pages") if isinstance(policy, dict) else None
+
+        neg_ttl_s: int | None = None
+        if raw_neg_ttl is not None:
+            try:
+                if isinstance(raw_neg_ttl, str):
+                    neg_ttl_s = _parse_ttl(raw_neg_ttl)
+                else:
+                    neg_ttl_s = int(raw_neg_ttl)
+            except Exception:
+                neg_ttl_s = None
+
+        max_pages: int | None = None
+        if raw_max_pages is not None:
+            try:
+                max_pages = max(1, int(raw_max_pages))
+            except Exception:
+                max_pages = None
+
+        return AdapterPolicy(
+            timeout=timeout,
+            retry=retry,
+            fatal_4xx=fatal_4xx,
+            treat_404_as_empty=treat_404_as_empty,
+            negative_cache_ttl_s=neg_ttl_s,
+            max_pages=max_pages,
+        )
 
     def _rate_limit(self, host: str, adapter_name: str | None, url: str) -> None:
         pol = self._host_policy(host)
@@ -384,6 +447,9 @@ class RequestBroker:
         host = parsed.netloc
 
         key = self._cache_key(url)
+        pol = self._host_policy(host)
+        adapter_policy = self._adapter_policy(adapter_name, pol)
+
         cached = self._cache_get(key)
         if cached:
             status = int(cached.get("status", 0))
@@ -398,7 +464,9 @@ class RequestBroker:
                 )
                 return cached["body"]
 
-            # 负缓存（非 2xx）保持与首次请求一致：直接抛异常
+            non_fatal_4xx = (400 <= status <= 499 and not adapter_policy.fatal_4xx)
+            if status == 404 and adapter_policy.treat_404_as_empty:
+                non_fatal_4xx = True
             self._log(f"CACHE HIT NEG status={status} url={_redact_url(url)}")
             self._log_adapter_activity(
                 adapter_name=adapter_name,
@@ -408,7 +476,16 @@ class RequestBroker:
                 cache="hit",
                 error=f"HTTP_{status}",
             )
-            raise RuntimeError(f"HTTP {status} for {_redact_url(url)} (cached)")
+            self._record_failure(adapter_name, status, cached=True, non_fatal=non_fatal_4xx)
+            if non_fatal_4xx:
+                self.adapter_logger.warning(
+                    "adapter=%s url=%s status=%s cached=true action=EMPTY_RESULT",
+                    adapter_name or "unknown",
+                    _redact_url(url),
+                    status,
+                )
+                return None
+            raise RequestFailed(adapter_name=adapter_name, url=url, status=status, cached=True)
 
         self._log(f"CACHE MISS url={_redact_url(url)}")
         self._log_adapter_activity(
@@ -418,8 +495,6 @@ class RequestBroker:
             cache="miss",
         )
 
-        pol = self._host_policy(host)
-        adapter_policy = self._adapter_policy(adapter_name, pol)
         self._log_adapter_activity(
             adapter_name=adapter_name,
             action="policy",
@@ -475,7 +550,8 @@ class RequestBroker:
                     )
                     return body
 
-                self._cache_put(key, url, status, hdrs, body, pol.negative_cache_ttl_s)
+                neg_ttl_s = adapter_policy.negative_cache_ttl_s if adapter_policy.negative_cache_ttl_s is not None else pol.negative_cache_ttl_s
+                self._cache_put(key, url, status, hdrs, body, neg_ttl_s)
                 self._log_adapter_activity(
                     adapter_name=adapter_name,
                     action="GET",
@@ -484,14 +560,25 @@ class RequestBroker:
                     cache="write-negative",
                     error=f"HTTP_{status}",
                 )
-                self._record_stat(adapter_name, "failures")
+                non_fatal_4xx = (400 <= status <= 499 and not adapter_policy.fatal_4xx)
+                if status == 404 and adapter_policy.treat_404_as_empty:
+                    non_fatal_4xx = True
+                self._record_failure(adapter_name, status, cached=False, non_fatal=non_fatal_4xx)
+                if non_fatal_4xx:
+                    self.adapter_logger.warning(
+                        "adapter=%s url=%s status=%s cached=false action=EMPTY_RESULT",
+                        adapter_name or "unknown",
+                        _redact_url(url),
+                        status,
+                    )
+                    return None
                 self.adapter_logger.error(
                     "request_failed adapter=%s url=%s exc_type=HTTPStatusError attempts=%s",
                     adapter_name or "unknown",
                     _redact_url(url),
                     attempt,
                 )
-                raise BrokerRequestError(adapter_name=adapter_name, url=url, cause=RuntimeError(f"HTTP_{status}"))
+                raise RequestFailed(adapter_name=adapter_name, url=url, status=status, cached=False)
 
             except (httpx.TimeoutException, httpx.TransportError) as e:
                 if isinstance(e, httpx.TimeoutException):
