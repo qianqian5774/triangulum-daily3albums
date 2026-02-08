@@ -24,19 +24,19 @@
   "top": [
     {
       "rg_mbid": "rg-fixture-1",
-      "score": 51,
+      "score": 36.84055489148958,
       "artist": "Echo Unit",
       "title": "Nebula Drift"
     },
     {
       "rg_mbid": "rg-fixture-2",
-      "score": 50,
+      "score": 35.30088242169025,
       "artist": "Pulse Array",
       "title": "Circuit Bloom"
     },
     {
       "rg_mbid": "rg-fixture-3",
-      "score": 49,
+      "score": 33.55725432027999,
       "artist": "Ion Field",
       "title": "Static Night"
     }
@@ -44,19 +44,19 @@
   "slots": {
     "Headliner": {
       "rg_mbid": "rg-fixture-1",
-      "score": 51,
+      "score": 36.84055489148958,
       "artist": "Echo Unit",
       "title": "Nebula Drift"
     },
     "Lineage": {
       "rg_mbid": "rg-fixture-2",
-      "score": 50,
+      "score": 35.30088242169025,
       "artist": "Pulse Array",
       "title": "Circuit Bloom"
     },
     "DeepCut": {
       "rg_mbid": "rg-fixture-3",
-      "score": 49,
+      "score": 33.55725432027999,
       "artist": "Ion Field",
       "title": "Static Night"
     }
