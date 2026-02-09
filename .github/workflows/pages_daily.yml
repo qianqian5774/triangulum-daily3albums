@@ -1,5 +1,5 @@
 # .github/workflows/pages.yml
-name: Build and Deploy Pages
+name: Build and Deploy Pages (Daily)
 
 on:
   workflow_dispatch:
