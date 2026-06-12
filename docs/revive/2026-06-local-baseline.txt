@@ -1,0 +1,917 @@
+ triangulum-daily3albums  git switch -c revive/2026-06
+Switched to a new branch 'revive/2026-06'
+ triangulum-daily3albums  daily3albums probe-mb --artist "Daft Punk" --title "Homework" --verbose
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Homework%22+AND+artist%3A%22Daft+Punk%22&fmt=json&limit=5
+[
+  {
+    "id": "00054665-89fa-33d5-a8f0-1728ea8c32c3",
+    "title": "Homework",
+    "artist_credit": "Daft Punk / Daft Punk",
+    "artist_mbids": [
+      "056e4f3e-d505-4dad-8ec1-d04f521cbb56"
+    ],
+    "first_release_date": "1997-01-20",
+    "primary_type": "Album",
+    "secondary_types": []
+  },
+  {
+    "id": "b7a7b524-e29a-4d8e-a7f5-ffbcea5a38e4",
+    "title": "Homework (Remixes)",
+    "artist_credit": "Daft Punk / Daft Punk",
+    "artist_mbids": [
+      "056e4f3e-d505-4dad-8ec1-d04f521cbb56"
+    ],
+    "first_release_date": "2022-02-02",
+    "primary_type": "Album",
+    "secondary_types": [
+      "Remix"
+    ]
+  },
+  {
+    "id": "1ed45c8c-9abd-4ec3-9ff6-43d264f0e6b7",
+    "title": "Homework / Discovery",
+    "artist_credit": "Daft Punk / Daft Punk",
+    "artist_mbids": [
+      "056e4f3e-d505-4dad-8ec1-d04f521cbb56"
+    ],
+    "first_release_date": "2002",
+    "primary_type": "Album",
+    "secondary_types": [
+      "Compilation"
+    ]
+  }
+]
+ triangulum-daily3albums  npm --prefix ui ci
+
+added 182 packages, and audited 183 packages in 7s
+
+36 packages are looking for funding
+  run `npm fund` for details
+
+8 vulnerabilities (4 moderate, 3 high, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+ triangulum-daily3albums  npm --prefix ui run build
+
+> triangulum-ui@0.0.1 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming (2) vite\modulepreload-polyfill.jsBrowserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+✓ 411 modules transformed.
+dist/index.html                   0.46 kB │ gzip:   0.31 kB
+dist/assets/index-Xd0TL-xB.css   20.20 kB │ gzip:   4.97 kB
+dist/assets/index-Lsrgrul_.js   347.78 kB │ gzip: 111.75 kB
+✓ built in 1.60s
+ triangulum-daily3albums 
+ triangulum-daily3albums  daily3albums build --verbose --out .\_build\public
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=desert+rock&api_key=%2A%2A%2A&format=json&limit=50&page=1
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=desert+rock&api_key=%2A%2A%2A&format=json&limit=50&page=2
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=desert+rock&api_key=%2A%2A%2A&format=json&limit=50&page=3
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=desert+rock&api_key=%2A%2A%2A&format=json&limit=50&page=4
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=desert+rock&api_key=%2A%2A%2A&format=json&limit=50&page=5
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=desert+rock&api_key=%2A%2A%2A&format=json&limit=50&page=6
+CACHE MISS url=https://api.discogs.com/database/search?q=desert+rock&type=master&format=album&page=1&per_page=100
+CACHE HIT url=https://api.listenbrainz.org/1/stats/sitewide/release-groups?count=200&offset=170&range=all_time
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=1e9db573-5671-301f-87fc-846a605fe35b%2C1fb75447-c513-38c4-ad8f-1bfc441aa74c%2C02a544b3-0459-42c7-bd9c-047162e7b67a%2Caa38e6f0-e748-35c8-a8d4-04ff660e9354%2C2a2b851c-bba6-4584-80c0-19af4a55e286%2Cb02f651e-32a1-30ae-bc23-070b59170278%2C2e3b231b-ab9f-4d85-950a-48708a1cc2fb%2C5c14fd50-a2f1-3672-9537-b0dad91bea2f%2C6f935b80-160f-3787-97d6-a4ce342cf8c5%2C91811b68-aa6e-35b3-a5e1-6a2733eb6ae9%2C33b4653d-006e-3cc1-8afb-386b15a6cd6e%2Cee51d41d-d337-3ce1-b72c-3f40e1973e2b%2C9ff8a8fe-6aa7-473a-ae93-8488051e3f2d%2C24fd0887-9e83-42e3-b27e-e7f89ead4c03%2C3fd716f5-2f67-3890-95ec-20c4032511c8%2Cb0bf2b77-b8cf-32f6-8893-9741d757b400%2Cb4deecbb-2b7d-42ac-b7df-9ae7439d532b%2Cb7ac3c3e-095e-4bcf-94f9-694ca175b79d%2C65b47520-2e58-3bc2-a755-34ff35f23ad5%2C6719eb4c-42fb-3118-84a2-98c2fdbca79f%2C8ebffd15-06c3-3b88-a761-ec18c5513287%2Cc563d738-3841-31ce-b29d-ec6b40fd1e7b%2C06af18b0-1f97-4282-8a4d-af53ae8d9377%2C7a23bc7e-d7bd-3a22-a38d-7d1f793bae1c%2C32cb822c-a14e-49ce-a169-f209c5f31e0f&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=c8bea388-c195-4177-bf9b-7469f6e695a1%2Cdca03435-8adb-30a5-ba82-5a162267ff38%2C475946e9-4b00-3f7c-9bd7-c11f55740262%2Cb0fa91c8-0996-38f1-ab84-797f58d7c4eb%2C2a323740-b615-35bc-9f58-1d2e6a5d9289%2Cb2cbaa83-cb77-4961-8ca3-816b24e5204f%2Ce848562f-a802-355c-a52c-90ba6aaa91d1%2Ca3159fb4-2ad3-4678-ba51-36fbc8b8430d%2C485d3241-ef02-49a4-88df-a03eaa86d9cd%2Ccac0be2c-509f-40a9-b1ac-a70aa2243a54%2Caf9a5099-04c5-3aaf-b0d1-fa160bd92e02%2C187935b5-a0a4-3e6f-9684-48b67a5190a1%2C0f18ec88-aa87-38a9-8a65-f03d81763560%2C10224fb3-a861-3247-9eab-81b7b0fbb0d4%2Ca92d9f5f-60a3-3e7d-a0a3-e028c29e5ca5%2C017f2a37-a78f-3578-9611-fa40408e5d90%2C4c2e4e78-6b0f-3ca1-8131-06906e5b56e9%2C53f80f76-f8af-3558-bfd5-e7221e055c75%2Ce05f9927-e24b-41c5-928d-d0e008a12444%2C5140eef4-5b5d-309c-a3aa-5c5da107b1da%2C3344452a-3da9-4b4f-8954-ae23a86c2ecf%2C78113c03-d7dc-4200-91f0-5b20088e403d%2C7f4792fe-b563-4554-849a-95a89be71f84%2Cc2eed4c1-5cd9-469a-9075-b82077093967%2Ca5711a77-42d1-3f4c-830c-e27a96f0800f&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=fddedc4f-7a2e-3d7d-9ec5-1705c416f3f4%2Cec84ab32-eb41-3d91-a099-7a01c72f21d2%2Cd1b61f6e-aa3c-4f3f-9cd0-09f8ec0f01f7%2Ce5ae2682-f6cb-327d-9e5e-8e055fb5b094%2C3f3a6d95-326e-4384-80b0-0744f20f24ff%2Cea29c347-696f-3165-986d-7bad1394b178%2Ce098b168-2395-4be9-9bfa-ed6e8b488182%2Cea9bf147-abbd-39df-b927-46fc945a5140%2C401bc572-414c-3cb2-b2b8-fbef17eb9ab0%2C4b2186f5-ff00-3227-ae11-783ba93e1089%2C32304f6e-5b80-3818-a66b-47f09efff0d9%2C743b0b2e-a23a-3182-950e-232f8cb0dfb7%2Ca85b8aff-fcbc-4431-95ba-d8c20bbfb77e%2C55203b2f-314b-39c2-9e48-56a95e41a337%2Cb2460e22-8948-441a-b894-f031b57d4231%2Cee1588f0-ff93-429f-8e6a-7c350e02c52b%2Cd8994512-160a-32c1-af0d-d5932f0f59df%2Cdfb85157-313b-3f5f-8739-a5162bcb6345%2C998f1bc8-6703-49fe-8aed-028ec04a14f2%2C18564a20-d557-4f7c-81e7-8d1d40a1be55%2Cbc7630eb-521a-3312-a281-adfb8c5aac7d%2C9584e28b-66a7-3846-8d52-b3008a283539%2C320df089-f656-433d-add7-605d06800852%2Cb2a6e057-087d-3ae5-a6e5-7f5fa39808ff%2Cf0c8edf8-26a7-4425-9ce9-82b00e90669a&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=04e0cb66-e8ee-38b9-863d-b4f21dee887d%2C9bbc8220-9f72-4595-a0f7-55dfdbab569a%2C28438e4f-3710-459f-a332-a1eba9dd1f26%2Cbe475d52-1eb0-3d96-91b0-f5a19a462ed7%2Cbf37b1a0-d94f-4230-b2c7-09b17f9f8a68%2C0837aca2-319e-3f2f-a2d3-c525802068d6%2C0ce4a1f2-7908-3865-8f19-08348546424a%2Cfdd96703-7b21-365e-bdea-38029fbeb84e%2C61180839-f4a7-407f-b86f-24c48eef4066%2Caf682b63-021e-4806-afac-9aa4380fc6bd%2C75702ddf-a46c-3cac-bace-0a466eb3c37c%2Cf7b59bee-62d7-4bc8-ad47-cda988cd8ded%2Cf28e065d-fd56-3929-b0a4-6aa1b4c78bdb%2Cdafbb45b-e06f-3a2b-b4fd-981d3d99a3a4%2C9477d99c-1df7-4ae7-b08d-a2484c8e80f4%2C810272e0-aef1-3d85-b2d3-e512e87fc38c%2C83920a38-e749-4bbf-a7f6-8aaf77cb9475%2C0d44e1cb-c6e0-3453-8b68-4d2082f05421%2C0b0e4477-4b04-3683-8f01-3a4544c36b41%2Ce9acecde-4ae1-3430-baf7-eae53cb9d75f%2Cf05228f2-7e4a-4623-8cd5-d29bfa42e2e0%2C65404106-2976-4f98-a0e2-4e76923ea06d%2C5ece0c50-bb0b-3cdf-90e2-287a60136d69%2Cfdd6c833-3c96-33cb-9917-72e15bcd34bc%2Cc5a0411f-374e-360d-9364-3ddec3007162&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=066f840f-e357-436f-bb0a-47ad7cfcd84a%2C6b78c33a-64c4-3472-99e9-be45a392acb4%2Cc091b282-aa91-3bc0-9c95-938db1f1f930%2C03c95acb-e1a4-3d73-aa80-4243a0ca3f27%2C12fab6b9-4eaf-33b0-963e-cae03ac332fe%2C116c9490-6af4-3827-8261-2d5b1f508fe7%2Ca73cecde-0923-40ad-aad1-e8c24ba6c3d2%2C400a5fdd-e616-3598-a9bf-cd8275cb53d0%2C4c615b1c-5af9-432b-9342-e39137ade143%2Cb2d16a29-8953-3e14-bc76-4c775b3d8afd%2Cc24e5416-cd2e-4cff-851b-5faa78db98a2%2Cb1fdc9cc-8680-44da-abab-59edca6b2ad3%2Ca5056c3b-730f-493b-b10e-52f678d72b85%2C21666540-83c8-4c54-9be1-0363a0848f33%2Cfd817615-3d43-4f07-9509-d0a46b2bc278%2C4ebfe175-e7ed-34cd-8e91-67c7e4a53579%2C385f30e2-0483-355d-aded-23e66aa20f87%2C61b7b6cd-86a6-4728-9478-b58c93bca8fd%2C2cb36662-3560-4b90-a0a5-7924ac039490%2Cff9b0645-2327-46f4-b2b4-a7f41946d39e%2C6c90cb91-e615-4545-854b-6d6f10c5cb6d%2Cdfd582da-ab2e-4009-9365-405bf1ad2c49%2C25e72bf4-09fc-3e66-9d31-9247d91b4819%2C0c482acd-35a2-466b-b833-ef5f2f1297d4%2C6f3e9fa6-be7a-3de8-a2b2-2072ece8a54d&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=0f943236-96e1-4d9d-b35d-4906023fa0e5%2C311ae629-ee9e-443e-9c38-d7a5c97679d5%2Ce86d6219-f5a2-4edd-bf2b-3f9eab190ae0%2C005b84a0-ecd6-39f1-b2f6-6eb48756b268%2C5ff232ca-d9c8-459b-9253-9374ec07777e%2C422cd8ac-8599-4356-b874-4da79a06abac%2C43ca5aa6-92de-47e9-8f0b-9112e4881426%2Cfa64febd-61e0-346e-aaa2-04564ed4f0a3%2C3227286b-8f17-4a94-96f6-18c644d4a1aa%2C1c1b50ec-828b-3d7c-9b1b-54cb1fe97d55%2C740ec10a-e887-38a6-a04d-fe2069c9e2a7%2C610fb60f-900a-3c42-ac7d-f6b6aa8035f9%2C4f1d08f2-d4bd-3ef2-ba72-eb348ae4c332%2Ca186ae54-41a1-4b46-861c-c0d80c154556%2C0c9bc273-a9e9-3290-b423-c61b9f8d20bc%2Cfd6279cf-0bf3-3d8f-9e07-bde8b7a34448%2C90878b63-f639-3c8b-aefb-190bdf3d1790%2Cc6e61b49-0789-4df0-829b-bd160ae8d733%2C58afd5f5-a3cb-43c4-a0dc-fd15fbfe33bf%2C271faeb3-fdd1-3ebb-80aa-97b3116e9341%2Cc86c6af9-d10e-3079-b34b-30b682a797eb%2Cf07346e6-c889-33b8-83c8-ad987d7b14f6%2Ccf75fd5a-ca84-4371-94d7-27410360f06b%2Ca6045fe5-c283-4778-995c-04d953fe73e1%2C2c5de955-68c8-426b-bcc4-31f71d192e18&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=ee3d18ed-d6a8-37c7-a964-41bbdb6d59f1%2Cdd5d8c4c-9887-4a8c-8a1a-98daebb1b9bf%2C1b469da1-e542-346b-84e6-4d7fe45be181%2Cfcb872a2-7ef9-3ed0-bd4a-7c55c78179b6%2C32583a8d-bc9d-4408-a144-0958110e00e5%2C359726a0-3d49-4a9a-8fba-4a92e1bfe38d%2C304479f9-ea77-3299-8745-3985f05cfa13%2Cc92f73ee-527f-42ed-a556-fd615941e214%2C3dd0c8e4-af53-3605-9c20-f27c7635fb60%2C92852c11-b67d-32b9-84d8-b52bba0cec9e%2C1ccd441a-a906-4773-8e72-e4055732a784%2C9c710cb4-6b20-47d7-a31a-5adb064c6c6b%2C1b4bb003-db4c-4858-84ec-817aaca09501%2C0430d8c5-7417-3c4c-9f2a-b7d02ef7d164%2C2d1d9561-4c16-41d4-8234-dfe30c6334eb%2C683c2e7b-530d-486f-96e4-d26bf10ae83e%2Ce6f8d52b-3b24-4546-b86d-99d79b0df209%2C0ab54c49-05dd-440c-ba9c-b70649c758a5%2C451dca98-c118-32e1-9244-c47ca9c3c0f9%2Cf6b1b900-6108-32f0-abbd-2855af9151eb%2C2eb49f55-ad2a-43fa-a54f-90d0759d7f62%2C4174e53c-90e8-4630-993f-1f7466178398%2C62b427b8-1c52-34e7-b250-da2aa3e44860%2C5ef51a9b-55eb-3400-99a8-47b892e11df7%2C16cc9dfc-594d-3fb9-b789-3e1bfcb6f9f8&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=f48c46e8-8178-3e74-b60f-72b677ebcb96%2C6a75b970-84c9-3794-bafd-261f82f1343c%2C93d5a1d1-73c0-34d3-b7f1-49473c48face%2C37608ff2-3168-3e7c-a77e-04a4b7300c1b%2C79f338ee-d67c-3845-945c-1fd2e03e8f1b%2Cf7479a73-66a7-41be-9f77-9e70828a5809%2Ca842d860-a023-3a71-ad2e-a3a94cffabd7%2C22315cdd-4ed9-427c-9492-560cf4afed58%2Cbb449522-eefd-3d7e-b712-b2cf7e9de0b1%2C836f349a-0434-3e8b-a0bc-261f77a9f99c%2Cdd2c168f-41a6-37f5-a727-6e188bf22c6e%2C5967a9ad-a0d5-34f7-bd53-f5d4bad80a67%2C387aca0c-d34a-3d0c-b7e4-c1b0f73e2dae%2Cb109f08c-3368-4dff-9ab0-f11b27505eb8%2C857db798-5c31-4d5f-991a-6667f41d8899%2Cf44f4f73-a714-31a1-a4b8-bfcaaf311f50%2Cae229bdd-2179-440c-bc78-acf0952914d4%2Ce4d39d2e-9420-4007-881a-9b5bc23944e0%2Cbc7740e1-02c9-3ab7-9869-0e0c79acf941%2C4513c7b9-854e-457f-81d6-3dbeb001beb8%2C79893cb5-c656-355e-b7eb-f79727b0e499%2Ce47ad139-89f6-39e8-aa84-fe84c45aeb7d%2C6891a28c-5865-36e2-9e5f-c9fac1d3595f%2Cb74d25cf-dcb5-3d19-992c-964fc0c72ba7%2Ca720436f-9c8e-439a-a147-18e83441edab&inc=artist+tag+release
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/2c95aef5-5927-4b34-a6f9-93cba5bb419e?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/2c95aef5-5927-4b34-a6f9-93cba5bb419e?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Suns%22+AND+artist%3A%22Desert+Suns%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/9ba034eb-af31-4fe6-acc2-d624722c9399?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/9ba034eb-af31-4fe6-acc2-d624722c9399?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Dos%22+AND+artist%3A%22Orquesta+del+Desierto%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/1c6604be-6d67-3152-a7c5-ea526e377d41?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/1c6604be-6d67-3152-a7c5-ea526e377d41?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Queens+of+the+Stone+Age%22+AND+artist%3A%22Queens+of+the+Stone+Age%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Songs+For+The+Deaf+%5BUK%5D%22+AND+artist%3A%22Queens+of+the+Stone+Age%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Songs+For+The+Deaf%22+AND+artist%3A%22Queens+of+the+Stone+Age%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/0a67d42e-aeb7-44e8-9ffe-0ae9eae997fc?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/0a67d42e-aeb7-44e8-9ffe-0ae9eae997fc?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22King+of+the+Road%22+AND+artist%3A%22Fu+Manchu%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Useless%22+AND+artist%3A%22PERRO+MALO%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Useless%22+AND+artist%3A%22PERRO+MALO%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AUseless+AND+artist%3APERRO+MALO&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Banda+Sonora+Des%C3%A9rtica%22+AND+artist%3A%22Caleb+R.K.+Williams%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Banda+Sonora+Des%C3%A9rtica%22+AND+artist%3A%22Caleb+R.K.+Williams%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ABanda+Sonora+Des%C3%A9rtica+AND+artist%3ACaleb+R.K.+Williams&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Desert+Sessions+Volume+1+%28Instrumental+Driving+Music+For+Felons%29+%26+Volume+2+%28Status%3A+Ships+Commander+Butchered%29%22+AND+artist%3A%22Desert+Sessions%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Desert+Sessions+Volume+1%22+AND+artist%3A%22Desert+Sessions%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AThe+Desert+Sessions+Volume+1+AND+artist%3ADesert+Sessions&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/9f420655-27e1-468e-9993-e90aff71e82d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/9f420655-27e1-468e-9993-e90aff71e82d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22observer%22+AND+artist%3A%22Stereochrome%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/d6d97009-972f-45e7-98cc-fbd1734733d7?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/d6d97009-972f-45e7-98cc-fbd1734733d7?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Daylight+in+the+Dark%22+AND+artist%3A%22Softsun%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Tumastin%22+AND+artist%3A%22Amanar+De+Kidal%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Tumastin%22+AND+artist%3A%22Amanar+De+Kidal%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ATumastin+AND+artist%3AAmanar+De+Kidal&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Witches%27+Dance+-+EP%22+AND+artist%3A%22Black+Lines%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Witches%27+Dance+-+EP%22+AND+artist%3A%22Black+Lines%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AWitches%27+Dance+-+EP+AND+artist%3ABlack+Lines&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/ff327e07-ce9a-49b8-b35a-8767103b47b3?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/ff327e07-ce9a-49b8-b35a-8767103b47b3?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Crucible+%26+Ruin%22+AND+artist%3A%22Howling+Giant%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Use+the+Fuzz+%28Split%29%28EP%29%22+AND+artist%3A%22Cachimbo+de+Paz%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Use+the+Fuzz%22+AND+artist%3A%22Cachimbo+de+Paz%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AUse+the+Fuzz+AND+artist%3ACachimbo+de+Paz&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/30c332b7-1b78-3555-8cfe-79138300bec4?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/30c332b7-1b78-3555-8cfe-79138300bec4?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22California+Crossing%22+AND+artist%3A%22Fu+Manchu%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/253c991f-bf79-40be-a743-c7860c2d8484?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/253c991f-bf79-40be-a743-c7860c2d8484?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Badakhshan%22+AND+artist%3A%22Hashshashin%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Hangover%2C+Pt.+II+%28Original+Motion+Picture+Soundtrack%29%22+AND+artist%3A%22Various+Artists%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Hangover%2C+Pt.+II%22+AND+artist%3A%22Various+Artists%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AThe+Hangover%2C+Pt.+II+AND+artist%3AVarious+Artists&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/7d63dd61-f556-4fbd-9c64-cac8c730d135?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/7d63dd61-f556-4fbd-9c64-cac8c730d135?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Impending+Bloom%22+AND+artist%3A%22black+air%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/0d8bb2ff-031b-4897-a748-2a1e99f69def?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/0d8bb2ff-031b-4897-a748-2a1e99f69def?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Deep+in+the+Hole%22+AND+artist%3A%22Masters+of+Reality%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Luksusowo%22+AND+artist%3A%22Diuna%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Luksusowo%22+AND+artist%3A%22Diuna%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ALuksusowo+AND+artist%3ADiuna&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Monument+of+Stone%22+AND+artist%3A%22CSBR+Experience%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Monument+of+Stone%22+AND+artist%3A%22CSBR+Experience%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AMonument+of+Stone+AND+artist%3ACSBR+Experience&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Static+in+the+Blood%22+AND+artist%3A%22Dust+Giant%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/44d9e0c7-815f-4811-bd9c-fb0439b0b150?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/44d9e0c7-815f-4811-bd9c-fb0439b0b150?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Last+Adventures+of+Captain+Dog%22+AND+artist%3A%22Blind+Dog%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/4c1c9078-6939-430b-9d1d-d3eb8e76ae4a?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/4c1c9078-6939-430b-9d1d-d3eb8e76ae4a?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22An+Earlier+Time%22+AND+artist%3A%22Sundrifter%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/757bef5b-ef5d-48f7-9126-b6cb596aa158?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/757bef5b-ef5d-48f7-9126-b6cb596aa158?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jalamanta%22+AND+artist%3A%22Brant+Bjork%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/4960f593-fc8d-421a-8837-6753ad288f27?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/4960f593-fc8d-421a-8837-6753ad288f27?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Orquesta+Del+Desierto%22+AND+artist%3A%22Orquesta+del+Desierto%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/d3847e97-b0d0-4536-9466-755df83e7b13?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/d3847e97-b0d0-4536-9466-755df83e7b13?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Disco+Marching+Kraft%22+AND+artist%3A%22Earthlings%3F%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Disco+Marching+Kraft%22+AND+artist%3A%22Earthlings%3F%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ADisco+Marching+Kraft+AND+artist%3AEarthlings%3F&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/68b4016d-528c-4a50-9d2f-2ba2d7c81dc7?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/68b4016d-528c-4a50-9d2f-2ba2d7c81dc7?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Pavement+Ends%22+AND+artist%3A%22Yawning+Man%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/26570966-1875-46cd-94ed-213940a5265d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/26570966-1875-46cd-94ed-213940a5265d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Nomadic+Pursuits%22+AND+artist%3A%22Yawning+Man%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/4d6d98be-3854-46d7-831d-6786ee793717?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/4d6d98be-3854-46d7-831d-6786ee793717?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22ABANAMAT%22+AND+artist%3A%22Abanamat%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/0380297a-9afe-47f0-a7ae-3577223f1420?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/0380297a-9afe-47f0-a7ae-3577223f1420?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Start+the+Machine%22+AND+artist%3A%22Fu+Manchu%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/20072ec6-b295-4349-bb2d-3fc419e5938b?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/20072ec6-b295-4349-bb2d-3fc419e5938b?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Wretch%22+AND+artist%3A%22Kyuss%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/afbc029a-f1eb-472d-987c-0082ad53de97?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/afbc029a-f1eb-472d-987c-0082ad53de97?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Appalachian+Incantation%22+AND+artist%3A%22Karma+to+Burn%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/7656d1d9-b307-44b1-a489-7ef3c1cd5154?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/7656d1d9-b307-44b1-a489-7ef3c1cd5154?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Apollo%22+AND+artist%3A%22Nebula%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/d107256a-3b54-4e76-a193-3a6a058e69e7?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/d107256a-3b54-4e76-a193-3a6a058e69e7?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Apollo%22+AND+artist%3A%22Avant+Garden%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Apollo%22+AND+artist%3A%22Avant+Garden%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AApollo+AND+artist%3AAvant+Garden&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Kyuss+%2F+Queens+of+the+Stone+Age%22+AND+artist%3A%22Kyuss%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Kyuss+%2F+Queens+of+the+Stone+Age%22+AND+artist%3A%22Kyuss%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AKyuss+%2F+Queens+of+the+Stone+Age+AND+artist%3AKyuss&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/5e746e8b-824b-4ed7-9727-1f5535e11bc7?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/5e746e8b-824b-4ed7-9727-1f5535e11bc7?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Action+Is+Go%22+AND+artist%3A%22Fu+Manchu%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22A+Lone+Leaf%22+AND+artist%3A%22Red+Rage+Mind%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22A+Lone+Leaf%22+AND+artist%3A%22Red+Rage+Mind%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AA+Lone+Leaf+AND+artist%3ARed+Rage+Mind&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/adad55d5-3ecb-4604-8442-3457d8d4660c?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/adad55d5-3ecb-4604-8442-3457d8d4660c?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22CARMINA+DIABOLO%22+AND+artist%3A%22Black+Rainbows%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/49437c33-53e4-3123-a15f-097eba590c32?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/49437c33-53e4-3123-a15f-097eba590c32?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Cocaine+Rodeo%22+AND+artist%3A%22Mondo+Generator%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Kyuss%2FQueens+of+the+Stone+Age%22+AND+artist%3A%22Kyuss%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Kyuss%2FQueens+of+the+Stone+Age%22+AND+artist%3A%22Kyuss%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AKyuss%2FQueens+of+the+Stone+Age+AND+artist%3AKyuss&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/a4f5a27b-c903-4acf-aa30-25557e4d707d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/a4f5a27b-c903-4acf-aa30-25557e4d707d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Favequaid+Promo%22+AND+artist%3A%22Favequaid%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Favequaid+Promo%22+AND+artist%3A%22Favequaid%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AFavequaid+Promo+AND+artist%3AFavequaid&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/3409fc19-494e-4147-a95b-d4cb565d54d6?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/3409fc19-494e-4147-a95b-d4cb565d54d6?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Super+Van+Vacation%22+AND+artist%3A%221000mods%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/88805ee8-7f49-445a-97fd-8dd3d0b4800d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/88805ee8-7f49-445a-97fd-8dd3d0b4800d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22In+Times+New+Roman...%22+AND+artist%3A%22Queens+of+the+Stone+Age%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/e190ecc4-69e6-4e4f-8e89-c04dbc31b3f0?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/e190ecc4-69e6-4e4f-8e89-c04dbc31b3f0?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Flames+for+All%22+AND+artist%3A%22Fatso+Jetson%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Pine+%2F+Cross+Dover%22+AND+artist%3A%22Masters+of+Reality%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Pine+%2F+Cross+Dover%22+AND+artist%3A%22Masters+of+Reality%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3APine+%2F+Cross+Dover+AND+artist%3AMasters+of+Reality&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Mojave+Moonlight%22+AND+artist%3A%22The+Reverberockets%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Mojave+Moonlight%22+AND+artist%3A%22The+Reverberockets%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AMojave+Moonlight+AND+artist%3AThe+Reverberockets&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/30245816-fc5b-4bc4-b622-69bc0f8869bf?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/30245816-fc5b-4bc4-b622-69bc0f8869bf?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Saved+By+Magic%22+AND+artist%3A%22Brant+Bjork+and+The+Bros%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/efab1d35-a30b-4605-8afe-da758ffa2245?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/efab1d35-a30b-4605-8afe-da758ffa2245?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Circle+the+Wagons%22+AND+artist%3A%22Husky%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/9703c450-722d-4e78-a9c9-1860fcb23f5d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/9703c450-722d-4e78-a9c9-1860fcb23f5d?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Los+Asteroide%22+AND+artist%3A%22Los+Asteroide%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/ba831c7b-0759-4d98-8832-53a07695c31c?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/ba831c7b-0759-4d98-8832-53a07695c31c?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Only+a+Suggestion%22+AND+artist%3A%22Hermano%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Talons%22+AND+artist%3A%22Sidewinder%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/79973f8c-dd3c-4f59-957a-1c2ed51c7db1?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/79973f8c-dd3c-4f59-957a-1c2ed51c7db1?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Idle+Hands%22+AND+artist%3A%22Fatso+Jetson%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desertification%22+AND+artist%3A%22desertification%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desertification%22+AND+artist%3A%22desertification%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ADesertification+AND+artist%3Adesertification&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/587bd703-cd52-4fcb-98e9-79065c094723?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/587bd703-cd52-4fcb-98e9-79065c094723?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jacoozzi%22+AND+artist%3A%22Brant+Bjork%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/31fc1c00-119c-428d-b57a-e4b8b8856947?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/31fc1c00-119c-428d-b57a-e4b8b8856947?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Karma+to+Burn%22+AND+artist%3A%22Karma+to+Burn%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/845a61e9-3222-4a90-b687-08683ad04c36?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/845a61e9-3222-4a90-b687-08683ad04c36?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jawa%22+AND+artist%3A%22Budd%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/12296768-3719-4b20-a215-1b9dc31a2529?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/12296768-3719-4b20-a215-1b9dc31a2529?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Zamonian+Occultism%22+AND+artist%3A%22Mother+Bear%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Sessions+7+%26+8%22+AND+artist%3A%22Desert+Sessions%2A%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Sessions+7+%26+8%22+AND+artist%3A%22Desert+Sessions%2A%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ADesert+Sessions+7+%26+8+AND+artist%3ADesert+Sessions%2A&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.019s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Island%22+AND+artist%3A%22Mystic+Braves%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.546s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22STONER%2FDESERT+AND+HEAVY+PSYCH+24%2F7%22+AND+artist%3A%22Rider+Negro%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22STONER%2FDESERT+AND+HEAVY+PSYCH+24%2F7%22+AND+artist%3A%22Rider+Negro%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ASTONER%2FDESERT+AND+HEAVY+PSYCH+24%2F7+AND+artist%3ARider+Negro&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/da1119d6-22a1-4df2-b23b-fd743fd76a38?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/da1119d6-22a1-4df2-b23b-fd743fd76a38?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Blood+from+a+Stone%22+AND+artist%3A%22Daddy+Long+Legs%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Sessions+3+%26+4%22+AND+artist%3A%22Desert+Sessions%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Sessions+3+%26+4%22+AND+artist%3A%22Desert+Sessions%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ADesert+Sessions+3+%26+4+AND+artist%3ADesert+Sessions&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/54ee0d75-3bd3-4b83-a0ae-0f7576027b5f?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/54ee0d75-3bd3-4b83-a0ae-0f7576027b5f?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Power+of+Three%22+AND+artist%3A%22Fatso+Jetson%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22GU38+Black+Rock+Desert%22+AND+artist%3A%22Carl+Cox%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.590s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22GU38+Black+Rock+Desert%22+AND+artist%3A%22Carl+Cox%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AGU38+Black+Rock+Desert+AND+artist%3ACarl+Cox&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.597s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Desert+Sessions+Vol.+III+%26+IV%22+AND+artist%3A%22Desert+Sessions%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Desert+Sessions+Vol.+III+%26+IV%22+AND+artist%3A%22Desert+Sessions%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AThe+Desert+Sessions+Vol.+III+%26+IV+AND+artist%3ADesert+Sessions&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22speakeasylies%22+AND+artist%3A%22The+Holy+Bibles%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22speakeasylies%22+AND+artist%3A%22The+Holy+Bibles%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3Aspeakeasylies+AND+artist%3AThe+Holy+Bibles&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/925d150c-28f0-4085-9ce7-743e5e661f27?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/925d150c-28f0-4085-9ce7-743e5e661f27?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Counts+Of+The+Netherworld%22+AND+artist%3A%22Counts+Of+The+Netherworld%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Riots+In+Jerusalem%22+AND+artist%3A%22Burnpilot%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Live+In+Amsterdam%22+AND+artist%3A%22Queens+of+the+Stone+Age%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Live+In+Amsterdam%22+AND+artist%3A%22Queens+of+the+Stone+Age%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ALive+In+Amsterdam+AND+artist%3AQueens+of+the+Stone+Age&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Green+Desert%22+AND+artist%3A%22Tangerine+Dream%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.524s
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/265f7a74-d3ab-4923-be25-4f8fb618b904?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/265f7a74-d3ab-4923-be25-4f8fb618b904?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Traveler%22+AND+artist%3A%22Quintana%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/495774df-b51b-40f7-9895-4254de6a5342?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/495774df-b51b-40f7-9895-4254de6a5342?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Dust+Giant%22+AND+artist%3A%22Dust+Giant%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/2b285928-1a81-4807-8504-db9cddab431a?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/2b285928-1a81-4807-8504-db9cddab431a?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Tundra+Rock%22+AND+artist%3A%22Slomosa%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Up+From+The+Desert%22+AND+artist%3A%22Brothaz+Bent%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.589s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Moon%22+AND+artist%3A%22Dennis+DeYoung%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.580s
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/0cd5f52f-08a6-4e17-9cca-efe1fa3511f4?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/0cd5f52f-08a6-4e17-9cca-efe1fa3511f4?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Tao+Of+The+Devil%22+AND+artist%3A%22Brant+Bjork%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Sunnm%C3%B8re%22+AND+artist%3A%22Storegga%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Sunnm%C3%B8re%22+AND+artist%3A%22Storegga%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ASunnm%C3%B8re+AND+artist%3AStoregga&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Balloon+Heart%22+AND+artist%3A%22Ya+Ya+Boom%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Balloon+Heart%22+AND+artist%3A%22Ya+Ya+Boom%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ABalloon+Heart+AND+artist%3AYa+Ya+Boom&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/346e5bf3-ebd8-4226-9919-45aa5c6be875?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.586s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/346e5bf3-ebd8-4226-9919-45aa5c6be875?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.599s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Overcrowded%22+AND+artist%3A%22Tuber%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.591s
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/2a7664af-4bf1-4070-a903-5280cbceb782?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/2a7664af-4bf1-4070-a903-5280cbceb782?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22We+Must+Obey%22+AND+artist%3A%22Fu+Manchu%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/b8070080-0169-4a64-975c-3791681e1827?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/b8070080-0169-4a64-975c-3791681e1827?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Isak+EP%22+AND+artist%3A%22Isak%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Isak+EP%22+AND+artist%3A%22Isak%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AIsak+EP+AND+artist%3AIsak&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Desert+Rose+Band%22+AND+artist%3A%22Desert+Rose+Band%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.591s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Use+the+Fuzz%22+AND+artist%3A%22Parasol+Caravan+-+De+Cachimbo+de+Paz%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Use+the+Fuzz%22+AND+artist%3A%22Parasol+Caravan+-+De+Cachimbo+de+Paz%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AUse+the+Fuzz+AND+artist%3AParasol+Caravan+-+De+Cachimbo+de+Paz&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/a9fbdf15-51da-40f4-a332-d821da8435a3?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/a9fbdf15-51da-40f4-a332-d821da8435a3?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Leave+the+Future+Behind%22+AND+artist%3A%22The+Blue+Screen+of+Death%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22A+Better+Day%22+AND+artist%3A%222hurt%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.587s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22A+Better+Day%22+AND+artist%3A%222hurt%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AA+Better+Day+AND+artist%3A2hurt&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.595s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/0d8ba774-340f-482e-ad13-0029f3bf2b56?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.589s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/0d8ba774-340f-482e-ad13-0029f3bf2b56?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.594s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Extraterrestrial+Highway%22+AND+artist%3A%22Ten+East%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.588s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Wild%2C+Wonderful+Purgatory%22+AND+artist%3A%22Karma+to+Burn%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.582s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desert+Vision%22+AND+artist%3A%22David+Lanz+%26+Paul+Speer%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.589s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/e88ce133-6ef9-45f3-816a-aac4be68ad79?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.584s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/e88ce133-6ef9-45f3-816a-aac4be68ad79?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.604s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Pilot+The+Dune%22+AND+artist%3A%22Pilot+the+Dune%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.592s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/543e91a3-4472-4b4c-8981-aa2a2d73bc27?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.589s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/543e91a3-4472-4b4c-8981-aa2a2d73bc27?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.607s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Twilight+In+The+Desert%22+AND+artist%3A%22Black+Rainbows%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.550s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/4b6dc49e-2ff5-4df0-9b79-82b2d14205f6?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.592s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/4b6dc49e-2ff5-4df0-9b79-82b2d14205f6?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.599s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Punk+Rock+Guilt%22+AND+artist%3A%22Brant+Bjork%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.587s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/6574914a-dcf2-48fa-9eae-c892103601cf?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.582s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/6574914a-dcf2-48fa-9eae-c892103601cf?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.597s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Once+Upon+a+Time+in+the+Desert%22+AND+artist%3A%22Brant+Bjork+Trio%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.592s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Concrete+Desert%22+AND+artist%3A%22The+Bug+Vs+Earth+%282%29%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.581s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Concrete+Desert%22+AND+artist%3A%22The+Bug+Vs+Earth+%282%29%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AConcrete+Desert+AND+artist%3AThe+Bug+Vs+Earth+%282%29&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.580s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/e155c799-cd71-4c8e-b0f6-9fb726daee0c?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.531s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/e155c799-cd71-4c8e-b0f6-9fb726daee0c?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.606s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22In+the+Station%22+AND+artist%3A%22Grand+Reunion%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.598s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Gas+Giant+vs.+WE%22+AND+artist%3A%22Gas+Giant%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.592s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Gas+Giant+vs.+WE%22+AND+artist%3A%22Gas+Giant%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AGas+Giant+vs.+WE+AND+artist%3AGas+Giant&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.595s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/35b169f1-f5ce-4a55-8ba8-c0c42e1ff4c5?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.577s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/35b169f1-f5ce-4a55-8ba8-c0c42e1ff4c5?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.605s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Masters+of+Reality%22+AND+artist%3A%22Masters+of+Reality%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.588s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/19ea9185-cfce-4577-8f7d-56065d4181da?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.592s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/19ea9185-cfce-4577-8f7d-56065d4181da?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.550s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Burning+Off+Impurities%22+AND+artist%3A%22Grails%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.601s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Use+the+Fuzz+%28Split%29%28EP%29%22+AND+artist%3A%22Parasol+Caravan%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.591s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Use+the+Fuzz%22+AND+artist%3A%22Parasol+Caravan%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.562s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AUse+the+Fuzz+AND+artist%3AParasol+Caravan&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.455s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/1e201808-e71e-45a3-ba12-1e8ad137a0db?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.579s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/1e201808-e71e-45a3-ba12-1e8ad137a0db?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.609s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Rock+Formations%22+AND+artist%3A%22Yawning+Man%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.552s
+prefilter slot=0 tag=desert rock fetch_limit=200 fetched_candidates=392 after_light_prefilter_topN=100 mb_normalized=100 saved_mb_calls=292
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=art+rock&api_key=%2A%2A%2A&format=json&limit=50&page=1
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=art+rock&api_key=%2A%2A%2A&format=json&limit=50&page=2
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=art+rock&api_key=%2A%2A%2A&format=json&limit=50&page=3
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=art+rock&api_key=%2A%2A%2A&format=json&limit=50&page=4
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=art+rock&api_key=%2A%2A%2A&format=json&limit=50&page=5
+CACHE HIT url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=art+rock&api_key=%2A%2A%2A&format=json&limit=50&page=6
+CACHE MISS url=https://api.discogs.com/database/search?q=art+rock&type=master&format=album&page=1&per_page=100
+CACHE HIT url=https://api.listenbrainz.org/1/stats/sitewide/release-groups?count=200&offset=70&range=all_time
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=5f898a60-acc5-48fc-a11b-2926084c0924%2C7822977a-984d-358d-823f-426139c0eaba%2Ccea5d18a-1924-3cda-bebc-38933834b25d%2C314cffd4-daa5-3337-85e5-e54165a96113%2C1d563513-87dc-308f-8bac-418fab4054cf%2C50fe703f-173e-496a-9155-b2a495d704e5%2Cf32fab67-77dd-3937-addc-9062e28e4c37%2Cceaa5c39-91c7-4c8a-886c-85b11fa8a1f6%2Cd44c50ad-61fd-3fce-95fc-27024d7f1d30%2Ca1084754-8bb5-3ebc-bbd2-6a27d48e798a%2C120c786d-a3b2-3c19-b4ff-2b7b3b4435bf%2C6c9ae3dd-32ad-472c-96be-69d0a3536261%2C2e61da88-39e9-3473-81d2-c964cb394952%2Cd85b9684-4277-3565-b89b-115c8b4b7fd3%2Ccd76f76b-ff15-3784-a71d-4da3078a6851%2C0d8562eb-7f72-427b-8a0b-984cc5ee7766%2Cbbf6eaa8-1340-35c8-9599-34056896ebab%2C1dc4c347-a1db-32aa-b14f-bc9cc507b843%2C7f4856cd-f078-4c0d-aef7-48474d8fa890%2Cf8f4167d-897c-4b25-a171-638374d1dfa4%2C5d6e21e1-deb5-428e-bb42-c2a567f3619b%2Cbca9280e-28b4-327f-8fe0-fd918579e486%2Ccd367c59-eb86-384b-bbc7-62f6d2d677b9%2Ccb76227e-3ac0-3002-9a10-615a5b73cc59%2C42352def-1aab-3000-b548-895ebd869cb6&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=867d4882-4e8e-3acd-8134-66f19bcca915%2Cebd19544-9af0-317a-a2d3-f0c57ddd79f7%2Cd8dde278-482c-3cc8-a530-fea70476f3a5%2C6842c81d-ea77-3dfd-abf7-4323add3f4d4%2Cef1e8130-dd5f-336a-85fa-4936a47342bd%2Ce248e931-c26c-4c94-aba2-2f89ce583901%2C8d73e45e-7ca1-3cb4-ae28-6da76196c17c%2C72035143-d6ec-308b-8ee5-070b8703902a%2Cbf306022-c851-449d-a619-7864caddf5c7%2C833a9e1a-62c0-32f6-ab47-7797c4d83b07%2C71f1482e-e63f-3b2c-811b-939f62708f2a%2C6eac2e57-ee50-36f8-b0c4-c4c847a2c098%2Cfc4d7589-a6b9-35ca-a6b6-8c8e70c3baaa%2C8300fe9c-0022-3c55-8a3e-8dc61f282e8c%2C6bd70eee-bd46-4738-851a-f50c19d8d6db%2C9f7a4c28-8fa2-3113-929c-c47a9f7982c3%2C6b47c9a0-b9e1-3df9-a5e8-50a6ce0dbdbd%2Cef03fe86-b54c-3667-8768-029833e7e1cd%2C8f310800-045b-3e12-8268-50b3d33a2267%2C1a272023-10d3-38ee-bab3-317b55fcc21d%2C68bee70d-b425-3813-aca7-dd7b912c3d11%2Cc145ca26-2556-3780-828f-82729de51f7b%2C668e80e0-b35e-4471-9788-0a3d797fe42c%2C93747376-b698-4610-a023-d256de075460%2C92d8f0c4-8c64-3bee-bee1-812a70e77efa&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=ecfd0a01-57c8-3949-990a-1a950942e0e0%2Ca7d33e96-8e09-3aff-8629-44812a1b8489%2Cfb43ac3a-8d28-3686-8653-bbf15a5e4389%2Ce6f683c9-fc85-412c-a352-d6e411fc2603%2C494bf606-d2f7-36d0-8340-eadad8601d2b%2Cd3bc1a64-7561-3787-b680-0003aa50f8f1%2Cf1d08326-c23b-4b43-be3b-20b33ab10bf6%2C535748f7-5b3d-4a2a-8f9c-bd8baa587239%2Ce4174758-d333-4a8e-a31f-dd0edd51518e%2C2ae2e504-7116-4b4f-b632-9748bb18ccd2%2Ccd706457-8b16-4809-a61a-cdba1b281d39%2C8c9e2ca7-fad0-427c-a963-6bd535992a38%2C05affa96-5959-32da-8d75-1c9eb985ca59%2C30e9785b-7b50-4d29-b3d1-96fb55e3397f%2Ceda0f5d3-44eb-42cf-bcfd-5c9f93e05c7a%2C0da580f2-6768-498f-af9d-2becaddf15e0%2Ca3597f45-b9d9-4c8a-803e-0a7d0d4d4e9b%2C74e36cbc-a747-3ebf-a60e-51e656c87741%2C46482030-ef12-319c-9c5a-5d04c39d574b%2C0dcc84fb-c592-46e9-ba92-a52bb44dd553%2C3d00fb45-f8ab-3436-a8e1-b4bfc4d66913%2C7f6a4e72-9fee-39db-8817-63425f97a0f5%2C8183834a-6c8a-39ef-a7bc-a82f79b929e9%2Cf3f82b80-b2c5-3151-be53-5cb5803860e0%2Cf060c8fd-bec9-426e-800e-8efc040a71e6&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=bbce0087-d386-4246-a51d-dbcdfdbe8fb2%2Ce9585ed4-d148-3711-bbee-55a97b58325a%2Cc50b180a-12c9-3153-8ba5-eac6a6537d6f%2Caa0b4e86-358e-4c92-aecd-94f5f59233f7%2C87f1a316-510f-36c3-9f2c-38230b0e56e0%2C8411a4db-e104-4e45-995f-24b2f1849437%2C3351730c-7853-38f3-8d56-1bf627de4523%2C5d4d0f2d-9be7-4922-bc9a-cbd2880b12c2%2Cac9138ce-6331-3f8d-86d7-69f13e4ab4f4%2Cf1afec0b-26dd-3db5-9aa1-c91229a74a24%2Cb0864c80-2726-4761-bf66-a97610162a2c%2C00054665-89fa-33d5-a8f0-1728ea8c32c3%2C1646286a-d0ad-4288-bfab-34b0fb7b22c1%2C97f37409-b91a-3495-8e70-56fd9f7658c2%2C852f9715-24b3-37d5-b8a5-456f5e19b41e%2Ce7227840-5ef2-3813-af26-15dab34e1a51%2C3ac5236a-3bd8-44c6-ab60-69b013594ae6%2C8a01217e-6947-3927-a39b-6691104694f1%2C8341c952-694d-4866-870e-df48c9e10f17%2Cc65de046-7a48-4269-b4e5-4db0ed328f47%2Cc0704c7d-dc5b-43cd-b372-8056a3bf7bb2%2C38b34599-6352-389b-ad6a-02866357dabe%2C67553e23-8dad-3792-b6f2-8fedd5650ff3%2Cc6fc678e-e987-45c5-811c-e2bd09c8b902%2Cbff544a7-56e0-3ed6-9e0f-3b676cca9111&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=1e9db573-5671-301f-87fc-846a605fe35b%2C1fb75447-c513-38c4-ad8f-1bfc441aa74c%2C02a544b3-0459-42c7-bd9c-047162e7b67a%2Caa38e6f0-e748-35c8-a8d4-04ff660e9354%2C2a2b851c-bba6-4584-80c0-19af4a55e286%2Cb02f651e-32a1-30ae-bc23-070b59170278%2C2e3b231b-ab9f-4d85-950a-48708a1cc2fb%2C5c14fd50-a2f1-3672-9537-b0dad91bea2f%2C6f935b80-160f-3787-97d6-a4ce342cf8c5%2C91811b68-aa6e-35b3-a5e1-6a2733eb6ae9%2C33b4653d-006e-3cc1-8afb-386b15a6cd6e%2Cee51d41d-d337-3ce1-b72c-3f40e1973e2b%2C9ff8a8fe-6aa7-473a-ae93-8488051e3f2d%2C24fd0887-9e83-42e3-b27e-e7f89ead4c03%2C3fd716f5-2f67-3890-95ec-20c4032511c8%2Cb0bf2b77-b8cf-32f6-8893-9741d757b400%2Cb4deecbb-2b7d-42ac-b7df-9ae7439d532b%2Cb7ac3c3e-095e-4bcf-94f9-694ca175b79d%2C65b47520-2e58-3bc2-a755-34ff35f23ad5%2C6719eb4c-42fb-3118-84a2-98c2fdbca79f%2C8ebffd15-06c3-3b88-a761-ec18c5513287%2Cc563d738-3841-31ce-b29d-ec6b40fd1e7b%2C06af18b0-1f97-4282-8a4d-af53ae8d9377%2C7a23bc7e-d7bd-3a22-a38d-7d1f793bae1c%2C32cb822c-a14e-49ce-a169-f209c5f31e0f&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=c8bea388-c195-4177-bf9b-7469f6e695a1%2Cdca03435-8adb-30a5-ba82-5a162267ff38%2C475946e9-4b00-3f7c-9bd7-c11f55740262%2Cb0fa91c8-0996-38f1-ab84-797f58d7c4eb%2C2a323740-b615-35bc-9f58-1d2e6a5d9289%2Cb2cbaa83-cb77-4961-8ca3-816b24e5204f%2Ce848562f-a802-355c-a52c-90ba6aaa91d1%2Ca3159fb4-2ad3-4678-ba51-36fbc8b8430d%2C485d3241-ef02-49a4-88df-a03eaa86d9cd%2Ccac0be2c-509f-40a9-b1ac-a70aa2243a54%2Caf9a5099-04c5-3aaf-b0d1-fa160bd92e02%2C187935b5-a0a4-3e6f-9684-48b67a5190a1%2C0f18ec88-aa87-38a9-8a65-f03d81763560%2C10224fb3-a861-3247-9eab-81b7b0fbb0d4%2Ca92d9f5f-60a3-3e7d-a0a3-e028c29e5ca5%2C017f2a37-a78f-3578-9611-fa40408e5d90%2C4c2e4e78-6b0f-3ca1-8131-06906e5b56e9%2C53f80f76-f8af-3558-bfd5-e7221e055c75%2Ce05f9927-e24b-41c5-928d-d0e008a12444%2C5140eef4-5b5d-309c-a3aa-5c5da107b1da%2C3344452a-3da9-4b4f-8954-ae23a86c2ecf%2C78113c03-d7dc-4200-91f0-5b20088e403d%2C7f4792fe-b563-4554-849a-95a89be71f84%2Cc2eed4c1-5cd9-469a-9075-b82077093967%2Ca5711a77-42d1-3f4c-830c-e27a96f0800f&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=fddedc4f-7a2e-3d7d-9ec5-1705c416f3f4%2Cec84ab32-eb41-3d91-a099-7a01c72f21d2%2Cd1b61f6e-aa3c-4f3f-9cd0-09f8ec0f01f7%2Ce5ae2682-f6cb-327d-9e5e-8e055fb5b094%2C3f3a6d95-326e-4384-80b0-0744f20f24ff%2Cea29c347-696f-3165-986d-7bad1394b178%2Ce098b168-2395-4be9-9bfa-ed6e8b488182%2Cea9bf147-abbd-39df-b927-46fc945a5140%2C401bc572-414c-3cb2-b2b8-fbef17eb9ab0%2C4b2186f5-ff00-3227-ae11-783ba93e1089%2C32304f6e-5b80-3818-a66b-47f09efff0d9%2C743b0b2e-a23a-3182-950e-232f8cb0dfb7%2Ca85b8aff-fcbc-4431-95ba-d8c20bbfb77e%2C55203b2f-314b-39c2-9e48-56a95e41a337%2Cb2460e22-8948-441a-b894-f031b57d4231%2Cee1588f0-ff93-429f-8e6a-7c350e02c52b%2Cd8994512-160a-32c1-af0d-d5932f0f59df%2Cdfb85157-313b-3f5f-8739-a5162bcb6345%2C998f1bc8-6703-49fe-8aed-028ec04a14f2%2C18564a20-d557-4f7c-81e7-8d1d40a1be55%2Cbc7630eb-521a-3312-a281-adfb8c5aac7d%2C9584e28b-66a7-3846-8d52-b3008a283539%2C320df089-f656-433d-add7-605d06800852%2Cb2a6e057-087d-3ae5-a6e5-7f5fa39808ff%2Cf0c8edf8-26a7-4425-9ce9-82b00e90669a&inc=artist+tag+release
+CACHE HIT url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=04e0cb66-e8ee-38b9-863d-b4f21dee887d%2C9bbc8220-9f72-4595-a0f7-55dfdbab569a%2C28438e4f-3710-459f-a332-a1eba9dd1f26%2Cbe475d52-1eb0-3d96-91b0-f5a19a462ed7%2Cbf37b1a0-d94f-4230-b2c7-09b17f9f8a68%2C0837aca2-319e-3f2f-a2d3-c525802068d6%2C0ce4a1f2-7908-3865-8f19-08348546424a%2Cfdd96703-7b21-365e-bdea-38029fbeb84e%2C61180839-f4a7-407f-b86f-24c48eef4066%2Caf682b63-021e-4806-afac-9aa4380fc6bd%2C75702ddf-a46c-3cac-bace-0a466eb3c37c%2Cf7b59bee-62d7-4bc8-ad47-cda988cd8ded%2Cf28e065d-fd56-3929-b0a4-6aa1b4c78bdb%2Cdafbb45b-e06f-3a2b-b4fd-981d3d99a3a4%2C9477d99c-1df7-4ae7-b08d-a2484c8e80f4%2C810272e0-aef1-3d85-b2d3-e512e87fc38c%2C83920a38-e749-4bbf-a7f6-8aaf77cb9475%2C0d44e1cb-c6e0-3453-8b68-4d2082f05421%2C0b0e4477-4b04-3683-8f01-3a4544c36b41%2Ce9acecde-4ae1-3430-baf7-eae53cb9d75f%2Cf05228f2-7e4a-4623-8cd5-d29bfa42e2e0%2C65404106-2976-4f98-a0e2-4e76923ea06d%2C5ece0c50-bb0b-3cdf-90e2-287a60136d69%2Cfdd6c833-3c96-33cb-9917-72e15bcd34bc%2Cc5a0411f-374e-360d-9364-3ddec3007162&inc=artist+tag+release
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/1118b4c8-f0d3-4385-98bf-b60435ef62c0?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/1118b4c8-f0d3-4385-98bf-b60435ef62c0?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Moon+%26+Antarctica%22+AND+artist%3A%22Modest+Mouse%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/694b85d7-add5-415f-9ad9-3aa5e8232e5b?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/694b85d7-add5-415f-9ad9-3aa5e8232e5b?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Remember+The+Humans%22+AND+artist%3A%22Broken+Social+Scene%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/1abe8743-d0bc-4d08-8f9e-327fe7d45acc?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/1abe8743-d0bc-4d08-8f9e-327fe7d45acc?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Visitor%22+AND+artist%3A%22Arena%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Utopia%22+AND+artist%3A%22Belinda%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Utopia%22+AND+artist%3A%22Belinda%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AUtopia+AND+artist%3ABelinda&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/7b5af1ae-4807-4cde-a1cb-807ed8986584?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/7b5af1ae-4807-4cde-a1cb-807ed8986584?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22RE-ANIMATOR%22+AND+artist%3A%22Everything+Everything%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/2eb6430c-8de6-44eb-bf1f-128a9ad962cf?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/2eb6430c-8de6-44eb-bf1f-128a9ad962cf?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Eldorado%22+AND+artist%3A%22Electric+Light+Orchestra%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Eldorado%22+AND+artist%3A%22Electric+Light+Orchestra%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AEldorado+AND+artist%3AElectric+Light+Orchestra&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Heroes%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Velvet+Underground+%26+Nico+45th+Anniversary%22+AND+artist%3A%22The+Velvet+Underground%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Velvet+Underground+%26+Nico+45th%22+AND+artist%3A%22The+Velvet+Underground%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AThe+Velvet+Underground+%26+Nico+45th+AND+artist%3AThe+Velvet+Underground&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/2757d45c-3404-41db-92c2-a82a76d70363?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/2757d45c-3404-41db-92c2-a82a76d70363?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%222020%22+AND+artist%3A%22Richard+Dawson%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Low+%282017+remaster%29%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Low%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/186da934-373d-437f-b383-6b4f6e9a5340?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/186da934-373d-437f-b383-6b4f6e9a5340?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Frances+the+Mute%22+AND+artist%3A%22The+Mars+Volta%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/653bfb22-d8eb-4ae6-b1f1-013e570b8cd0?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/653bfb22-d8eb-4ae6-b1f1-013e570b8cd0?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+OOZ%22+AND+artist%3A%22King+Krule%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Peter+Gabriel+%28Car%29%22+AND+artist%3A%22Peter+Gabriel%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Peter+Gabriel%22+AND+artist%3A%22Peter+Gabriel%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/095d41d3-e9c3-48e5-941b-3218c241edc0?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/095d41d3-e9c3-48e5-941b-3218c241edc0?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Vintage+Violence%22+AND+artist%3A%22John+Cale%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/0a0bb76e-cf9a-4660-9c0b-be544b0969ee?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/0a0bb76e-cf9a-4660-9c0b-be544b0969ee?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Pawn+Hearts%22+AND+artist%3A%22Van+der+Graaf+Generator%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/011cd95d-1488-4b0c-9d4f-d02b4fc250ee?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/011cd95d-1488-4b0c-9d4f-d02b4fc250ee?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Before+and+After+Science%22+AND+artist%3A%22Brian+Eno%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22White+Light+%2F+White+Heat+%28Super+Deluxe%29%22+AND+artist%3A%22The+Velvet+Underground%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22White+Light+%2F+White+Heat%22+AND+artist%3A%22The+Velvet+Underground%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AWhite+Light+%2F+White+Heat+AND+artist%3AThe+Velvet+Underground&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/0423a59e-feba-4ec9-827c-60591155edd4?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/0423a59e-feba-4ec9-827c-60591155edd4?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Yankee+Hotel+Foxtrot%22+AND+artist%3A%22Wilco%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/5e893984-0d31-4239-9b43-a23d14dd464e?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/5e893984-0d31-4239-9b43-a23d14dd464e?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Desperate+Youth%2C+Blood+Thirsty+Babes%22+AND+artist%3A%22TV+on+the+Radio%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/21fe67e9-dd1f-4b84-bae0-81c542208695?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/21fe67e9-dd1f-4b84-bae0-81c542208695?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Obscure+Alternatives%22+AND+artist%3A%22Japan%22&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/3c32fd94-3140-49bd-aec0-c8eea5dbb9e3?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release/3c32fd94-3140-49bd-aec0-c8eea5dbb9e3?fmt=json
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Tamago%22+AND+artist%3A%22betcover%21%21%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Tamago%22+AND+artist%3A%22betcover%21%21%22&fmt=json&limit=10
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ATamago+AND+artist%3Abetcover%21%21&fmt=json&limit=10
+CACHE HIT NEG status=404 url=https://musicbrainz.org/ws/2/release-group/004e218a-e549-35e5-866f-f9a1216154ac?fmt=json
+CACHE MISS url=https://musicbrainz.org/ws/2/release/004e218a-e549-35e5-866f-f9a1216154ac?fmt=json
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22In+the+Wake+of+Poseidon%22+AND+artist%3A%22King+Crimson%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.599s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Blackstar%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.581s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Blackstar%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ABlackstar+AND+artist%3ADavid+Bowie&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.584s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/13ce71bb-6cc9-4cca-97d2-ecb7ac76191b?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.591s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/13ce71bb-6cc9-4cca-97d2-ecb7ac76191b?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.545s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Diorama%22+AND+artist%3A%22Silverchair%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.604s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/2c208157-8a62-4859-8cb5-4c9b10b07b85?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.596s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/2c208157-8a62-4859-8cb5-4c9b10b07b85?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.608s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22La+Cucaracha%22+AND+artist%3A%22Ween%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.598s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22No+Plan+-+EP%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.590s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22No+Plan+-+EP%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ANo+Plan+-+EP+AND+artist%3ADavid+Bowie&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.596s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/0b2c46f9-39af-4d3a-86fc-c3072e07b2f3?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.533s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/0b2c46f9-39af-4d3a-86fc-c3072e07b2f3?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.608s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Hayat%22+AND+artist%3A%22Sakin%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.595s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/0b1221cf-002d-475a-a050-748976579ca5?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.589s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/0b1221cf-002d-475a-a050-748976579ca5?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.610s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Kick+Inside%22+AND+artist%3A%22Kate+Bush%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.351s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/7d9f61f8-e6dc-42c1-a40c-bdc2bc494e19?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.585s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/7d9f61f8-e6dc-42c1-a40c-bdc2bc494e19?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.550s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Big+Mess%22+AND+artist%3A%22Danny+Elfman%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.593s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/78b9d06e-6361-4657-a186-a95a93de027e?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.595s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/78b9d06e-6361-4657-a186-a95a93de027e?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.607s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Apiary%22+AND+artist%3A%22GingerBee%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.596s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Apiary%22+AND+artist%3A%22GingerBee%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AApiary+AND+artist%3AGingerBee&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.271s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/f4a86562-be6c-47a4-ab54-d6d8de0b5ac2?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.572s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/f4a86562-be6c-47a4-ab54-d6d8de0b5ac2?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.604s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Sceaduhelm%22+AND+artist%3A%22Crippled+Black+Phoenix%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.500s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/4f6d9c8c-f439-433d-81d3-22a5e4c40e20?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.590s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/4f6d9c8c-f439-433d-81d3-22a5e4c40e20?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.600s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Posthumous+Silence%22+AND+artist%3A%22Sylvan%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.600s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Peter+Gabriel+1%3A+Car+%28Remastered+Version%29%22+AND+artist%3A%22Peter+Gabriel%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.591s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Peter+Gabriel+1%3A+Car%22+AND+artist%3A%22Peter+Gabriel%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.596s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3APeter+Gabriel+1%3A+Car+AND+artist%3APeter+Gabriel&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.593s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/596d5d8b-3353-4a9d-aa45-b2788a833b1a?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.561s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/596d5d8b-3353-4a9d-aa45-b2788a833b1a?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.506s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Brother%2C+Sister%22+AND+artist%3A%22mewithoutYou%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.601s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Scary+Monsters+%28And+Super+Creeps%29+%5B2017+Remaster%5D%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.596s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Scary+Monsters%22+AND+artist%3A%22David+Bowie%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.585s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AScary+Monsters+AND+artist%3ADavid+Bowie&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.594s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/007d12eb-46c5-4f70-beef-7bc85b9afe05?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.561s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/007d12eb-46c5-4f70-beef-7bc85b9afe05?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.602s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Animals+%282018+Remix%29%22+AND+artist%3A%22Pink+Floyd%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.594s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Animals%22+AND+artist%3A%22Pink+Floyd%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.582s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Peter+Gabriel+3%3A+Melt+%28Remastered+Version%29%22+AND+artist%3A%22Peter+Gabriel%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.576s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Peter+Gabriel+3%3A+Melt%22+AND+artist%3A%22Peter+Gabriel%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.549s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3APeter+Gabriel+3%3A+Melt+AND+artist%3APeter+Gabriel&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.579s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/16c7a2f0-eb5b-3681-8199-f0fa0f4a0ae1?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.565s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/16c7a2f0-eb5b-3681-8199-f0fa0f4a0ae1?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.606s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Here+Come+the+Warm+Jets%22+AND+artist%3A%22Brian+Eno%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.590s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/0ed6219b-5fc4-4f92-a98d-296d1aa5b4da?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.299s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/0ed6219b-5fc4-4f92-a98d-296d1aa5b4da?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.603s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Free%22+AND+artist%3A%22Iggy+Pop%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.585s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/4a05b0dc-cd32-4067-b366-aff976b26dfe?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.581s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/4a05b0dc-cd32-4067-b366-aff976b26dfe?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.606s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Tilt%22+AND+artist%3A%22Scott+Walker%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.599s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/081c1cbb-2b0e-336a-9d6c-18d609a26295?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.577s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/081c1cbb-2b0e-336a-9d6c-18d609a26295?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.604s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Hello+Young+Lovers%22+AND+artist%3A%22Sparks%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.589s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/3b2ba0ee-1647-4541-8833-7e6c542c3c1f?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.583s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/3b2ba0ee-1647-4541-8833-7e6c542c3c1f?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.606s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Grand+Hotel%22+AND+artist%3A%22Procol+Harum%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.594s
+prefilter slot=1 tag=art rock fetch_limit=200 fetched_candidates=399 after_light_prefilter_topN=100 mb_normalized=42 saved_mb_calls=357
+CACHE MISS url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=cool+jazz&api_key=%2A%2A%2A&format=json&limit=50&page=1
+CACHE MISS url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=cool+jazz&api_key=%2A%2A%2A&format=json&limit=50&page=2
+RATE_LIMIT host=ws.audioscrobbler.com sleep=0.463s
+CACHE MISS url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=cool+jazz&api_key=%2A%2A%2A&format=json&limit=50&page=3
+RATE_LIMIT host=ws.audioscrobbler.com sleep=0.659s
+CACHE MISS url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=cool+jazz&api_key=%2A%2A%2A&format=json&limit=50&page=4
+RATE_LIMIT host=ws.audioscrobbler.com sleep=0.376s
+CACHE MISS url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=cool+jazz&api_key=%2A%2A%2A&format=json&limit=50&page=5
+RATE_LIMIT host=ws.audioscrobbler.com sleep=0.558s
+CACHE MISS url=https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=cool+jazz&api_key=%2A%2A%2A&format=json&limit=50&page=6
+RATE_LIMIT host=ws.audioscrobbler.com sleep=0.710s
+CACHE MISS url=https://api.discogs.com/database/search?q=cool+jazz&type=master&format=album&page=1&per_page=100
+CACHE MISS url=https://api.listenbrainz.org/1/stats/sitewide/release-groups?count=200&offset=538&range=all_time
+CACHE MISS url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=f455f658-dd55-4790-8cd3-99c7c273018a%2C723dcf4d-800e-3479-87fb-ba5b9594e375%2C8ec197ee-a888-32d7-acb5-0fac3e95e263%2C9c5aa9d2-068b-4626-b352-ae6f4f4e0b15%2C5fdea541-32fc-3b17-b7c4-50b40f65203d%2C85dd3078-58e9-46fc-b1ae-7d3abfde48c3%2C8fd32554-02a7-3788-a761-7012e0e75e55%2C20151063-d6d9-3131-91ac-5c4a7a0f5f01%2Ccbbe5df6-08b8-4181-8aae-461a6ae9790d%2C4b5e5a6f-c941-384c-8508-a4fee1dfcec4%2Cd73daa13-b571-41dd-8dfd-740fde3fda7d%2Ce51e9779-2edc-3b39-959c-299fdb5ed940%2Cf0371fc4-3e22-3d8d-8ce3-4af873ea6f1c%2C2d53108e-17c3-37cd-864a-319440ce6a21%2C8b6f133a-2fdf-3cc2-b84d-1c889adc0939%2Cc172ea98-3a82-3254-b8ad-25a4f465ba03%2C806eb9e1-06c6-385e-bf04-f3c5e2b4a6be%2Ca100260d-0576-372f-a07b-4b22db1a77e2%2Cde208292-8db5-3aed-a14a-b37a84d8c521%2C8898e5eb-48aa-4eea-8569-d3a2e9adaf02%2C122e15fb-266e-4b72-91e2-bb7737394365%2C2660de3c-56db-4bd1-bf99-e162c68e5712%2Cb1907b62-6aaf-3ea4-9895-b71234a0e5c1%2C3dc9ee80-0768-490d-9e43-534796da3076%2C5dfac852-1aed-35b2-93b6-e8f9c93fe521&inc=artist+tag+release
+CACHE MISS url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=8a24ae64-e344-43ef-bbe0-d9880c6629ad%2C0c1a4d70-5926-3ae8-aa25-466fe65639fe%2C042160ca-6094-42b4-8399-9e0141fa9515%2Cdcad245f-9d95-3751-9e69-d50ca399b46a%2Cbe725de4-4633-3c8a-9a03-f2c4392b6e0d%2C485b458c-7b4f-38c4-a113-aa4ea29c3d6d%2C90718403-7634-3786-84bf-2053a7bd4f4c%2Ca2709bdb-e16e-4f71-b1aa-cc68119fb782%2Ccdaae438-be2a-331b-939c-ee706b808232%2Caccf15ec-9dd2-4b26-989e-d3814f5d95c7%2C0d8b973c-fcff-4830-b645-a877b8a9a08f%2C95d72e72-55b2-3408-8d76-cce7abad3836%2C3ebc1782-e140-3a1a-971e-17826ddf462d%2C04785b90-87cb-3d5d-a9a9-7f465e327bb4%2C4114f899-a9d2-48a8-b597-8a5ca8bb6847%2C169361b5-af6f-34ca-b8f2-13605a7f9691%2C60a20bc8-acac-3cbb-99f9-ce458317233a%2Cceccd668-a928-4041-a3c3-99a5ce880de9%2C33446893-8c9f-30b6-aa73-d719df371430%2C51d51de2-0312-4798-8529-bed2ae2581c6%2Cf478fad9-a746-3625-9f14-bc4a74918c0e%2C5cbd9d7b-597a-3c5e-bfd1-c2b364215560%2Cfbd0f91f-e5a3-3fef-8363-663ec65ce1ff%2Cd0645c49-21a6-3f40-9df7-5f7e0a7188ed%2C08e1a593-cbce-3943-8a90-79c4d8c2b693&inc=artist+tag+release
+RATE_LIMIT host=api.listenbrainz.org sleep=0.391s
+CACHE MISS url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=7de1e321-4a53-3feb-b83e-f1dab88bf952%2C1f5ef8d3-10ca-30eb-b41e-85b16987d412%2C2a179acf-f380-3c1e-9b5d-ceda98b5fcf2%2C6fa35df1-a08e-42f5-aeb2-ae590ba9fd6b%2C7d026b9c-9159-34b5-a40d-14f134718394%2Cd622ed70-ccc3-4658-8a0a-b7a2d577c28d%2C9fbed96a-d7e9-46f9-8f5f-a9bc7797a04f%2C15fa148e-7f69-4559-aa2b-42dc4bf730b3%2C605124dd-0f2a-382b-a8ba-720658c1fe45%2Cf48b5c40-6343-4d94-b306-3591d294caeb%2C6799fd76-db3d-43bd-aa91-dffae5c4d65b%2Ca55a5a03-0c0e-311b-85df-ec52f841715c%2C96c996ab-2a78-3abd-8974-c96b5724ae28%2Cbcec22a7-4338-4a71-82e8-b6e39887219c%2C88f69eab-8f07-343b-847c-b944ad33dfcf%2Ce8e2d824-dd32-3b24-9c7c-24619fbe86a9%2C6bb871f4-08ec-4a70-9fb3-c1c2b481e090%2Cc4bb9940-e53e-4d5c-a19c-dab81e0f9687%2Cb25419cf-71bf-3a54-8cd4-2161c61056a0%2C1a19e11b-106c-45fc-8452-387216ed18f7%2C21387993-64d6-3d59-bd7f-d93cbdcb0f48%2C3c47e22a-82a6-3e49-baf8-70519b6097b7%2Ccf5d6187-e43b-3848-ba51-8ec1df3d97e3%2Cdf784e72-c6dc-48a6-b86e-805702d91781%2C784c0edd-0f37-33a2-9ca5-dff87b4f999c&inc=artist+tag+release
+RATE_LIMIT host=api.listenbrainz.org sleep=0.401s
+CACHE MISS url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=5846f0c9-fec3-3b9e-a77c-fbe9a7bdf0e7%2C50a42f98-c94f-4805-bbac-ec35a5b1d5ab%2C764a8c35-aacc-3269-8b10-5972e051815a%2Ccffd54b1-1ce7-4a99-a0a9-3947a08137df%2C8b2d4efb-3f3f-4d6e-83f0-dc9d8ad8d8bb%2C3b75caf3-907a-463a-828c-7aa5e929bd7e%2C17fd3576-b584-4f32-8ff0-12206d4cb66c%2C0dac7ff9-b4d1-423e-bf6b-7d194abb0e14%2Cd00243c5-adcf-3018-9aa7-1957d7a5a774%2C94672194-7f42-3965-a489-f2f3cdc1c79e%2C7c6de97d-bf6a-4793-82f5-f142baed33e6%2C10a526a7-9d24-463f-8c0b-16ac98027460%2Ca96597aa-93b4-4e14-9e6e-03892ab24979%2C6b5d9bf1-f496-34b5-9488-7df2533d6208%2C94d5731b-1240-38f2-b232-2ad9ffa5442d%2C90bf604b-bde5-3b45-bfd0-ba775be89986%2Ca969cc3c-2ab3-4799-acb1-50e1325cb290%2C2ccf437c-9b4e-35f5-98d6-812b08c8ac43%2C9ad9539d-00e4-43b1-ada2-9574b848e3e0%2C7c02bfdf-8d3a-3cd6-aac2-93a19cc614f4%2Ca2499c0a-6c87-413c-9f4f-f08a67ab4441%2C5c8a25bf-4764-3cce-8f37-30af79d3b101%2C744c7a1b-ac79-35c4-bd92-7e2c6a24c8d8%2C8a7a9db3-f87b-37d5-96a6-67485a8792e6%2Ce665cc07-f57a-4b0d-8e7a-426095aa529f&inc=artist+tag+release
+RATE_LIMIT host=api.listenbrainz.org sleep=0.435s
+CACHE MISS url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=d18f6a72-abf4-4dc0-9bef-89c31d8ee877%2Cffdc0fd3-e726-4e98-af19-d3274ede2311%2C153c0331-41b2-33b9-b86e-c6717761aa80%2Cc7497ce4-c746-3a75-946e-daa8ab117c47%2C82be2ea8-9c50-3024-a1be-cf35c2e5fd69%2C4f70d382-edef-40e5-afe7-09ae2c5d10d1%2C44261ea6-06cf-3fd3-a05c-42dee49c295a%2C4e7b34de-0d87-356a-a3da-b21f769b7d4d%2C3ba00670-7a00-46d9-b9f4-80625438c058%2C5f4bbfae-4b61-32d7-814d-7718c2324849%2C6cb17389-101a-3f0a-8864-bea548465406%2Cbd62a5df-6643-3aef-b129-9d4e6e296022%2Cdd7ecfc9-58e6-40d9-a18f-986fcaeea091%2Ce6c9fd37-0211-48a2-8927-d7ef284218c4%2C0c5f1837-9834-3c97-9d4b-80a4e7103b21%2C978d88db-60ec-41d9-ade7-beea020941b0%2C6762ecb7-45bc-4008-bab0-df2185d7e3b8%2C19847822-1430-3380-9cf1-bc45545b34ac%2Ce7e5eaa6-baf3-3539-b163-759431597f3a%2C4e98c9b4-92f6-3049-b9da-a1088b623672%2Cd568d976-f77d-4283-964b-79f100c693f0%2C2863caa0-14e9-3016-83e4-4f0cdab55f4f%2C9bc0a481-57e5-4d16-bb9c-049a974cc2b2%2Cba1259eb-d41e-41c5-a70c-0e6fa73e6708%2C4dbed05b-d989-3729-b58a-c1e54b323141&inc=artist+tag+release
+CACHE MISS url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=cefd427e-185e-4a94-a6a9-a03d8a53b60a%2C84d79dbe-7ac1-3ebc-9b36-238ddfb8229c%2Cf5979376-c7af-4bb5-a25b-d38f9ab584dc%2C4940b8aa-898b-3e60-9992-94e073bab6f6%2C1f4a9f6f-9621-3e46-977d-8503e8386768%2Cb26aa1ab-59a2-429a-99c7-92ede065e587%2C75c2bddf-1799-3eda-b6b3-a0cf5189d8ed%2C5613f475-9235-49cd-bcfb-d69c196d91a7%2C47bbac51-0fe3-4364-b51a-d7d5cf326096%2C0bee34eb-07db-48d8-8a76-3470fb212edd%2C87338b87-34e2-4f11-8e2e-600636b6dbcb%2Cc0eb54b5-757a-452a-a248-d7dbdb39cd18%2Cbad80049-06eb-35f0-a109-f640ebd0a550%2C03759365-2f74-3f12-b884-280d3aa17f0e%2C5807cfc1-387e-4dd5-bfe9-b53d312c7e82%2C8c68c586-358f-46c0-85e3-77d2ea9650be%2C47809021-4515-4215-beea-db3f5dfb6267%2C83b05ad8-8359-49a7-bf84-fb876d807e29%2C9796da06-2d59-3176-8598-2105f31ee54a%2Ce11aa3a6-9820-483c-98f8-603b5823178b%2C6f8e8119-de1b-39f0-85ca-b5252cb9211d%2C5ed697c6-32fe-3ef1-a4ba-adc295304a13%2C89ed7ed6-4292-3892-b0de-c9c27005c08d%2C66f1ac02-2eb6-31dc-ab33-6eaa603f41cd%2C50ac60c4-fb35-37f8-a065-222996ea139c&inc=artist+tag+release
+RATE_LIMIT host=api.listenbrainz.org sleep=0.430s
+CACHE MISS url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=e959a4b3-6306-3c45-9df6-e7241dae9ea3%2Cab58a63b-a5a5-4e2c-b9fd-f3312b5828a6%2Ccc4fe8bd-3996-3fe9-9860-fe23189a22a4%2C0f3ab0c9-c607-36a5-8102-b238eb08b357%2Cfb48b1dc-412f-36aa-8820-1023c08c46c6%2Cfe4373ed-5e89-46b3-b4c0-31433ce217df%2Cd5eee7a8-a87f-304e-a6bd-1dd756dd686f%2C2d87c53b-5e6b-40c6-9c37-d7fe7bec08bd%2Cfda72ebb-16e5-4a19-8be5-8e41906e3c86%2C6ca130f1-8f1f-3aa2-8cfb-6cfda3ed5d21%2C122677be-e664-362d-95eb-be3ae126ec03%2C80ea43b7-2c32-4a79-9fb0-8ff1761ebe09%2Cb9c6879f-3a34-3aa0-a68f-73ced2608f7a%2Cc8d660d1-4181-4a5b-9507-346970dffe96%2Ce6960f09-7b61-370e-9f42-71bb4be41af1%2C1346c819-d57b-4c38-aa55-1e599dfc3645%2C5ee43a5f-94eb-3f0c-a1ec-e0476251d95f%2Cc64e38e7-ea8d-3cda-ba62-1f4b9f899419%2Cada6e71b-34bc-4b04-a094-ca37272f4a44%2Ca8e26959-b3b2-3440-a74a-0dc06cd6310d%2C57561634-f7bb-4e27-aa14-16d0ff79a001%2Cb1176e7b-fa2e-3b28-959a-d8f55b5b6ccf%2C5f5f106a-e5d1-4cee-bc6c-8c001ed96724%2Cdaf57856-a734-3441-b0fd-26aa5f28ca64%2Cd6b52521-0dfa-390f-970f-790174c22752&inc=artist+tag+release
+RATE_LIMIT host=api.listenbrainz.org sleep=0.089s
+CACHE MISS url=https://api.listenbrainz.org/1/metadata/release_group/?release_group_mbids=fc97b087-221c-4ea4-9dd9-5277a52eb84a%2C88f4f8e5-ee88-4050-84ad-cf73f7c2b19a%2C0304f1e1-0547-4fd9-a0cc-90bfdb7945b0%2C3351433a-72a3-4c58-9fc5-9c628a35742e%2Cb976c959-d13e-487c-85d7-cab70ed7c842%2Cb7f5ed97-bb72-31fb-acd8-4bad86d95a58%2Cfbe216fc-3443-4425-8c99-e538b44e60ac%2C1c318024-66cc-32f5-8e06-b06dc511b42c%2C11c5709d-6939-3519-97e8-6be48f3bd4f2%2Cfb25a883-2270-3ec4-8c62-85c7ed857e6f%2C169b62aa-c3a5-3ed9-bed1-cc47c4bc51ad%2C2956b5fb-fd54-3da7-b742-690bc6788e99%2C8c471a20-f7fe-4ccd-bfd8-045cde85ad18%2C7cda193a-7284-309a-bc05-df04de833030%2Cc433d46d-e1d1-4053-922c-f542c43b6e67%2C581d7ac8-8f1d-4d4a-a224-de9c9cd76b39%2C91d3a3b7-1814-4088-84b9-5740c1e3efd9%2C59f6afa7-b6c7-4120-b16e-f0a7d6360da9%2C24944755-2f68-3778-974e-f572a9e30108%2C24769a99-8189-3d8c-947e-dbc8574dad5c%2C735bcee6-6be6-3957-af15-d21ba2bd355b%2C43a0e8b5-6059-397f-81e6-b8df5a648496%2Cff01d241-0d23-3625-851d-a3e1dd0b2c05%2C21e886f7-db66-3103-beb4-da9323adddc7%2C4ead9018-fbb8-3e24-9094-bff7adce5f33&inc=artist+tag+release
+RATE_LIMIT host=api.listenbrainz.org sleep=0.425s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Impressions+of+Eurasia%22+AND+artist%3A%22The+Dave+Brubeck+Quartet%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Thing%22+AND+artist%3A%22Randy+Bachman%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.074s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Clin+D%27Oeil%22+AND+artist%3A%22Jazz+Liberatorz%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.545s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Clin+D%27Oeil%22+AND+artist%3A%22Jazz+Liberatorz%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AClin+D%27Oeil+AND+artist%3AJazz+Liberatorz&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.550s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Cool+Alley%22+AND+artist%3A%22Katsutoshi+Morizono%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.597s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Cool+Alley%22+AND+artist%3A%22Katsutoshi+Morizono%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ACool+Alley+AND+artist%3AKatsutoshi+Morizono&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.600s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Goes+To+Junior+College%22+AND+artist%3A%22The+Dave+Brubeck+Quartet%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.595s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Goes+To+Junior+College%22+AND+artist%3A%22The+Dave+Brubeck+Quartet%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AJazz+Goes+To+Junior+College+AND+artist%3AThe+Dave+Brubeck+Quartet&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.568s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Cool+Sound+Of+Pepper+Adams%22+AND+artist%3A%22Pepper+Adams%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.518s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Studio+5%22+AND+artist%3A%22Ralph+Burns+And+His+Orchestra%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.599s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Studio+5%22+AND+artist%3A%22Ralph+Burns+And+His+Orchestra%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AJazz+Studio+5+AND+artist%3ARalph+Burns+And+His+Orchestra&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.607s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Of+Two+Cities%22+AND+artist%3A%22Warne+Marsh%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.505s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Swedish+Jazz%22+AND+artist%3A%22Gosta+Theselius+And+All+Stars%2A%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.601s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Swedish+Jazz%22+AND+artist%3A%22Gosta+Theselius+And+All+Stars%2A%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ASwedish+Jazz+AND+artist%3AGosta+Theselius+And+All+Stars%2A&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.614s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Let%27s+Cool+It%22+AND+artist%3A%22The+Drive+%282%29%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.564s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Let%27s+Cool+It%22+AND+artist%3A%22The+Drive+%282%29%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ALet%27s+Cool+It+AND+artist%3AThe+Drive+%282%29&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.585s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+At+Storyville%22+AND+artist%3A%22Brubeck%2A%2C+Desmond%2A%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.540s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+At+Storyville%22+AND+artist%3A%22Brubeck%2A%2C+Desmond%2A%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AJazz+At+Storyville+AND+artist%3ABrubeck%2A%2C+Desmond%2A&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.609s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Omnibus%22+AND+artist%3A%22Various%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.600s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Omnibus%22+AND+artist%3A%22Various%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AJazz+Omnibus+AND+artist%3AVarious&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.602s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Pre-Birth+Of+The+Cool%22+AND+artist%3A%22Miles+Davis+%26+His+Tuba+Band%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.391s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Pre-Birth+Of+The+Cool%22+AND+artist%3A%22Miles+Davis+%26+His+Tuba+Band%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3APre-Birth+Of+The+Cool+AND+artist%3AMiles+Davis+%26+His+Tuba+Band&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.598s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Rhythm+Is+What+Makes+Jazz+Jazz%22+AND+artist%3A%22The+Bahama+Soul+Club+Feat.+Isabelle+Antena+%2F+Pat+Appleton+%2F+Bella+Wagner+%2F+Malena+%282%29%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.564s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Rhythm+Is+What+Makes+Jazz+Jazz%22+AND+artist%3A%22The+Bahama+Soul+Club%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.564s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Cool+And+Crazy%22+AND+artist%3A%22Shorty+Rogers+And+His+Orchestra+Featuring+The+Giants+%283%29%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.599s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Cool+And+Crazy%22+AND+artist%3A%22Shorty+Rogers+And+His+Orchestra%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.603s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ACool+And+Crazy+AND+artist%3AShorty+Rogers+And+His+Orchestra&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.590s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Nahuel+Jazz+Quartet%22+AND+artist%3A%22Nahuel+Jazz+Quartet%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.539s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Nahuel+Jazz+Quartet%22+AND+artist%3A%22Nahuel+Jazz+Quartet%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ANahuel+Jazz+Quartet+AND+artist%3ANahuel+Jazz+Quartet&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.608s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Sonny%27s+Dream+%28Birth+Of+The+New+Cool%29%22+AND+artist%3A%22The+Sonny+Criss+Orchestra%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.607s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Sonny%27s+Dream%22+AND+artist%3A%22The+Sonny+Criss+Orchestra%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.603s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ASonny%27s+Dream+AND+artist%3AThe+Sonny+Criss+Orchestra&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.579s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Best+Coast+Jazz%22+AND+artist%3A%22Max+Roach%2C+Herb+Geller%2C+Walter+Benton%2C+Joe+Maini%2C+Clifford+Brown%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.555s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Best+Coast+Jazz%22+AND+artist%3A%22Max+Roach%2C+Herb+Geller%2C+Walter+Benton%2C+Joe+Maini%2C+Clifford+Brown%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ABest+Coast+Jazz+AND+artist%3AMax+Roach%2C+Herb+Geller%2C+Walter+Benton%2C+Joe+Maini%2C+Clifford+Brown&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.603s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Cool+Coleman%22+AND+artist%3A%22Cy+Coleman%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.521s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Cool+Coleman%22+AND+artist%3A%22Cy+Coleman%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3ACool+Coleman+AND+artist%3ACy+Coleman&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.607s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Australian+Jazz+Quintet+%2B1%22+AND+artist%3A%22The+Australian+Jazz+Quintet+%2B+Osie+Johnson%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.598s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Australian+Jazz+Quintet+%2B1%22+AND+artist%3A%22The+Australian+Jazz+Quintet+%2B+Osie+Johnson%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AAustralian+Jazz+Quintet+%2B1+AND+artist%3AThe+Australian+Jazz+Quintet+%2B+Osie+Johnson&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.615s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Vienna+Jazz+Workshop%22+AND+artist%3A%22Vienna+Jazz+Workshop%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.546s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Vienna+Jazz+Workshop%22+AND+artist%3A%22Vienna+Jazz+Workshop%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AVienna+Jazz+Workshop+AND+artist%3AVienna+Jazz+Workshop&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.611s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Jazz+Harpist%22+AND+artist%3A%22Dorothy+Ashby%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.590s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+Impressions+Of+New+York%22+AND+artist%3A%22The+Dave+Brubeck+Quartet%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.614s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Left+Of+Cool%22+AND+artist%3A%22B%C3%A9la+Fleck+And+The+Flecktones%2A%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.600s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Sound+Of+Jazz%22+AND+artist%3A%22Various%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.615s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Sound+Of+Jazz%22+AND+artist%3A%22Various%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AThe+Sound+Of+Jazz+AND+artist%3AVarious&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.595s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Introducing+Jah+Jazz+Orchestra%22+AND+artist%3A%22Jah+Jazz+Orchestra%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.327s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/11a3733f-6d8a-498d-8264-30bb10fe462f?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.610s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/11a3733f-6d8a-498d-8264-30bb10fe462f?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.629s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22By+Myself%22+AND+artist%3A%22Lou+Levy%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.618s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/2f6d1888-a9c7-3891-aeec-b0bf78eee086?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.593s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/2f6d1888-a9c7-3891-aeec-b0bf78eee086?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.628s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22A+Night+in+Tunisia%22+AND+artist%3A%22Art+Blakey+%26+The+Jazz+Messengers%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.615s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/bfe29cd3-2577-4237-9b34-fe166e04cb18?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.606s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/bfe29cd3-2577-4237-9b34-fe166e04cb18?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.622s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Amazing+Bud+Powell%22+AND+artist%3A%22Bud+Powell%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.616s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22The+Amazing+Bud+Powell%22+AND+artist%3A%22Bud+Powell%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AThe+Amazing+Bud+Powell+AND+artist%3ABud+Powell&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.609s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/3d1c4db6-69d2-4b2e-9c6a-98d0185dc802?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.576s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/3d1c4db6-69d2-4b2e-9c6a-98d0185dc802?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.625s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Tony+Fruscella%22+AND+artist%3A%22Tony+Fruscella%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.606s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group/ec13f267-4449-4c40-899d-bb7de433c2a0?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.591s
+CACHE MISS url=https://musicbrainz.org/ws/2/release/ec13f267-4449-4c40-899d-bb7de433c2a0?fmt=json
+RATE_LIMIT host=musicbrainz.org sleep=0.615s
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+At+The+Plaza%22+AND+artist%3A%22Miles+Davis%22&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.603s
+CACHE HIT url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Jazz+At+The+Plaza%22+AND+artist%3A%22Miles+Davis%22&fmt=json&limit=10
+CACHE MISS url=https://musicbrainz.org/ws/2/release-group?query=releasegroup%3AJazz+At+The+Plaza+AND+artist%3AMiles+Davis&fmt=json&limit=10
+RATE_LIMIT host=musicbrainz.org sleep=0.586s
+prefilter slot=2 tag=cool jazz fetch_limit=200 fetched_candidates=396 after_light_prefilter_topN=100 mb_normalized=31 saved_mb_calls=365
+artist_conflict slot_index=2 candidate_rg=ceb669ac-5f05-3f03-854e-bf1195773b44 candidate_mbids=['7bf711e9-4e69-4e08-b6e8-c0cb5805f1e7'] candidate_fallback=the dave brubeck quartet used_mbids=['7bf711e9-4e69-4e08-b6e8-c0cb5805f1e7', 'b9065ac4-5340-4eba-ba5d-daacfa55c5f0'] used_fallbacks=['the bahama soul club', 'the dave brubeck quartet']
+artist_conflict slot_index=2 candidate_rg=d41eca3e-ad16-382b-bbb0-217c5a40c121 candidate_mbids=['7bf711e9-4e69-4e08-b6e8-c0cb5805f1e7'] candidate_fallback=the dave brubeck quartet used_mbids=['7bf711e9-4e69-4e08-b6e8-c0cb5805f1e7', 'b9065ac4-5340-4eba-ba5d-daacfa55c5f0'] used_fallbacks=['the bahama soul club', 'the dave brubeck quartet']
+CACHE MISS url=https://coverartarchive.org/release-group/cbffb669-c390-3a4d-b46f-1be8ea934b03
+CACHE MISS url=https://coverartarchive.org/release-group/8b58cfd4-7bf7-3f80-b5db-d1088bcba61b
+CACHE MISS url=https://coverartarchive.org/release-group/27ce7e2f-5931-4b67-943d-a63184df731e
+CACHE MISS url=https://coverartarchive.org/release-group/a8e26959-b3b2-3440-a74a-0dc06cd6310d
+CACHE MISS url=https://coverartarchive.org/release-group/ef9dfb95-3217-3006-84e2-92037460eb27
+CACHE MISS url=https://coverartarchive.org/release-group/abcf8dfa-9acc-4213-bdc3-ce0076d1087c
+CACHE MISS url=https://coverartarchive.org/release-group/a97d5d2e-4546-374d-9723-b2343da1eea5
+CACHE MISS url=https://coverartarchive.org/release-group/de1a2415-a40d-3939-ba42-5fae33687e33
+CACHE MISS url=https://coverartarchive.org/release-group/a69bd7f5-a9b3-3798-9cc4-42ba6626dc88
+BUILD: ui bundle
+
+> triangulum-ui@0.0.1 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming (3) src\main.tsxBrowserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+✓ 411 modules transformed.
+dist/index.html                   0.46 kB │ gzip:   0.31 kB
+dist/assets/index-Xd0TL-xB.css   20.20 kB │ gzip:   4.97 kB
+dist/assets/index-Lsrgrul_.js   347.78 kB │ gzip: 111.75 kB
+✓ built in 1.74s
+BUILD OK
+out=D:\projects\triangulum-daily3albums\_build\public
+today=D:\projects\triangulum-daily3albums\_build\public\data\today.json
+archive=D:\projects\triangulum-daily3albums\_build\public\data\archive\2026-06-12\2026-06-12_slots_71c6cd.json
+archive_flat=D:\projects\triangulum-daily3albums\_build\public\data\archive\2026-06-12.json
+index=D:\projects\triangulum-daily3albums\_build\public\data\index.json
+ triangulum-daily3albums 
+ triangulum-daily3albums  python scripts/self_check.py --path .\_build\public
+SELF_CHECK OK
+ triangulum-daily3albums  python -m http.server --directory .\_build\public 8001
+Serving HTTP on :: port 8001 (http://[::]:8001/) ...
+::1 - - [12/Jun/2026 17:32:03] "GET / HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:03] "GET /assets/index-Lsrgrul_.js HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:03] "GET /assets/index-Xd0TL-xB.css HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:04] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:04] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:04] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:05] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:05] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:06] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:06] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:06] "GET /favicon.ico HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:07] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:07] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:08] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:08] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:09] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:09] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:10] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:10] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:10] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:11] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:11] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:12] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:12] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:13] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:13] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:14] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:14] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:15] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:16] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:17] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:17] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:17] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:18] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:21] "GET /?debug_time=2026-06-12T05:59:50 HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:21] "GET /assets/index-Lsrgrul_.js HTTP/1.1" 304 -
+::1 - - [12/Jun/2026 17:32:21] "GET /assets/index-Xd0TL-xB.css HTTP/1.1" 304 -
+::1 - - [12/Jun/2026 17:32:21] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:21] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:21] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:22] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:22] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:23] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:23] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:24] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:24] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:24] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:25] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:25] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:26] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:26] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:26] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:27] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:27] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:31] "GET /?debug_time=2026-06-12T06:00:10 HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:31] "GET /assets/index-Lsrgrul_.js HTTP/1.1" 304 -
+::1 - - [12/Jun/2026 17:32:31] "GET /assets/index-Xd0TL-xB.css HTTP/1.1" 304 -
+::1 - - [12/Jun/2026 17:32:31] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:31] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:31] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:32] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:34] "GET /?debug_time=2026-06-12T12:00:10 HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:34] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:34] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:35] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:35] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:39] "GET /?debug_time=2026-06-12T18:00:10 HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:39] "GET /assets/index-Lsrgrul_.js HTTP/1.1" 304 -
+::1 - - [12/Jun/2026 17:32:39] "GET /assets/index-Xd0TL-xB.css HTTP/1.1" 304 -
+::1 - - [12/Jun/2026 17:32:39] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:39] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:39] "GET /data/today.json HTTP/1.1" 200 -
+::1 - - [12/Jun/2026 17:32:40] "GET /data/today.json HTTP/1.1" 200 -
+
+Keyboard interrupt received, exiting.
+ 11836   triangulum-daily3albums   revive/2026-06 ≢                                                                                                                                                                                    in pwsh at 17:32:43
