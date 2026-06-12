@@ -71,6 +71,11 @@ def validate_today(issue: dict) -> None:
             raise OutputValidationError(f"duplicate slot names in picks: {slots_seen}")
 
 
+def _is_dev_seed_item(item: dict[str, Any]) -> bool:
+    run_id = item.get("run_id")
+    return isinstance(run_id, str) and run_id.startswith("dev-seed")
+
+
 def write_daily_artifacts(
     issue: dict,
     out_public_dir: Path,
@@ -109,7 +114,11 @@ def write_daily_artifacts(
         index_obj = {"output_schema_version": issue["output_schema_version"], "items": []}
 
     items = index_obj.get("items") or []
-    items = [x for x in items if x.get("run_id") != issue["run_id"]]
+    items = [
+        x
+        for x in items
+        if isinstance(x, dict) and x.get("run_id") != issue["run_id"] and not _is_dev_seed_item(x)
+    ]
     items.append(
         {
             "date": date_key,

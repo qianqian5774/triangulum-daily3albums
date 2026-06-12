@@ -629,11 +629,14 @@ def _youtube_search_url(artist: str, title: str) -> str:
     return f"https://www.youtube.com/results?search_query={q}"
 
 
-def _copy_tree_overwrite(src: Path, dst: Path) -> None:
+def _copy_tree_overwrite(src: Path, dst: Path, skip_top_level_dirs: set[str] | None = None) -> None:
     if not src.exists():
         return
+    skip_top_level_dirs = skip_top_level_dirs or set()
     for root, dirs, files in os.walk(src):
         rel = Path(root).relative_to(src)
+        if rel == Path(".") and skip_top_level_dirs:
+            dirs[:] = [d for d in dirs if d not in skip_top_level_dirs]
         out_dir = dst / rel
         out_dir.mkdir(parents=True, exist_ok=True)
         for d in dirs:
@@ -642,6 +645,16 @@ def _copy_tree_overwrite(src: Path, dst: Path) -> None:
             s = Path(root) / f
             t = out_dir / f
             shutil.copy2(s, t)
+
+
+def _reset_generated_data_dir(out_public_dir: Path) -> None:
+    data_dir = out_public_dir / "data"
+    if not data_dir.exists():
+        return
+    if data_dir.is_dir():
+        shutil.rmtree(data_dir)
+    else:
+        data_dir.unlink()
 
 
 def _read_quarantine_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -1293,7 +1306,8 @@ def cmd_build(
 
         out_public_dir.mkdir(parents=True, exist_ok=True)
         _copy_tree_overwrite(web_dir, out_public_dir)
-        _copy_tree_overwrite(ui_dist_dir, out_public_dir)
+        _copy_tree_overwrite(ui_dist_dir, out_public_dir, skip_top_level_dirs={"data"})
+        _reset_generated_data_dir(out_public_dir)
 
         from daily3albums.artifact_writer import write_daily_artifacts
         paths = write_daily_artifacts(issue=issue, out_public_dir=out_public_dir, quarantine_rows=quarantine_rows or None)
