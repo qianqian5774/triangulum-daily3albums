@@ -296,18 +296,16 @@ export function TodayRoute() {
     [prefersReducedMotion, preloadSlotCovers, slots]
   );
 
-  const storeLastGood = useCallback(
-    (payload: TodayIssue) => {
-      if (typeof window === "undefined") {
-        return;
-      }
-      window.localStorage.setItem(LAST_GOOD_KEY, JSON.stringify(payload));
-      window.localStorage.setItem(LAST_GOOD_DATE_KEY, payload.date);
-      window.localStorage.setItem(LAST_FETCHED_AT_KEY, formatDebugTime(bjtNow.parts));
-      setLastGoodIssue(payload);
-    },
-    [bjtNow.parts]
-  );
+  const storeLastGood = useCallback((payload: TodayIssue) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const fetchedAt = getBjtNowParts(loadDebugTime());
+    window.localStorage.setItem(LAST_GOOD_KEY, JSON.stringify(payload));
+    window.localStorage.setItem(LAST_GOOD_DATE_KEY, payload.date);
+    window.localStorage.setItem(LAST_FETCHED_AT_KEY, formatDebugTime(fetchedAt.parts));
+    setLastGoodIssue(payload);
+  }, []);
 
   const loadIssue = useCallback(
     async (options?: { cacheBust?: boolean; reason?: string }) => {
@@ -324,11 +322,7 @@ export function TodayRoute() {
         setIssue(data);
         storeLastGood(data);
         setSignalSince(null);
-        if (signalState !== "NORMAL") {
-          setSignalState("RESTORED");
-        } else {
-          setSignalState("NORMAL");
-        }
+        setSignalState((prev) => (prev !== "NORMAL" ? "RESTORED" : "NORMAL"));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
@@ -336,7 +330,7 @@ export function TodayRoute() {
         setSignalSince((prev) => prev ?? Date.now());
       }
     },
-    [signalState, storeLastGood]
+    [storeLastGood]
   );
 
   const handleRetryNow = useCallback(() => {

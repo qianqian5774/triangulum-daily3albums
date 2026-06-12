@@ -11,6 +11,17 @@ import unicodedata
 from daily3albums.request_broker import RequestBroker, RequestFailed
 
 
+class ProviderApiError(RuntimeError):
+    def __init__(self, *, provider: str, stage: str, message: str, advice: str) -> None:
+        self.provider = provider
+        self.stage = stage
+        self.message = message
+        self.advice = advice
+        super().__init__(
+            f"provider={provider} stage={stage} error={message} advice={advice}"
+        )
+
+
 def _ensure_list(x: Any) -> list:
     if x is None:
         return []
@@ -126,7 +137,12 @@ def lastfm_tag_top_albums(
 
     # Last.fm 错误会以 JSON 返回：{"error":..., "message":...}
     if isinstance(j, dict) and "error" in j:
-        raise RuntimeError(f"Last.fm error={j.get('error')} message={j.get('message')}")
+        raise ProviderApiError(
+            provider="Last.fm",
+            stage="tag.getTopAlbums",
+            message=f"Last.fm error={j.get('error')} message={j.get('message')}",
+            advice="Check LASTFM_API_KEY, tag validity, Last.fm quota/rate limits, then retry.",
+        )
 
     if not isinstance(j, dict):
         return []

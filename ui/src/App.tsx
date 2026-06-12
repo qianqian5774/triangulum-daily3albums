@@ -63,7 +63,10 @@ function App() {
   const contextValue = useMemo(() => ({ hud, updateHud }), [hud, updateHud]);
 
   useEffect(() => {
-    const param = readDebugTimeParam(location.search);
+    const param = readDebugTimeParam(
+      location.search,
+      typeof window === "undefined" ? "" : window.location.search
+    );
     if (!param) {
       return;
     }

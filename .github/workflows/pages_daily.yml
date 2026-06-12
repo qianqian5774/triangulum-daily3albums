@@ -122,20 +122,25 @@ jobs:
       # ✅ 方案A核心：每次都“真正重新生成”
       # 同时把 workflow_dispatch 的 n/topk/tag 接进 build 参数，避免你以为填了其实没生效
       - name: Build daily3albums artifacts
+        env:
+          INPUT_N: ${{ github.event.inputs.n }}
+          INPUT_TOPK: ${{ github.event.inputs.topk }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
-          ARGS="--verbose"
-          if [ -n "${{ github.event.inputs.n }}" ]; then
-            ARGS="$ARGS --n ${{ github.event.inputs.n }}"
+          args=(--verbose)
+          if [ -n "${INPUT_N:-}" ]; then
+            args+=(--n "$INPUT_N")
           fi
-          if [ -n "${{ github.event.inputs.topk }}" ]; then
-            ARGS="$ARGS --topk ${{ github.event.inputs.topk }}"
+          if [ -n "${INPUT_TOPK:-}" ]; then
+            args+=(--topk "$INPUT_TOPK")
           fi
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            ARGS="$ARGS --tag \"${{ github.event.inputs.tag }}\""
+          if [ -n "${INPUT_TAG:-}" ]; then
+            args+=(--tag "$INPUT_TAG")
           fi
-          echo "daily3albums build args: $ARGS"
-          # shellcheck disable=SC2086
-          eval daily3albums build $ARGS
+          printf 'daily3albums build args:'
+          printf ' %q' "${args[@]}"
+          printf '\n'
+          daily3albums build "${args[@]}"
 
       # ✅ 方案A附加：生成 data/meta.json，给前端做版本参数/对齐用
       - name: Write data/meta.json
@@ -167,6 +172,70 @@ jobs:
 
       - name: Self-check output
         run: python scripts/self_check.py --path _build/public
+
+      - name: Maintain state SQLite cache
+        if: always()
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import sqlite3
+          import time
+          from pathlib import Path
+
+          db_path = Path(".state/cache.sqlite")
+          related_paths = [
+              db_path,
+              Path(f"{db_path}-wal"),
+              Path(f"{db_path}-shm"),
+          ]
+
+          def total_size() -> int:
+              return sum(path.stat().st_size for path in related_paths if path.exists())
+
+          if not db_path.exists():
+              print("state_cache_sqlite status=missing action=skip rows_before=0 rows_after=0 bytes_before=0 bytes_after=0")
+              raise SystemExit(0)
+
+          bytes_before = total_size()
+          vacuum_ran = False
+
+          conn = sqlite3.connect(db_path)
+          try:
+              table_exists = conn.execute(
+                  "SELECT 1 FROM sqlite_master WHERE type='table' AND name='http_cache'"
+              ).fetchone()
+              if not table_exists:
+                  print(
+                      "state_cache_sqlite status=no_http_cache_table action=skip "
+                      f"rows_before=0 rows_after=0 bytes_before={bytes_before} bytes_after={total_size()}"
+                  )
+                  raise SystemExit(0)
+
+              rows_before = int(conn.execute("SELECT COUNT(*) FROM http_cache").fetchone()[0])
+              now_epoch = int(time.time())
+              expired_rows = int(
+                  conn.execute("SELECT COUNT(*) FROM http_cache WHERE expires_at <= ?", (now_epoch,)).fetchone()[0]
+              )
+              conn.execute("DELETE FROM http_cache WHERE expires_at <= ?", (now_epoch,))
+              conn.commit()
+              rows_after = int(conn.execute("SELECT COUNT(*) FROM http_cache").fetchone()[0])
+
+              if expired_rows:
+                  conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                  conn.execute("VACUUM")
+                  conn.commit()
+                  vacuum_ran = True
+          finally:
+              conn.close()
+
+          bytes_after = total_size()
+          print(
+              "state_cache_sqlite status=ok "
+              f"rows_before={rows_before} rows_after={rows_after} expired_deleted={expired_rows} "
+              f"bytes_before={bytes_before} bytes_after={bytes_after} vacuum={str(vacuum_ran).lower()}"
+          )
+          PY
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

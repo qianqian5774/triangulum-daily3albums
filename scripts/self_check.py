@@ -5,12 +5,20 @@ import argparse
 import json
 import re
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
 
 class SelfCheckError(RuntimeError):
     pass
+
+
+BJT = timezone(timedelta(hours=8), "Asia/Shanghai")
+
+
+def _current_bjt_date_key() -> str:
+    return datetime.now(BJT).date().isoformat()
 
 
 def _read_json(path: Path) -> Any:
@@ -40,7 +48,15 @@ def _validate_today(payload: Any, path: Path) -> None:
 
     slots = payload.get("slots")
     if not isinstance(slots, list) or len(slots) != 3:
-        raise SelfCheckError(f"Today slots missing or invalid: {path}")
+        raise SelfCheckError(f"today.json must contain exactly 3 slots: {path}")
+
+    slot_ids = [slot.get("slot_id") if isinstance(slot, dict) else None for slot in slots]
+    if slot_ids != [0, 1, 2]:
+        raise SelfCheckError(f"today.json slots must be ordered [0, 1, 2], got {slot_ids}: {path}")
+
+    top_picks = payload.get("picks")
+    if not isinstance(top_picks, list) or len(top_picks) != 3:
+        raise SelfCheckError(f"today.json top-level picks must contain exactly 3 items: {path}")
 
     for idx, slot in enumerate(slots):
         if not isinstance(slot, dict):
@@ -50,7 +66,7 @@ def _validate_today(payload: Any, path: Path) -> None:
         _ensure_str(slot.get("window_label"), f"slot[{idx}].window_label", path)
         picks = slot.get("picks")
         if not isinstance(picks, list) or len(picks) != 3:
-            raise SelfCheckError(f"slot[{idx}].picks missing or invalid: {path}")
+            raise SelfCheckError(f"slot[{idx}].picks must contain exactly 3 items: {path}")
         for jdx, pick in enumerate(picks):
             if not isinstance(pick, dict):
                 raise SelfCheckError(f"slot[{idx}].pick[{jdx}] must be object: {path}")
@@ -72,6 +88,55 @@ def _validate_index(payload: Any, path: Path) -> None:
         if not isinstance(item, dict):
             raise SelfCheckError(f"Index item[{idx}] must be object: {path}")
         _ensure_str(item.get("date"), f"items[{idx}].date", path)
+        _ensure_str(item.get("run_id"), f"items[{idx}].run_id", path)
+        run_id = item.get("run_id")
+        if isinstance(run_id, str) and run_id.startswith("dev-seed"):
+            raise SelfCheckError(f"Index item[{idx}] contains dev seed run_id '{run_id}': {path}")
+
+
+def _validate_today_date(payload: dict[str, Any], path: Path) -> None:
+    expected = _current_bjt_date_key()
+    actual = payload.get("date")
+    if actual != expected:
+        raise SelfCheckError(
+            f"today.json date mismatch: expected current Asia/Shanghai date {expected}, got {actual!r}: {path}"
+        )
+
+
+def _validate_archive_consistency(today_payload: dict[str, Any], today_path: Path, out_dir: Path) -> None:
+    archive_date = today_payload.get("date")
+    if not isinstance(archive_date, str) or not archive_date.strip():
+        raise SelfCheckError("today.json missing date for archive lookup")
+
+    run_id = today_payload.get("run_id")
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise SelfCheckError("today.json missing run_id for archive lookup")
+
+    archive_paths = [
+        out_dir / "data" / "archive" / archive_date / f"{run_id}.json",
+        out_dir / "data" / "archive" / f"{archive_date}.json",
+    ]
+    for archive_path in archive_paths:
+        _ensure_file(archive_path)
+        archive_payload = _read_json(archive_path)
+        _validate_today(archive_payload, archive_path)
+        if archive_payload != today_payload:
+            raise SelfCheckError(
+                f"Archive JSON mismatch: {archive_path} does not match {today_path} "
+                f"for date={archive_date} run_id={run_id}"
+            )
+
+
+def _validate_index_contains_today(index_payload: Any, path: Path, today_payload: dict[str, Any]) -> None:
+    items = index_payload.get("items") if isinstance(index_payload, dict) else None
+    if not isinstance(items, list):
+        raise SelfCheckError(f"Index items must be list: {path}")
+    date_key = today_payload.get("date")
+    run_id = today_payload.get("run_id")
+    for item in items:
+        if isinstance(item, dict) and item.get("date") == date_key and item.get("run_id") == run_id:
+            return
+    raise SelfCheckError(f"Index missing current today entry date={date_key} run_id={run_id}: {path}")
 
 
 def _scan_for_absolute_assets(paths: Iterable[Path]) -> list[str]:
@@ -129,28 +194,12 @@ def main() -> int:
 
     today_payload = _read_json(today_path)
     _validate_today(today_payload, today_path)
-
-    archive_date = today_payload.get("date")
-    if not isinstance(archive_date, str) or not archive_date.strip():
-        raise SelfCheckError("today.json missing date for archive lookup")
-
-    run_id = today_payload.get("run_id")
-    if not isinstance(run_id, str) or not run_id.strip():
-        raise SelfCheckError("today.json missing run_id for archive lookup")
-
-    archive_run_path = out_dir / "data" / "archive" / archive_date / f"{run_id}.json"
-    archive_flat_path = out_dir / "data" / "archive" / f"{archive_date}.json"
-    if archive_run_path.exists():
-        archive_payload = _read_json(archive_run_path)
-        _validate_today(archive_payload, archive_run_path)
-    if archive_flat_path.exists():
-        archive_payload = _read_json(archive_flat_path)
-        _validate_today(archive_payload, archive_flat_path)
-    if not archive_run_path.exists() and not archive_flat_path.exists():
-        raise SelfCheckError(f"Archive JSON missing for {archive_date}")
+    _validate_today_date(today_payload, today_path)
+    _validate_archive_consistency(today_payload, today_path, out_dir)
 
     index_payload = _read_json(index_path)
     _validate_index(index_payload, index_path)
+    _validate_index_contains_today(index_payload, index_path, today_payload)
 
     scan_paths = list(out_dir.rglob("*.html")) + list(out_dir.rglob("*.js"))
     problems = _scan_for_absolute_assets(scan_paths)

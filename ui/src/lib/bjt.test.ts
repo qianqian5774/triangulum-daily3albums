@@ -1,6 +1,6 @@
 // ui/src/lib/bjt.test.ts
 import { describe, it, expect } from "vitest";
-import { addDays, parseDebugTime, readDebugTimeParam, resolveNowState, shiftDebugTime } from "./bjt";
+import { addDays, getBjtNowParts, parseDebugTime, readDebugTimeParam, resolveNowState, shiftDebugTime } from "./bjt";
 
 const seconds = (hour: number, minute: number, second: number) =>
   hour * 3600 + minute * 60 + second;
@@ -42,6 +42,25 @@ describe("debug time parsing", () => {
   it("reads URL encoded debug_time", () => {
     const value = readDebugTimeParam("?debug_time=2024-03-20T05%3A59%3A50");
     expect(value).toBe("2024-03-20T05:59:50");
+  });
+
+  it("reads debug_time from router search or window search", () => {
+    expect(readDebugTimeParam("?debug_time=2024-03-20T06:00:00", "")).toBe("2024-03-20T06:00:00");
+    expect(readDebugTimeParam("", "?debug_time=2024-03-20T06:00:00")).toBe("2024-03-20T06:00:00");
+  });
+
+  it("drives frontend slot state from simulated BJT debug times", () => {
+    const cases = [
+      ["2024-03-20T05:59:00", "OFFLINE", null],
+      ["2024-03-20T06:00:00", "SLOT0", 0],
+      ["2024-03-20T12:00:00", "SLOT1", 1],
+      ["2024-03-20T18:00:00", "SLOT2", 2]
+    ] as const;
+
+    for (const [debugTime, state, slotId] of cases) {
+      const now = getBjtNowParts(debugTime);
+      expect(resolveNowState(now.secondsSinceMidnight)).toEqual({ state, slotId });
+    }
   });
 });
 
