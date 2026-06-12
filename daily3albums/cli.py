@@ -17,7 +17,13 @@ from typing import Any
 
 from daily3albums.config import load_env, load_config
 from daily3albums.request_broker import BrokerRequestError, RequestBroker, RequestFailed
-from daily3albums.adapters import CoverArtArchiveAdapter, CoverArtResult, lastfm_tag_top_albums, musicbrainz_search_release_group
+from daily3albums.adapters import (
+    CoverArtArchiveAdapter,
+    CoverArtResult,
+    ProviderApiError,
+    lastfm_tag_top_albums,
+    musicbrainz_search_release_group,
+)
 from daily3albums.constraints import (
     ARTIST_COOLDOWN_DAYS,
     THEME_COOLDOWN_DAYS,
@@ -39,9 +45,20 @@ def cmd_doctor(repo_root: Path) -> int:
     _ = load_env(repo_root)
     cfg = load_config(repo_root)
     print("DOCTOR")
+    print("doctor_scope=basic_not_e2e")
     print(f"timezone={cfg.timezone}")
+    print("checked=config/env loading, timezone, CLI basics")
+    print(
+        "not_checked=UI render, archive route, detail route, network probes, "
+        "external images, mobile layout, debug_time slot transitions"
+    )
+    print(
+        "interpretation=doctor OK means basic CLI/config loading works; "
+        "it is not a full end-to-end health signal"
+    )
     print("config=OK")
-    print("env=OK")
+    print("env_load=OK")
+    print("cli=OK")
     return 0
 
 
@@ -629,6 +646,112 @@ def _youtube_search_url(artist: str, title: str) -> str:
     return f"https://www.youtube.com/results?search_query={q}"
 
 
+def _single_line(value: Any, limit: int = 500) -> str:
+    text = re.sub(r"\s+", " ", str(value)).strip()
+    if len(text) > limit:
+        return text[: limit - 3] + "..."
+    return text
+
+
+def _provider_from_external_error(exc: BaseException) -> str:
+    if isinstance(exc, ProviderApiError):
+        return exc.provider
+
+    adapter = str(getattr(exc, "adapter_name", "") or "")
+    text = str(exc)
+    url = str(getattr(exc, "url", "") or "")
+    haystack = f"{adapter} {text} {url}"
+    if "LastFmAdapter" in haystack or "ws.audioscrobbler.com" in haystack or "LASTFM_API_KEY" in haystack:
+        return "Last.fm"
+    if "MusicBrainzAdapter" in haystack or "musicbrainz.org" in haystack or "MB_USER_AGENT" in haystack:
+        return "MusicBrainz"
+    return "external_api"
+
+
+def _stage_from_external_error(exc: BaseException, provider: str, default_stage: str) -> str:
+    if isinstance(exc, ProviderApiError):
+        return exc.stage
+    text = str(exc)
+    if "Bad JSON" in text:
+        return "parse_json"
+    if "LASTFM_API_KEY" in text or "MB_USER_AGENT" in text:
+        return "config_check"
+    if provider == "Last.fm":
+        return "lastfm_top_albums"
+    if provider == "MusicBrainz":
+        return "musicbrainz_normalize"
+    return default_stage
+
+
+def _is_known_external_failure(exc: BaseException) -> bool:
+    if isinstance(exc, (ProviderApiError, BrokerRequestError, RequestFailed)):
+        return True
+    if not isinstance(exc, RuntimeError):
+        return False
+    text = str(exc)
+    return (
+        "Bad JSON from " in text
+        or "LASTFM_API_KEY" in text
+        or "MB_USER_AGENT" in text
+        or "Last.fm error=" in text
+    )
+
+
+def _advice_for_external_failure(provider: str, stage: str) -> str:
+    if stage == "config_check":
+        return "Check required secrets/env values in GitHub Actions or local .env, then rerun."
+    if stage == "parse_json":
+        return "Inspect provider response/cache for invalid JSON; retry after provider recovers or clear stale cache."
+    if provider == "Last.fm":
+        return "Check LASTFM_API_KEY, tag spelling, Last.fm quota/rate limits, and retry later."
+    if provider == "MusicBrainz":
+        return "Check MB_USER_AGENT, MusicBrainz availability/rate limits, cache health, and retry later."
+    return "Inspect provider availability, credentials, rate limits, and retry with --verbose."
+
+
+def _format_external_api_failure(
+    *,
+    slot_id: int,
+    tag: str,
+    stage: str,
+    exc: BaseException,
+    fetch_limit: int | None = None,
+) -> str:
+    provider = _provider_from_external_error(exc)
+    resolved_stage = _stage_from_external_error(exc, provider, stage)
+    parts = [
+        "BUILD ERROR: external_api_failed",
+        f"provider={provider}",
+        f"slot={slot_id}",
+        f"tag={json.dumps(tag, ensure_ascii=False)}",
+        f"stage={resolved_stage}",
+    ]
+    if fetch_limit is not None:
+        parts.append(f"fetch_limit={fetch_limit}")
+    parts.append(f"error={_single_line(exc)}")
+    parts.append(f"advice={_advice_for_external_failure(provider, resolved_stage)}")
+    return " ".join(parts)
+
+
+def _format_slot_exhaustion_failure(diag: dict[str, Any]) -> str:
+    slot_id = diag.get("slot_id", "unknown")
+    attempts = [a for a in diag.get("tag_attempts", []) if isinstance(a, dict)]
+    tags = [str(a.get("tag")) for a in attempts if a.get("tag")]
+    unique_tags = list(dict.fromkeys(tags))
+    last_error = next(
+        (str(a.get("error")) for a in reversed(attempts) if a.get("error")),
+        "not enough eligible candidates after filters",
+    )
+    top_rejections = diag.get("top_rejection_reasons") or []
+    return (
+        "BUILD ERROR: candidate_pool_exhausted "
+        f"provider=candidate_pool slot={slot_id} tag_attempts={json.dumps(unique_tags, ensure_ascii=False)} "
+        f"stage=slot_selection error={_single_line(last_error)} "
+        f"rejections={json.dumps(top_rejections, ensure_ascii=False)} "
+        "advice=Inspect provider failures and rejection counts; broaden tags/candidate limits only if content policy allows."
+    )
+
+
 def _copy_tree_overwrite(src: Path, dst: Path, skip_top_level_dirs: set[str] | None = None) -> None:
     if not src.exists():
         return
@@ -1024,18 +1147,34 @@ def cmd_build(
                             discogs_max_pages=discogs_max_pages,
                             discogs_per_page=discogs_per_page,
                         )
-                    except (BrokerRequestError, RequestFailed) as e:
+                    except (ProviderApiError, BrokerRequestError, RequestFailed, RuntimeError) as e:
+                        if not _is_known_external_failure(e):
+                            raise
+                        error_message = _format_external_api_failure(
+                            slot_id=slot_id,
+                            tag=slot_tag,
+                            stage="candidate_fetch",
+                            exc=e,
+                            fetch_limit=fetch_limit,
+                        )
                         attempts_meta.append({
                             "tag": slot_tag,
                             "theme_key": theme_key,
                             "fetch_limit": fetch_limit,
                             "network_failed": True,
-                            "error": str(e),
+                            "provider": _provider_from_external_error(e),
+                            "stage": _stage_from_external_error(
+                                e,
+                                _provider_from_external_error(e),
+                                "candidate_fetch",
+                            ),
+                            "error": error_message,
                             "candidate_count": 0,
                             "candidate_count_after_light_prefilter": 0,
                             "candidate_count_after_hard_filters": 0,
                         })
-                        log_line(f"network_failed slot={slot_id} tag={slot_tag} fetch_limit={fetch_limit} error={e}")
+                        print(error_message)
+                        log_line(error_message)
                         break
 
                     prefetched = int(out.get("prefilter_total", len(out.get("candidates") or [])))
@@ -1183,7 +1322,7 @@ def cmd_build(
                     "reject_counts": reject_counts,
                     "top_rejection_reasons": _top_rejection_reasons(reject_counts),
                 }
-                print(f"BUILD ERROR: slot={slot_id} exhausted after {len(unique_tags)} tags (cap={max_tag_tries})")
+                print(_format_slot_exhaustion_failure(diag))
                 print(f"exhaustion slot={slot_id} diagnostic={diag}")
                 log_line(f"slot_exhausted {json.dumps(diag, ensure_ascii=False)}")
                 exhaustion.append(diag)
