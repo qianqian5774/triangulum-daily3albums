@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "../lib/cn";
-import { t } from "../strings/t";
+import { useT } from "../lib/ui-settings";
 
 interface BioClockProps {
   nextRefreshAt?: string | null;
@@ -38,6 +38,7 @@ function pad2(value: number) {
 }
 
 export function BioClock({ nextRefreshAt, className }: BioClockProps) {
+  const tx = useT();
   const target = useMemo(() => resolveTarget(nextRefreshAt), [nextRefreshAt]);
   const [now, setNow] = useState(() => Date.now());
 
@@ -56,10 +57,10 @@ export function BioClock({ nextRefreshAt, className }: BioClockProps) {
   return (
     <div className={cn("flex flex-col items-end gap-1 text-right", className)}>
       <span className="text-[10px] uppercase tracking-[0.4em] text-clinical-white/50">
-        {t("hud.clock.nextCycle")}
+        {tx("hud.clock.nextCycle")}
       </span>
       <span className="font-mono text-xs uppercase tracking-[0.25em] text-acid-green respire">
-        {t("hud.clock.tMinus")} {pad2(hours)}
+        {tx("hud.clock.tMinus")} {pad2(hours)}
         <span className="pulse-separator">:</span>
         {pad2(minutes)}
         <span className="pulse-separator">:</span>

@@ -1,13 +1,14 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { AmbientOverlay } from "../components/AmbientOverlay";
 import { SlotCard } from "../components/SlotCard";
 import { TreatmentViewerOverlay } from "../components/TreatmentViewerOverlay";
 import { FLAGS } from "../config/flags";
-import { loadArchiveDay, loadToday } from "../lib/data";
+import { loadArchiveDay, loadArchiveIndex, loadToday } from "../lib/data";
 import { resolveCoverUrl } from "../lib/covers";
 import {
   addDays,
@@ -19,7 +20,7 @@ import {
   shiftDebugTime
 } from "../lib/bjt";
 import { parseTodayIssue, type TodayIssue, type TodaySlot } from "../lib/types";
-import { t } from "../strings/t";
+import { useT } from "../lib/ui-settings";
 import type { TreatmentPick } from "../components/TreatmentViewerOverlay";
 
 const containerVariants = {
@@ -88,14 +89,8 @@ function getStoredLastGood(): TodayIssue | null {
   }
 }
 
-function formatLastSuccess(issue?: TodayIssue | null) {
-  if (!issue) {
-    return null;
-  }
-  return issue.run_id ? `${issue.date} / ${issue.run_id}` : issue.date;
-}
-
 export function TodayRoute() {
+  const tx = useT();
   const hudContext = useContext(HudContext);
 
   /**
@@ -196,10 +191,10 @@ export function TodayRoute() {
 
   const headerText = useMemo(() => {
     if (!displayIssue) {
-      return t("today.headerFallback");
+      return tx("today.headerFallback");
     }
-    return `${displayIssue.date} · ${t("today.themePrefix")} ${displayIssue.theme_of_day}`;
-  }, [displayIssue]);
+    return `${displayIssue.date} · ${tx("today.themePrefix")} ${displayIssue.theme_of_day}`;
+  }, [displayIssue, tx]);
 
   const showReturnToNow =
     nowSlotId !== null && selectedSlotId !== null && selectedSlotId !== nowSlotId && nowState !== "OFFLINE";
@@ -433,16 +428,29 @@ export function TodayRoute() {
     if (!needsArchiveFallback) {
       return;
     }
+    let active = true;
     const yesterdayKey = addDays(bjtNow.bjtDateKey, -1);
     setArchivedError(null);
     setArchivedIssue(null);
-    loadArchiveDay(yesterdayKey)
+    loadArchiveIndex()
+      .then((index) => {
+        const entry = index.items.find((item) => item.date === yesterdayKey) ?? index.items[0];
+        if (!entry) {
+          throw new Error("Archive index empty");
+        }
+        return loadArchiveDay(entry.date, entry.run_id);
+      })
       .then((data) => {
+        if (!active) return;
         setArchivedIssue(data);
       })
       .catch((err: Error) => {
+        if (!active) return;
         setArchivedError(err.message);
       });
+    return () => {
+      active = false;
+    };
   }, [bjtNow.bjtDateKey, needsArchiveFallback]);
 
   useEffect(() => {
@@ -498,17 +506,16 @@ export function TodayRoute() {
   }, [focusedId]);
 
   const resetIdleTimer = useCallback(() => {
-    if (focusedId) {
+    if (focusedId || ambientActive) {
       return;
     }
-    setAmbientActive(false);
     if (idleTimeoutRef.current) {
       window.clearTimeout(idleTimeoutRef.current);
     }
     idleTimeoutRef.current = window.setTimeout(() => {
       setAmbientActive(true);
     }, 60000);
-  }, [focusedId]);
+  }, [ambientActive, focusedId]);
 
   useEffect(() => {
     const handleActivity = () => resetIdleTimer();
@@ -616,6 +623,14 @@ export function TodayRoute() {
     triggerGlitch(80);
   };
 
+  const handleAmbientToggle = () => {
+    if (idleTimeoutRef.current) {
+      window.clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
+    }
+    setAmbientActive(true);
+  };
+
   const handleSelectSlot = (slotId: number) => {
     if (nowSlotId !== null && slotId > nowSlotId) {
       return;
@@ -641,62 +656,28 @@ export function TodayRoute() {
   };
 
   useEffect(() => {
-    if (!ambientActive) {
-      return;
-    }
-    let lastX: number | null = null;
-    let lastY: number | null = null;
-    const exitAmbient = (event: Event) => {
-      if (event instanceof MouseEvent) {
-        if (lastX !== null && lastY !== null) {
-          const dx = Math.abs(event.clientX - lastX);
-          const dy = Math.abs(event.clientY - lastY);
-          if (dx < 12 && dy < 12) {
-            lastX = event.clientX;
-            lastY = event.clientY;
-            return;
-          }
-        }
-        lastX = event.clientX;
-        lastY = event.clientY;
-      }
-      setAmbientActive(false);
-    };
-
-    window.addEventListener("keydown", exitAmbient);
-    window.addEventListener("click", exitAmbient);
-    window.addEventListener("mousemove", exitAmbient);
-    return () => {
-      window.removeEventListener("keydown", exitAmbient);
-      window.removeEventListener("click", exitAmbient);
-      window.removeEventListener("mousemove", exitAmbient);
-    };
-  }, [ambientActive]);
-
-  useEffect(() => {
     const marqueeSource =
       nowState === "OFFLINE" ? archivedIssue?.picks ?? [] : activeSlot?.picks ?? displayIssue?.picks ?? [];
     const marqueeItems = marqueeSource.map((pick) => `${pick.title} — ${pick.artist_credit}`);
     const statusMessage =
       signalState === "SIGNAL_LOST" && nowState !== "OFFLINE"
-        ? t("today.offline.establishing")
+        ? tx("today.offline.establishing")
         : signalState === "SIGNAL_LOST"
-          ? t("today.offline.signalLost")
+          ? tx("today.offline.signalLost")
           : signalState === "RESTORED"
-            ? t("today.offline.linkRestored")
+            ? tx("today.offline.linkRestored")
             : nowState === "OFFLINE"
-              ? t("today.offline.title")
+              ? tx("today.offline.title")
               : null;
     updateHudRef.current?.({
       status: error ? "ERROR" : signalState === "SIGNAL_LOST" ? "DEGRADED" : "OK",
       marqueeItems,
-      statusMessage,
-      lastSuccess: formatLastSuccess(lastGoodIssue ?? issue)
+      statusMessage
     });
-  }, [activeSlot, archivedIssue, displayIssue, error, issue, lastGoodIssue, nowState, signalState]);
+  }, [activeSlot, archivedIssue, displayIssue, error, nowState, signalState, tx]);
 
   if (error && nowState !== "OFFLINE" && !displayIssue) {
-    return <BSOD message={`${t("system.errors.todayLoad")}: ${error}`} />;
+    return <BSOD message={`${tx("system.errors.todayLoad")}: ${error}`} />;
   }
 
   if (nowState === "OFFLINE") {
@@ -705,29 +686,29 @@ export function TodayRoute() {
         {transitionActive && <div className="transition-overlay" aria-hidden="true" />}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="ambient-fade flex flex-col gap-2">
-            <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/60">{t("today.label")}</p>
+            <p className="ui-kicker text-clinical-white/60">{tx("today.label")}</p>
             <h1 className="text-3xl font-semibold uppercase tracking-tightish text-alert-red">
-              {t("today.offline.title")}
+              {tx("today.offline.title")}
             </h1>
-            <p className="font-mono text-sm text-clinical-white/60">{t("today.offline.nextBoot")}</p>
+            <p className="font-mono text-sm text-clinical-white/60">{tx("today.offline.nextBoot")}</p>
           </div>
           <div className="ambient-fade flex flex-wrap items-center gap-3">
-            <a
-              href="#/archive"
-              className="rounded-full border border-acid-green/60 px-4 py-2 text-xs uppercase tracking-[0.3em] text-acid-green transition hover:border-acid-green hover:text-acid-green/90"
+            <Link
+              to="/archive"
+              className="ui-button border-acid-green/60 text-acid-green hover:border-acid-green hover:text-acid-green/90"
             >
-              {t("today.offline.viewArchive")}
-            </a>
+              {tx("today.offline.viewArchive")}
+            </Link>
           </div>
         </div>
         <div className="hud-border rounded-card bg-panel-900/60 p-6">
           <p className="text-xs uppercase tracking-[0.3em] text-clinical-white/50">
-            {t("today.offline.archivedHint")}
+            {tx("today.offline.archivedHint")}
           </p>
           <div className="relative mt-6">
-            <span className="archived-watermark">{t("today.offline.archivedLabel")}</span>
+            <span className="archived-watermark">{tx("today.offline.archivedLabel")}</span>
             {archivedIssue ? (
-              <a href="#/archive" className="block">
+              <Link to="/archive" className="block">
                 <div className="pointer-events-none grid gap-6 md:grid-cols-3">
                   {archivedIssue.picks.map((pick) => (
                     <SlotCard
@@ -739,10 +720,10 @@ export function TodayRoute() {
                     />
                   ))}
                 </div>
-              </a>
+              </Link>
             ) : (
               <div className="hud-border rounded-card bg-panel-900/60 p-6 font-mono text-sm text-clinical-white/60">
-                {archivedError ? t("today.offline.noSignal") : t("today.loading")}
+                {archivedError ? tx("today.offline.noSignal") : tx("today.loading")}
               </div>
             )}
           </div>
@@ -754,104 +735,109 @@ export function TodayRoute() {
   return (
     <section className={`relative flex flex-col gap-8 ${ambientActive ? "ambient-mode" : ""}`}>
       {transitionActive && <div className="transition-overlay" aria-hidden="true" />}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="section-toolbar flex flex-wrap items-start justify-between gap-4">
         <div className="ambient-fade flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/60">{t("today.label")}</p>
+          <p className="ui-kicker text-clinical-white/60">{tx("today.label")}</p>
           <h1 className="text-3xl font-semibold uppercase tracking-tightish">{headerText}</h1>
-          <p className="font-mono text-sm text-clinical-white/60">{t("today.intro")}</p>
+          <p className="font-mono text-sm text-clinical-white/60">{tx("today.intro")}</p>
           {signalState === "SIGNAL_LOST" ? (
             <p className="mt-2 text-xs uppercase tracking-[0.35em] text-alert-red">
-              {t("today.offline.signalLost")}
+              {tx("today.offline.signalLost")}
             </p>
           ) : null}
           {signalState === "RESTORED" ? (
             <p className="mt-2 text-xs uppercase tracking-[0.35em] text-acid-green">
-              {t("today.offline.linkRestored")}
+              {tx("today.offline.linkRestored")}
             </p>
           ) : null}
         </div>
         <div className="ambient-fade flex flex-wrap items-center gap-3">
+          <Link
+            to="/archive"
+            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green"
+          >
+            {tx("today.archiveCta")}
+          </Link>
           {showNowAvailable && (
             <span className="rounded-full border border-alert-red/60 px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-alert-red">
-              {t("today.nowAvailable")}
+              {tx("today.nowAvailable")}
             </span>
           )}
           {showReturnToNow && (
             <button
               type="button"
               onClick={() => setSelectedSlotId(nowSlotId)}
-              className="rounded-full border border-acid-green/60 px-4 py-2 text-xs uppercase tracking-[0.3em] text-acid-green transition hover:border-acid-green hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+              className="ui-button border-acid-green/60 text-acid-green hover:border-acid-green hover:text-acid-green/90"
             >
-              {t("today.returnToNow")}
+              {tx("today.returnToNow")}
             </button>
           )}
           <button
             type="button"
-            onClick={() => setAmbientActive((prev) => !prev)}
-            disabled={Boolean(focusedId)}
+            onClick={handleAmbientToggle}
             data-testid="ambient-toggle"
-            className="rounded-full border border-panel-700/80 px-4 py-2 text-xs uppercase tracking-[0.3em] text-clinical-white/70 transition hover:border-acid-green/60 hover:text-acid-green disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
+            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
           >
-            {ambientActive ? t("today.ambientExit") : t("today.ambientEnter")}
+            {tx("today.ambientEnter")}
           </button>
         </div>
       </div>
 
       {debugTime ? (
-        <div className="hud-border rounded-card bg-panel-900/70 p-4 text-[11px] uppercase tracking-[0.25em] text-clinical-white/60">
+        <div className="hud-border rounded-card bg-panel-900/70 p-4 text-[0.72rem] uppercase tracking-[0.2em] text-clinical-white/60">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>{t("today.debug.label")}</span>
+            <span>{tx("today.debug.label")}</span>
             <span className="font-mono text-xs text-acid-green">{debugTime}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
-              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
               onClick={() => applyDebugShift(-60)}
             >
-              -1 minute
+              {tx("today.debug.minusMinute")}
             </button>
             <button
               type="button"
-              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
               onClick={() => applyDebugShift(-3600)}
             >
-              -1 hour
+              {tx("today.debug.minusHour")}
             </button>
             <button
               type="button"
-              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
               onClick={() => applyDebugShift(-86400)}
             >
-              -1 day
+              {tx("today.debug.minusDay")}
             </button>
             <button
               type="button"
-              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
               onClick={() => applyDebugShift(60)}
             >
-              {t("today.debug.addMinute")}
+              {tx("today.debug.addMinute")}
             </button>
             <button
               type="button"
-              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
               onClick={() => applyDebugShift(3600)}
             >
-              {t("today.debug.addHour")}
+              {tx("today.debug.addHour")}
             </button>
             <button
               type="button"
-              className="rounded-full border border-panel-700/70 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
               onClick={() => applyDebugShift(86400)}
             >
-              {t("today.debug.addDay")}
+              {tx("today.debug.addDay")}
             </button>
             <button
               type="button"
-              className="rounded-full border border-alert-red/60 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-alert-red hover:border-alert-red"
+              className="ui-button border-alert-red/60 text-alert-red hover:border-alert-red"
               onClick={clearDebug}
             >
-              {t("today.debug.clear")}
+              {tx("today.debug.clear")}
             </button>
           </div>
         </div>
@@ -859,12 +845,12 @@ export function TodayRoute() {
 
       {displayIssue ? (
         <LayoutGroup>
-          <div className="grid gap-10 lg:grid-cols-[280px_1fr]">
-            <aside className="ambient-fade hud-border rounded-card bg-panel-900/70 p-5">
-              <p className="text-sm uppercase tracking-[0.35em] text-clinical-white/60">
-                {t("today.timeline.title")}
+          <div className="today-layout grid gap-8 lg:grid-cols-[minmax(15rem,18rem)_1fr]">
+            <aside className="ambient-fade hud-border rounded-card bg-panel-900/70 p-4 sm:p-5">
+              <p className="text-sm uppercase tracking-[0.25em] text-clinical-white/60">
+                {tx("today.timeline.title")}
               </p>
-              <div className="mt-5 flex flex-col gap-4">
+              <div className="timeline-list mt-5 flex flex-col gap-4">
                 {slots.map((slot) => {
                   const isActive = slot.slot_id === (activeSlot?.slot_id ?? slot.slot_id);
                   const thumbPick = slot.picks[0];
@@ -881,7 +867,7 @@ export function TodayRoute() {
                       type="button"
                       disabled={isLocked}
                       onClick={() => handleSelectSlot(slot.slot_id)}
-                      className={`flex w-full items-center gap-4 rounded-card border px-4 py-4 text-left transition ${
+                      className={`timeline-button flex w-full items-center gap-4 rounded-card border px-4 py-4 text-left transition ${
                         isActive
                           ? "border-acid-green/70 bg-panel-800/70 text-acid-green"
                           : isLocked
@@ -898,7 +884,7 @@ export function TodayRoute() {
                           <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-[8px] uppercase tracking-[0.3em] text-clinical-white/30">
-                            {t("today.timeline.thumb")}
+                            {tx("today.timeline.thumb")}
                           </div>
                         )}
                       </div>
@@ -910,7 +896,7 @@ export function TodayRoute() {
                       </div>
                       {isLocked ? (
                         <span className="text-[10px] uppercase tracking-[0.3em] text-clinical-white/30">
-                          {t("today.timeline.locked")}
+                          {tx("today.timeline.locked")}
                         </span>
                       ) : null}
                     </button>
@@ -919,7 +905,7 @@ export function TodayRoute() {
               </div>
               {signalState === "SIGNAL_LOST" && nowState !== "OFFLINE" ? (
                 <div className="mt-6 rounded-card border border-alert-red/40 bg-panel-900/80 p-4 text-[10px] uppercase tracking-[0.3em] text-alert-red">
-                  <p>{t("today.offline.establishing")}</p>
+                  <p>{tx("today.offline.establishing")}</p>
                   {lastRetryAt ? (
                     <p className="mt-2 text-[9px] text-clinical-white/40">
                       {new Intl.DateTimeFormat("en-GB", {
@@ -936,13 +922,13 @@ export function TodayRoute() {
                     onClick={handleRetryNow}
                     className="mt-3 rounded-full border border-alert-red/60 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-alert-red"
                   >
-                    {t("today.offline.retry")}
+                    {tx("today.offline.retry")}
                   </button>
                 </div>
               ) : null}
             </aside>
             <motion.div
-              className={`grid gap-6 md:grid-cols-3 xl:gap-8 ${FLAGS.dominantViewport ? "md:h-[78vh]" : ""}`}
+              className={`album-grid grid gap-6 md:grid-cols-3 xl:gap-8 ${FLAGS.dominantViewport ? "md:min-h-[68vh]" : ""}`}
               variants={prefersReducedMotion ? undefined : containerVariants}
               initial={prefersReducedMotion ? undefined : "hidden"}
               animate={prefersReducedMotion ? undefined : "show"}
@@ -981,7 +967,7 @@ export function TodayRoute() {
         </LayoutGroup>
       ) : (
         <div className="hud-border rounded-card bg-panel-900/60 p-6 font-mono text-sm text-clinical-white/60">
-          {t("today.loading")}
+          {tx("today.loading")}
         </div>
       )}
       {ambientActive ? <AmbientOverlay onExit={() => setAmbientActive(false)} /> : null}

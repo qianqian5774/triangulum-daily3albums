@@ -2,13 +2,13 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
 import { resolveCoverUrl } from "../lib/covers";
-import { t } from "../strings/t";
+import { useT } from "../lib/ui-settings";
 import type { PickItem } from "../lib/types";
 
 const slotStyles: Record<PickItem["slot"], string> = {
-  Headliner: "border-acid-green/60 text-acid-green",
-  Lineage: "border-clinical-white/40 text-clinical-white",
-  DeepCut: "border-alert-red/60 text-alert-red"
+  Headliner: "border-acid-green bg-acid-green text-void-black shadow-[0_0_18px_rgba(204,255,0,0.45)]",
+  Lineage: "border-acid-green bg-acid-green text-void-black shadow-[0_0_18px_rgba(204,255,0,0.45)]",
+  DeepCut: "border-acid-green bg-acid-green text-void-black shadow-[0_0_18px_rgba(204,255,0,0.45)]"
 };
 
 interface SlotCardProps {
@@ -36,6 +36,7 @@ export function SlotCard({
   disableLinks = false,
   locked = false
 }: SlotCardProps) {
+  const tx = useT();
   const cardRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const [retryToken, setRetryToken] = useState<string | null>(null);
@@ -108,7 +109,7 @@ export function SlotCard({
       whileTap={{ scale: 0.98 }}
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
-      aria-label={isInteractive ? t("treatment.viewer.enter") : undefined}
+      aria-label={isInteractive ? tx("treatment.viewer.enter") : undefined}
       className={`slotcard hud-border flex h-full flex-col overflow-hidden rounded-card bg-panel-800/70 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid ${
         isInteractive
           ? "cursor-pointer transition-shadow duration-200 hover:border-acid-green/80 hover:drop-shadow-[0_0_18px_rgba(204,255,0,0.45)]"
@@ -143,25 +144,25 @@ export function SlotCard({
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-panel-900 via-panel-700 to-panel-900">
             <span className="font-mono text-2xl uppercase tracking-[0.4em] text-clinical-white/40">
-              {locked ? "?" : t("treatment.cover.missing")}
+              {locked ? "?" : tx("treatment.cover.missing")}
             </span>
           </div>
         )}
         <div className="slotcard-badge absolute left-4 top-4">
           <span
-            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${slotStyles[pick.slot]}`}
+            className={`inline-flex min-h-[1.75rem] items-center rounded-hud border px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.22em] ${slotStyles[pick.slot]}`}
           >
-            {t(`treatment.slot.${pick.slot}`)}
+            {tx(`treatment.slot.${pick.slot}`)}
           </span>
         </div>
       </div>
       <div className="slotcard-body flex flex-1 flex-col gap-3 px-5 py-4">
         <div>
           <h3 className="glitch-text text-lg font-semibold uppercase tracking-tightish text-clinical-white">
-            {locked ? "LOCKED" : pick.title}
+            {locked ? tx("today.timeline.locked") : pick.title}
           </h3>
           <p className="text-sm text-clinical-white/60">
-            {locked ? "???" : pick.artist_credit || t("treatment.cover.unknownArtist")}
+            {locked ? "???" : pick.artist_credit || tx("treatment.cover.unknownArtist")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-clinical-white/50">
@@ -176,9 +177,9 @@ export function SlotCard({
                 href={pick.links.musicbrainz}
                 onClick={(event) => event.stopPropagation()}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
-                {t("treatment.links.musicbrainz")}
+                {tx("treatment.links.musicbrainz")}
               </a>
             )}
             {pick.links?.youtube_search && (
@@ -187,9 +188,9 @@ export function SlotCard({
                 href={pick.links.youtube_search}
                 onClick={(event) => event.stopPropagation()}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
-                {t("treatment.links.youtube")}
+                {tx("treatment.links.youtube")}
               </a>
             )}
           </div>

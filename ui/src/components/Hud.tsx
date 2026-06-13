@@ -1,5 +1,7 @@
+import { useEffect, useMemo, useRef } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Marquee } from "./Marquee";
-import { t } from "../strings/t";
+import { useT, useUiSettings } from "../lib/ui-settings";
 
 interface HudProps {
   status: "OK" | "DEGRADED" | "ERROR";
@@ -10,19 +12,13 @@ interface HudProps {
   countdownLabel: string;
   statusMessage?: string | null;
   debugActive?: boolean;
-  lastSuccess?: string | null;
+  onOpenAbout: () => void;
 }
 
 const statusStyles: Record<HudProps["status"], string> = {
   OK: "text-acid-green border-acid-green/60",
   DEGRADED: "text-yellow-300 border-yellow-300/60",
   ERROR: "text-alert-red border-alert-red/60"
-};
-
-const statusLabels: Record<HudProps["status"], string> = {
-  OK: t("system.status.operational"),
-  DEGRADED: t("system.status.degraded"),
-  ERROR: t("system.status.error")
 };
 
 export function Hud({
@@ -34,34 +30,68 @@ export function Hud({
   countdownLabel,
   statusMessage,
   debugActive,
-  lastSuccess
+  onOpenAbout
 }: HudProps) {
+  const tx = useT();
+  const { language, setLanguage, decreaseFont, increaseFont, resetFont } = useUiSettings();
+  const location = useLocation();
+  const headerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!headerRef.current || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const updateHeight = () => {
+      if (!headerRef.current) {
+        return;
+      }
+      document.documentElement.style.setProperty("--hud-height", `${Math.ceil(headerRef.current.offsetHeight)}px`);
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(headerRef.current);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--hud-height");
+    };
+  }, []);
+
+  const statusLabels = useMemo<Record<HudProps["status"], string>>(
+    () => ({
+      OK: tx("system.status.operational"),
+      DEGRADED: tx("system.status.degraded"),
+      ERROR: tx("system.status.error")
+    }),
+    [tx]
+  );
+
+  const isArchive = location.pathname.startsWith("/archive");
+
   return (
-    <header className="hud-border sticky top-4 z-20 mx-auto w-[min(96%,60rem)] rounded-card bg-panel-900/90 backdrop-blur-lg pointer-events-none">
-      <div className="flex flex-wrap items-center justify-center gap-6 px-4 py-3 text-center md:px-6">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-[0.4em] text-clinical-white/50">{t("hud.labels.bjt")}</span>
-          <span className="font-mono text-2xl tracking-[0.35em] respire">{bjtTime}</span>
-          <span className="text-[11px] uppercase tracking-[0.3em] text-clinical-white/60">{windowLabel}</span>
-          <span className="text-sm font-semibold uppercase tracking-[0.3em] text-acid-green">
+    <header
+      ref={headerRef}
+      className="hud-shell hud-border fixed z-[60] rounded-card bg-panel-900/94 backdrop-blur-lg"
+    >
+      <div className="hud-grid px-3 py-3 md:px-4">
+        <div className="hud-time">
+          <span className="ui-kicker text-clinical-white/50">{tx("hud.labels.bjt")}</span>
+          <span className="font-mono text-[1.45rem] leading-none tracking-[0.28em] respire sm:text-[1.65rem]">
+            {bjtTime}
+          </span>
+          <span className="ui-micro text-clinical-white/60">{windowLabel}</span>
+          <span className="text-[0.82rem] font-semibold uppercase tracking-[0.22em] text-acid-green">
             {nextUnlockLabel}
           </span>
-          <span className="font-mono text-xs uppercase tracking-[0.25em] text-acid-green/80">
+          <span className="font-mono text-[0.78rem] uppercase tracking-[0.2em] text-acid-green/80">
             {countdownLabel}
           </span>
-          {lastSuccess ? (
-            <span className="text-[10px] uppercase tracking-[0.25em] text-clinical-white/40">
-              {t("hud.labels.lastSuccess")} {lastSuccess}
-            </span>
-          ) : null}
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-6">
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] uppercase tracking-[0.4em] text-clinical-white/50">
-              {t("hud.labels.status")}
-            </span>
+
+        <div className="hud-status">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="ui-kicker text-clinical-white/50">{tx("hud.labels.status")}</span>
             <span
-              className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] ${
+              className={`rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.22em] ${
                 statusStyles[status]
               }`}
             >
@@ -70,17 +100,65 @@ export function Hud({
           </div>
           {debugActive ? (
             <span className="rounded-full border border-alert-red/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-alert-red">
-              {t("hud.labels.debug")}
+              {tx("hud.labels.debug")}
             </span>
           ) : null}
         </div>
+
+        <nav className="hud-actions" aria-label="Primary">
+          <Link
+            to="/"
+            className={`ui-button ${isArchive ? "border-panel-700/80 text-clinical-white/70" : "border-acid-green/70 text-acid-green"}`}
+          >
+            {tx("nav.today")}
+          </Link>
+          <Link
+            to="/archive"
+            className={`ui-button ${isArchive ? "border-acid-green/70 text-acid-green" : "border-panel-700/80 text-clinical-white/70"}`}
+          >
+            {tx("nav.archive")}
+          </Link>
+          <button type="button" onClick={onOpenAbout} className="ui-button border-panel-700/80 text-clinical-white/70">
+            {tx("nav.about")}
+          </button>
+        </nav>
+
+        <div className="hud-settings" aria-label="Display settings">
+          <div className="segmented-control hud-language-control" aria-label={tx("controls.language")}>
+            <button
+              type="button"
+              onClick={() => setLanguage("en")}
+              className={language === "en" ? "is-active" : ""}
+            >
+              {tx("controls.english")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setLanguage("zh")}
+              className={language === "zh" ? "is-active" : ""}
+            >
+              {tx("controls.chinese")}
+            </button>
+          </div>
+          <div className="segmented-control hud-font-control" aria-label={tx("controls.font")}>
+            <button type="button" onClick={decreaseFont} aria-label={tx("controls.fontDown")}>
+              {tx("controls.fontDown")}
+            </button>
+            <button type="button" onClick={increaseFont} aria-label={tx("controls.fontUp")}>
+              {tx("controls.fontUp")}
+            </button>
+            <button type="button" onClick={resetFont} aria-label={tx("controls.fontReset")}>
+              {tx("controls.fontReset")}
+            </button>
+          </div>
+        </div>
       </div>
       {statusMessage ? (
-        <div className="border-t border-panel-700/70 px-4 py-2 text-[11px] uppercase tracking-[0.25em] text-clinical-white/60 md:px-6">
+        <div className="border-t border-panel-700/70 px-4 py-2 text-[0.72rem] uppercase tracking-[0.18em] text-clinical-white/60 md:px-6">
           {statusMessage}
         </div>
       ) : null}
-      <div className="border-t border-panel-700/70 px-4 py-2 md:px-6">
+      <div className="hud-marquee border-t border-panel-700/70 px-4 py-3 md:px-6">
         <Marquee items={marqueeItems} />
       </div>
     </header>

@@ -1,10 +1,11 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { SlotCard } from "../components/SlotCard";
 import { loadArchiveDay, loadArchiveIndex } from "../lib/data";
-import { t } from "../strings/t";
+import { useT } from "../lib/ui-settings";
 import type { ArchiveIndex, TodayIssue } from "../lib/types";
 
 const listVariants = {
@@ -21,6 +22,7 @@ const itemVariants = {
 };
 
 export function ArchiveRoute() {
+  const tx = useT();
   const hudContext = useContext(HudContext);
 
   // IMPORTANT:
@@ -98,32 +100,40 @@ export function ArchiveRoute() {
 
   const headerText = useMemo(() => {
     if (!selectedEntry) {
-      return t("archive.selectDate");
+      return tx("archive.selectDate");
     }
     const theme = selectedEntry.theme_of_day;
     const slotSuffix = typeof selectedEntry.slot === "number" ? ` · slot ${selectedEntry.slot + 1}` : "";
     return theme
-      ? `${selectedEntry.date}${slotSuffix} · ${t("today.themePrefix")} ${theme}`
+      ? `${selectedEntry.date}${slotSuffix} · ${tx("today.themePrefix")} ${theme}`
       : `${selectedEntry.date}${slotSuffix}`;
-  }, [selectedEntry]);
+  }, [selectedEntry, tx]);
 
   if (error) {
-    return <BSOD message={`${t("system.errors.archiveLoad")}: ${error}`} />;
+    return <BSOD message={`${tx("system.errors.archiveLoad")}: ${error}`} />;
   }
 
   return (
     <section className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/60">{t("archive.label")}</p>
-        <h1 className="text-3xl font-semibold uppercase tracking-tightish">{headerText}</h1>
-        <p className="font-mono text-sm text-clinical-white/60">{t("archive.intro")}</p>
+      <div className="section-toolbar flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <p className="ui-kicker text-clinical-white/60">{tx("archive.label")}</p>
+          <h1 className="text-3xl font-semibold uppercase tracking-tightish">{headerText}</h1>
+          <p className="font-mono text-sm text-clinical-white/60">{tx("archive.intro")}</p>
+        </div>
+        <Link
+          to="/"
+          className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green"
+        >
+          {tx("archive.openToday")}
+        </Link>
       </div>
-      <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
+      <div className="archive-layout grid gap-8 lg:grid-cols-[minmax(14rem,18rem)_1fr]">
         <div className="hud-border rounded-card bg-panel-900/70 p-4">
-          <p className="text-xs uppercase tracking-[0.4em] text-clinical-white/50">{t("archive.datesLabel")}</p>
+          <p className="ui-kicker text-clinical-white/50">{tx("archive.datesLabel")}</p>
           {index ? (
             <motion.ul
-              className="mt-4 flex max-h-[340px] flex-col gap-2 overflow-auto pr-2 text-sm"
+              className="archive-date-list mt-4 flex max-h-[420px] flex-col gap-2 overflow-auto pr-2 text-sm"
               variants={prefersReducedMotion ? undefined : listVariants}
               initial={prefersReducedMotion ? undefined : "hidden"}
               animate={prefersReducedMotion ? undefined : "show"}
@@ -136,7 +146,7 @@ export function ArchiveRoute() {
                   <button
                     type="button"
                     onClick={() => setSelectedEntry(item)}
-                    className={`w-full rounded-hud border px-3 py-2 text-left font-mono text-xs uppercase tracking-[0.3em] transition ${
+                    className={`w-full rounded-hud border px-3 py-3 text-left font-mono text-[0.76rem] uppercase tracking-[0.22em] transition ${
                       selectedEntry?.date === item.date && selectedEntry?.run_id === item.run_id
                         ? "border-acid-green/70 text-acid-green"
                         : "border-panel-700/70 text-clinical-white/60 hover:border-clinical-white/40"
@@ -158,19 +168,19 @@ export function ArchiveRoute() {
               ))}
             </motion.ul>
           ) : (
-            <p className="mt-4 font-mono text-xs text-clinical-white/50">{t("archive.loadingIndex")}</p>
+            <p className="mt-4 font-mono text-xs text-clinical-white/50">{tx("archive.loadingIndex")}</p>
           )}
         </div>
         <div>
           {issue ? (
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="album-grid grid gap-6 md:grid-cols-3">
               {issue.picks.map((pick) => (
                 <SlotCard key={pick.slot} pick={pick} cacheKey={pick.cover.cover_version ?? coverCacheKey} />
               ))}
             </div>
           ) : (
             <div className="hud-border rounded-card bg-panel-900/60 p-6 font-mono text-sm text-clinical-white/60">
-              {t("archive.empty")}
+              {tx("archive.empty")}
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useMemo, useState } from "react"
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Hud } from "./components/Hud";
 import { NoiseOverlay } from "./components/NoiseOverlay";
+import { ProjectInfoDialog } from "./components/ProjectInfoDialog";
 import { ArchiveRoute } from "./routes/Archive";
 import { TodayRoute } from "./routes/Today";
 import {
@@ -16,8 +17,7 @@ import {
   resolveNowState,
   saveDebugTime
 } from "./lib/bjt";
-import { copy } from "./strings/copy";
-import { t } from "./strings/t";
+import { useLocalizedCopy, useT } from "./lib/ui-settings";
 
 export type HudStatus = "OK" | "DEGRADED" | "ERROR";
 
@@ -30,7 +30,6 @@ export interface HudState {
   countdownLabel: string;
   statusMessage?: string | null;
   debugActive?: boolean;
-  lastSuccess?: string | null;
 }
 
 interface HudContextValue {
@@ -40,20 +39,26 @@ interface HudContextValue {
 
 export const HudContext = createContext<HudContextValue | null>(null);
 
-const defaultHud: HudState = {
+function createDefaultHud(tx: (key: string) => string, marqueeFallback: string[]): HudState {
+  return {
   status: "DEGRADED",
-  marqueeItems: copy.system.marqueeFallback,
+  marqueeItems: marqueeFallback,
   bjtTime: "--:--:--",
-  windowLabel: t("hud.window.booting"),
-  nextUnlockLabel: t("hud.nextUnlock"),
+  windowLabel: tx("hud.window.booting"),
+  nextUnlockLabel: tx("hud.nextUnlock"),
   countdownLabel: "T-00:00:00",
-  statusMessage: t("system.status.booting"),
-  debugActive: false,
-  lastSuccess: null
-};
+  statusMessage: tx("system.status.booting"),
+  debugActive: false
+  };
+}
 
 function App() {
-  const [hud, setHud] = useState<HudState>(defaultHud);
+  const tx = useT();
+  const localizedCopy = useLocalizedCopy();
+  const [hud, setHud] = useState<HudState>(() =>
+    createDefaultHud(tx, [...localizedCopy.system.marqueeFallback])
+  );
+  const [aboutOpen, setAboutOpen] = useState(false);
   const location = useLocation();
 
   const updateHud = useCallback((next: Partial<HudState>) => {
@@ -80,7 +85,7 @@ function App() {
   useEffect(() => {
     const tick = () => {
       const now = getBjtNowParts(loadDebugTime());
-      const { state, slotId } = resolveNowState(now.secondsSinceMidnight);
+      const { state } = resolveNowState(now.secondsSinceMidnight);
       const windowMap: Record<string, string> = {
         SLOT0: "06:00–11:59",
         SLOT1: "12:00–17:59",
@@ -88,14 +93,14 @@ function App() {
       };
       const windowLabel =
         state === "OFFLINE"
-          ? t("hud.window.offline")
-          : `${t("hud.window.label")} ${windowMap[state]} / ${t("hud.window.slot")} ${slotId ?? 0}`;
+          ? tx("hud.window.offline")
+          : `${tx("hud.window.label")} ${windowMap[state]}`;
       const nextUnlock = getNextUnlock(now);
       const nextUnlockLabel =
         state === "OFFLINE"
-          ? `${t("hud.nextBoot")} ${nextUnlock.label}`
-          : `${t("hud.nextUnlock")} ${nextUnlock.label}`;
-      const countdownLabel = `${t("hud.countdownPrefix")} ${formatCountdown(nextUnlock.targetMs - now.nowMs)}`;
+          ? `${tx("hud.nextBoot")} ${nextUnlock.label}`
+          : `${tx("hud.nextUnlock")} ${nextUnlock.label}`;
+      const countdownLabel = `${tx("hud.countdownPrefix")} ${formatCountdown(nextUnlock.targetMs - now.nowMs)}`;
       setHud((prev) => ({
         ...prev,
         bjtTime: formatBjtTime(now.parts),
@@ -108,7 +113,7 @@ function App() {
     tick();
     const timer = window.setInterval(tick, 500);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [tx]);
 
   return (
     <HudContext.Provider value={contextValue}>
@@ -122,15 +127,16 @@ function App() {
           countdownLabel={hud.countdownLabel}
           statusMessage={hud.statusMessage}
           debugActive={hud.debugActive}
-          lastSuccess={hud.lastSuccess}
+          onOpenAbout={() => setAboutOpen(true)}
         />
-        <main className="mx-auto flex w-full max-w-[90rem] flex-col gap-10 px-4 py-10 md:px-6">
+        <main className="app-main mx-auto flex w-full max-w-[90rem] flex-col gap-10 px-4 pb-10 md:px-6">
           <Routes>
             <Route path="/" element={<TodayRoute />} />
             <Route path="/archive" element={<ArchiveRoute />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        <ProjectInfoDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
         <NoiseOverlay />
       </div>
     </HudContext.Provider>

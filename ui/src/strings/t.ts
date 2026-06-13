@@ -1,8 +1,8 @@
-import { copy } from "./copy";
+import { getCopy, type Language } from "./copy";
 
-export function t(key: string): string {
+export function t(key: string, language: Language = "en"): string {
   const parts = key.split(".");
-  let current: unknown = copy;
+  let current: unknown = getCopy(language);
 
   for (const part of parts) {
     if (typeof current !== "object" || current === null || !(part in current)) {
