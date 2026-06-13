@@ -1,117 +1,116 @@
 # Triangulum Daily 3 Albums
 
-[中文](README.md) | English
+English | [中文](https://chatgpt.com/g/g-p-6968ea38b52c81919c49205620a4f2aa/c/README.md)
 
-Triangulum Daily 3 Albums is a static site and generation system that publishes three album recommendations every day.
+Three albums a day.
+No endless feed, no chart-chasing, no rush to hear everything.
+Just three small doors into music, opening throughout the day. 🎧
 
-I started it for myself as a daily way to decide what to listen to. I wanted something that pushed against the usual recommendation loops from streaming platforms and social feeds, and surfaced albums that were less obvious, less popular, or just outside my normal listening path. Later I realized that if the project could live reliably on the web, it could also be useful for more people to open each day. This repository records the implementation used to generate, publish, and maintain the Daily 3 Albums project.
+## 🌗 What is this?
 
-## What it does
+**Triangulum Daily 3 Albums** is a daily music discovery project that recommends three albums every day.
 
-The system generates 3 album recommendations per day and publishes them as a static website. Visitors can see the current day's albums, the Beijing-time unlock schedule, and an archive of past recommendations.
+It began as a personal listening ritual. I wanted a place that could gently pull me away from streaming feeds, social media loops, and recommendation systems that often keep pointing back to the same familiar corners.
 
-The core goals are simple:
+Instead of an infinite scroll, the site offers only three albums a day. They appear slowly, at fixed moments, and remain archived over time.
 
-- Recommend 3 albums each day.
-- Avoid overly mainstream or overly familiar recommendation results where possible.
-- Keep the daily publishing flow stable over time.
-- Preserve an archive so past recommendations can be revisited.
+You can open it in the morning, come back at noon, check again in the evening, or browse older days later. It is meant to feel less like a feed and more like a small music calendar.
 
-## How it works
+## ✨ What it does
 
-Daily 3 Albums has two main parts:
+Every day, the site presents three album recommendations.
 
-- Python generator: reads configuration, calls external music data sources, selects candidate albums, and writes the JSON data used by the site.
-- Static frontend: reads generated data and renders the today page, archive, and album detail pages in the browser.
+They are unlocked according to Beijing time:
 
-The daily automation roughly follows this path:
+| Time  | Album        |
+| ----- | ------------ |
+| 06:00 | First album  |
+| 12:00 | Second album |
+| 18:00 | Third album  |
 
-1. GitHub Actions runs once in the early Beijing morning.
-2. The generator uses configuration and cache data to collect candidate albums.
-3. The system selects 3 albums for the day and writes `today.json` plus archive data.
-4. The frontend is built into static files.
-5. GitHub Pages publishes the site from `_build/public`.
+Before the day begins, the page stays in a waiting state.
+When the next slot arrives, another album appears.
 
-The deployed site does not depend on a running backend service. After publishing, visitors load static assets.
+This is not designed to be the most popular, the most authoritative, or the most personalized recommendation engine. It is closer to a daily listening prompt: sometimes familiar, sometimes unexpected, and ideally just far enough away from your usual path.
 
-## Daily schedule
+## 🧭 Why it exists
 
-The site uses Beijing time, Asia/Shanghai, for its visible states:
+Music is easier to access than ever, but discovery can still feel strangely narrow.
 
-- 00:00-05:59: the day's albums are not open yet.
-- 06:00-11:59: album 1 is open.
-- 12:00-17:59: album 2 is open.
-- 18:00-23:59: album 3 is open.
+You may keep returning to the same artists, the same moods, or the same recommendation patterns. Triangulum Daily 3 Albums is a small attempt to make that loop a little looser.
 
-The 06:00 / 12:00 / 18:00 transitions happen in the browser at runtime, so the site does not need a new deployment for each slot.
+It cares about:
 
-## Features
+- Fewer recommendations, not more.
+- A slower rhythm instead of instant overload.
+- A slight distance from the obvious and overexposed.
+- A growing archive of past days.
+- Music discovery as a walk, not a feed.
 
-- 3 album recommendations per day.
-- Beijing-time slot unlocks.
-- Today page, archive page, and album detail pages.
-- Metadata enrichment from external sources such as Last.fm and MusicBrainz.
-- Local SQLite cache to reduce repeated requests and external API pressure.
-- Generated-output `self_check` for today data, archive consistency, and key static artifacts.
-- `doctor` command for checking configuration, environment, timezone, and basic external-service availability.
-- `debug_time` parameter for local testing of time-based UI states.
+## 🕰 Daily rhythm
 
-## Project layout
+The site follows Beijing time.
 
 ```text
-daily3albums/      Python generator and CLI
-config/            Tags, data sources, and endpoint policies
-scripts/           Maintenance and self-check scripts
-ui/                Static frontend
-docs/              Operations notes, revive logs, and audit documents
-_build/public/     Local final static-site output
+00:00 - 05:59   Today’s albums are not open yet
+06:00 - 11:59   First album
+12:00 - 17:59   Second album
+18:00 - 23:59   Third album
 ```
 
-`_build/public` is the final publishing directory. Frontend development seed data and production generated data should stay separate; do not treat `ui/public/data` as production output.
+The time slots are not meant to create artificial mystery.
+They are simply a way to slow the site down.
 
-## Maintainer commands
+You do not have to take in everything at once.
+There are three moments in the day to pause, listen, save, or ignore.
 
-These commands are for local maintenance and verification. See `docs/runbook.md` and `docs/revive/` for fuller operational notes.
+## 🗂 What you will find
 
-```bash
-npm --prefix ui ci
-npm --prefix ui test
-npm --prefix ui run build
-daily3albums doctor
-daily3albums build --verbose --out ./_build/public
-python scripts/self_check.py --path ./_build/public
-```
+The site includes:
 
-Local preview:
+- **Today’s albums** — three recommendations unlocked throughout the day.
+- **Album details** — artist, title, cover image, and related metadata.
+- **Archive** — previous daily recommendations.
+- **Detail pages** — individual pages for albums that have appeared before.
 
-```bash
-python -m http.server --directory _build/public 8000
-```
+Once the final domains are ready, the project will live as an independent daily music site.
 
-## debug_time
+## ⚙️ How it works behind the scenes
 
-For local debugging, `debug_time` can simulate Beijing time:
+Triangulum Daily 3 Albums is generated automatically.
+
+Each morning, a generator collects and filters music data, selects the day’s albums, writes the site data, and publishes everything as static files. The public site does not depend on a live backend service while visitors are browsing.
+
+In short:
 
 ```text
-?debug_time=YYYY-MM-DDTHH:MM:SS
+music data → daily selection → static site → daily listening
 ```
 
-HashRouter builds also support:
+This keeps the project lightweight, stable, and suitable for long-term publishing.
 
-```text
-/#/?debug_time=YYYY-MM-DDTHH:MM:SS
-```
+## 🌐 Publishing plan
 
-It is commonly used to check 05:59 / 06:00 / 12:00 / 18:00 / cross-day states.
+The project is intended to be published on my own domains and made accessible to listeners in and outside China.
 
-## Runtime notes
+This repository contains the system behind the site: the generator, publishing flow, front-end interface, and maintenance records. It is not primarily meant to be a general-purpose open-source template or something everyone is expected to clone and run locally.
 
-- Production CI uses Python 3.11. Newer local Python versions, such as 3.14, can be used for development, but they do not replace CI 3.11 verification.
-- The product time model is fixed to Beijing time, Asia/Shanghai. `config.timezone` and environment variables keep local, CI, and generator behavior aligned; they do not mean the site supports a multi-timezone product mode.
-- `daily3albums build` builds the UI by default and writes data into `_build/public/data`. If the UI has already been built separately, `--skip-ui-build` can reuse the existing `ui/dist`, but it should not be used where `ui/dist` is missing.
-- Browsers or CDNs may cache `today.json`. Critical boundaries use cache-busting requests; if the returned data is not for the current Beijing date, the UI should enter a safe degraded state and retry.
-- `require_cover: true` currently means candidates with covers are preferred. It does not mean the build must fail whenever a cover is missing. When Cover Art Archive has no cover, Last.fm artwork may be used; if no image is available, `assets/placeholder.svg` is used.
+The focus is the site itself:
+three albums a day, appearing steadily, building an archive over time.
 
-## Current status
+## 📌 Current status
 
-The project is being maintained toward stable publishing and long-running unattended operation. Recent work focuses on build-chain consistency, clearer cache and API failure behavior, static-output self-checks, and eventual release on a production domain.
+Triangulum Daily 3 Albums is still being refined.
+
+Current priorities include:
+
+- Keeping the daily generation and publishing flow stable.
+- Improving album selection and cover fallback behavior.
+- Making the archive easier to browse.
+- Preparing the site for custom domain publishing.
+- Letting it grow into a small, long-running music place on the web.
+
+------
+
+Made for slower listening.
+One day, three albums.
