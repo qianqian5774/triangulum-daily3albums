@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { cn } from "../lib/cn";
-import { copy } from "../strings/copy";
+import { useLocalizedCopy } from "../lib/ui-settings";
 
 interface MarqueeProps {
   items: string[];
@@ -8,12 +8,13 @@ interface MarqueeProps {
 }
 
 export function Marquee({ items, className }: MarqueeProps) {
+  const localizedCopy = useLocalizedCopy();
   const sequence = useMemo(() => {
     if (items.length === 0) {
-      return copy.system.marqueeFallback;
+      return localizedCopy.system.marqueeFallback;
     }
     return items;
-  }, [items]);
+  }, [items, localizedCopy.system.marqueeFallback]);
 
   const repeated = [...sequence, ...sequence];
 
@@ -21,7 +22,10 @@ export function Marquee({ items, className }: MarqueeProps) {
     <div className={cn("overflow-hidden whitespace-nowrap", className)}>
       <div className="marquee">
         {repeated.map((item, index) => (
-          <span key={`${item}-${index}`} className="text-xs uppercase tracking-[0.3em] text-clinical-white/70">
+          <span
+            key={`${item}-${index}`}
+            className="text-[0.82rem] font-semibold uppercase tracking-[0.28em] text-clinical-white/78"
+          >
             {item}
           </span>
         ))}
