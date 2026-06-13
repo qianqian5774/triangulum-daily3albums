@@ -127,7 +127,7 @@ jobs:
           INPUT_TOPK: ${{ github.event.inputs.topk }}
           INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
-          args=(--verbose)
+          args=(--verbose --skip-ui-build)
           if [ -n "${INPUT_N:-}" ]; then
             args+=(--n "$INPUT_N")
           fi

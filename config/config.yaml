@@ -4,6 +4,8 @@ output_schema_version: "1.0"
 # -----------------------------------------------------------------------------
 # 基础环境设置
 # -----------------------------------------------------------------------------
+# 产品时钟固定为北京时间；这个值用于让本地/CI 环境显式对齐，
+# 不表示 Triangulum 支持切换成多时区产品行为。
 timezone: "Asia/Shanghai"
 random_seed_strategy: "date"
 decade_mode: "off"
@@ -49,6 +51,8 @@ global_exclusions:
 # -----------------------------------------------------------------------------
 # 时段权重策略 (Slots)
 # Q=Quality(排名), N=Newness(新度), D=Date(年代), T=Type, eps=Random
+# require_cover: true 当前是软偏好：优先选择有封面的候选，但允许
+# Cover Art Archive 缺失时退回 Last.fm 图片，最终可使用 assets/placeholder.svg。
 # -----------------------------------------------------------------------------
 slots:
   Headliner:

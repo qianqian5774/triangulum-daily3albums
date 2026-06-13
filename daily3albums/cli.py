@@ -284,6 +284,9 @@ def _now_date_in_tz(tz_name: str) -> str:
 
 
 def _beijing_now() -> datetime:
+    # Product time is intentionally fixed to Beijing Time. Config/env timezone
+    # values exist to keep CI and local environments aligned, not to introduce
+    # multi-timezone product behavior.
     try:
         from zoneinfo import ZoneInfo
 
@@ -1031,6 +1034,7 @@ def cmd_build(
     date_override: str,
     theme: str,
     diagnostics: bool,
+    skip_ui_build: bool = False,
 ) -> int:
     env = load_env(repo_root)
     cfg = load_config(repo_root)
@@ -1417,30 +1421,36 @@ def cmd_build(
         if not ui_dir.exists():
             print("BUILD ERROR: ui/ directory is missing. Cannot build frontend.")
             return 2
-        print("BUILD: ui bundle")
-        npm_exe = shutil.which("npm.cmd") or shutil.which("npm")
-        if not npm_exe:
-            raise SystemExit("UI build failed: npm not found. Install Node.js and ensure npm is on PATH.")
-        ui_timeout_s = int(getattr(cfg, "ui_build_timeout_s", 300))
-        try:
-            ui_build = subprocess.run(
-                [npm_exe, "--prefix", str(ui_dir), "run", "build"],
-                check=False,
-                cwd=repo_root,
-                timeout=ui_timeout_s,
-            )
-        except subprocess.TimeoutExpired as exc:
-            print(
-                "BUILD ERROR: ui build timed out "
-                f"timeout_s={ui_timeout_s} cmd={' '.join(exc.cmd) if isinstance(exc.cmd, (list, tuple)) else exc.cmd}"
-            )
-            log_line(f"ui_build_timeout timeout_s={ui_timeout_s}")
-            return 2
-        if ui_build.returncode != 0:
-            print("BUILD ERROR: ui build failed. See npm output above.")
-            return 2
+        if skip_ui_build:
+            print("BUILD: ui bundle skipped (--skip-ui-build)")
+        else:
+            print("BUILD: ui bundle")
+            npm_exe = shutil.which("npm.cmd") or shutil.which("npm")
+            if not npm_exe:
+                raise SystemExit("UI build failed: npm not found. Install Node.js and ensure npm is on PATH.")
+            ui_timeout_s = int(getattr(cfg, "ui_build_timeout_s", 300))
+            try:
+                ui_build = subprocess.run(
+                    [npm_exe, "--prefix", str(ui_dir), "run", "build"],
+                    check=False,
+                    cwd=repo_root,
+                    timeout=ui_timeout_s,
+                )
+            except subprocess.TimeoutExpired as exc:
+                print(
+                    "BUILD ERROR: ui build timed out "
+                    f"timeout_s={ui_timeout_s} cmd={' '.join(exc.cmd) if isinstance(exc.cmd, (list, tuple)) else exc.cmd}"
+                )
+                log_line(f"ui_build_timeout timeout_s={ui_timeout_s}")
+                return 2
+            if ui_build.returncode != 0:
+                print("BUILD ERROR: ui build failed. See npm output above.")
+                return 2
         if not ui_dist_dir.exists():
-            print("BUILD ERROR: ui/dist is missing after build.")
+            if skip_ui_build:
+                print("BUILD ERROR: ui/dist is missing. Run npm --prefix ui run build or omit --skip-ui-build.")
+            else:
+                print("BUILD ERROR: ui/dist is missing after build.")
             return 2
 
         out_public_dir.mkdir(parents=True, exist_ok=True)
@@ -1565,7 +1575,7 @@ def main() -> None:
         "--date",
         type=str,
         default="",
-        help="Override date key (YYYY-MM-DD). If empty, use configured timezone 'today'.",
+        help="Override date key (YYYY-MM-DD). If empty, use Asia/Shanghai product date.",
     )
     p_build.add_argument(
         "--theme",
@@ -1577,6 +1587,11 @@ def main() -> None:
         "--diagnostics",
         action="store_true",
         help="Print per-adapter request/timeout/retry and slot rejection summaries.",
+    )
+    p_build.add_argument(
+        "--skip-ui-build",
+        action="store_true",
+        help="Reuse existing ui/dist instead of running npm --prefix ui run build. Default keeps one-command builds self-contained.",
     )
     p_build.add_argument(
         "--no-split-slots",
@@ -1635,6 +1650,7 @@ def main() -> None:
                     date_override=args.date,
                     theme=args.theme,
                     diagnostics=args.diagnostics,
+                    skip_ui_build=args.skip_ui_build,
                 )
             )
         except KeyboardInterrupt:
