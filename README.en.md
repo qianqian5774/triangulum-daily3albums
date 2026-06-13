@@ -1,133 +1,117 @@
 # Triangulum Daily 3 Albums
 
-中文 | [English](README.en.md)
+[中文](README.md) | English
 
-A static-site “daily dose” album recommender with deterministic, time-gated unlock windows on **Beijing Time (Asia/Shanghai)**.
+Triangulum Daily 3 Albums is a static site and generation system that publishes three album recommendations every day.
 
-This repo builds **once per day**. The site switches between today’s slots **at runtime** in the browser (no redeploy needed at unlock times).
+I started it for myself as a daily way to decide what to listen to. I wanted something that pushed against the usual recommendation loops from streaming platforms and social feeds, and surfaced albums that were less obvious, less popular, or just outside my normal listening path. Later I realized that if the project could live reliably on the web, it could also be useful for more people to open each day. This repository records the implementation used to generate, publish, and maintain the Daily 3 Albums project.
 
----
+## What it does
 
-## Local build + preview
+The system generates 3 album recommendations per day and publishes them as a static website. Visitors can see the current day's albums, the Beijing-time unlock schedule, and an archive of past recommendations.
 
-1) Install dependencies; if you want an independent UI check, build the UI:
+The core goals are simple:
+
+- Recommend 3 albums each day.
+- Avoid overly mainstream or overly familiar recommendation results where possible.
+- Keep the daily publishing flow stable over time.
+- Preserve an archive so past recommendations can be revisited.
+
+## How it works
+
+Daily 3 Albums has two main parts:
+
+- Python generator: reads configuration, calls external music data sources, selects candidate albums, and writes the JSON data used by the site.
+- Static frontend: reads generated data and renders the today page, archive, and album detail pages in the browser.
+
+The daily automation roughly follows this path:
+
+1. GitHub Actions runs once in the early Beijing morning.
+2. The generator uses configuration and cache data to collect candidate albums.
+3. The system selects 3 albums for the day and writes `today.json` plus archive data.
+4. The frontend is built into static files.
+5. GitHub Pages publishes the site from `_build/public`.
+
+The deployed site does not depend on a running backend service. After publishing, visitors load static assets.
+
+## Daily schedule
+
+The site uses Beijing time, Asia/Shanghai, for its visible states:
+
+- 00:00-05:59: the day's albums are not open yet.
+- 06:00-11:59: album 1 is open.
+- 12:00-17:59: album 2 is open.
+- 18:00-23:59: album 3 is open.
+
+The 06:00 / 12:00 / 18:00 transitions happen in the browser at runtime, so the site does not need a new deployment for each slot.
+
+## Features
+
+- 3 album recommendations per day.
+- Beijing-time slot unlocks.
+- Today page, archive page, and album detail pages.
+- Metadata enrichment from external sources such as Last.fm and MusicBrainz.
+- Local SQLite cache to reduce repeated requests and external API pressure.
+- Generated-output `self_check` for today data, archive consistency, and key static artifacts.
+- `doctor` command for checking configuration, environment, timezone, and basic external-service availability.
+- `debug_time` parameter for local testing of time-based UI states.
+
+## Project layout
+
+```text
+daily3albums/      Python generator and CLI
+config/            Tags, data sources, and endpoint policies
+scripts/           Maintenance and self-check scripts
+ui/                Static frontend
+docs/              Operations notes, revive logs, and audit documents
+_build/public/     Local final static-site output
+```
+
+`_build/public` is the final publishing directory. Frontend development seed data and production generated data should stay separate; do not treat `ui/public/data` as production output.
+
+## Maintainer commands
+
+These commands are for local maintenance and verification. See `docs/runbook.md` and `docs/revive/` for fuller operational notes.
 
 ```bash
 npm --prefix ui ci
+npm --prefix ui test
 npm --prefix ui run build
-```
-
-2) Build the daily artifacts. By default, the generator builds the UI itself and writes runtime JSON into `_build/public/data`:
-
-```bash
+daily3albums doctor
 daily3albums build --verbose --out ./_build/public
+python scripts/self_check.py --path ./_build/public
 ```
 
-If CI or a local script has just run `npm --prefix ui run build`, use `daily3albums build --skip-ui-build ...` to reuse the existing `ui/dist`. Do not use that flag when `ui/dist` is missing; the default keeps `daily3albums build` self-contained.
-
-3) Preview the static site from `_build/public`:
+Local preview:
 
 ```bash
 python -m http.server --directory _build/public 8000
 ```
 
-Then visit `http://localhost:8000/`.
+## debug_time
 
-> Note: Local testing should only serve `_build/public`. Do not serve `ui/public/data` (or `ui/dist/data`) for runtime JSON, or you may accidentally render seed data.
+For local debugging, `debug_time` can simulate Beijing time:
 
----
-
-## Runtime unlock windows (Beijing Time)
-
-The site computes the current state using **Beijing Time (Asia/Shanghai)** on the client:
-
-- `OFFLINE` 00:00–05:59
-- `SLOT0` 06:00–11:59
-- `SLOT1` 12:00–17:59
-- `SLOT2` 18:00–23:59
-
-Unlock switching is **client-side only**: once today’s `today.json` is generated and deployed, the browser selects which slot to display based on BJT.
-
----
-
-## Schedule + timezone (GitHub Actions)
-
-The GitHub Pages workflow runs **once per day** to generate and deploy “today”:
-
-- Target time: **05:17 Beijing Time (Asia/Shanghai)**
-- Cron expression (UTC): `17 21 * * *` (this is **21:17 UTC on the previous day**)
-- A small workflow jitter (e.g. `0–120s`) may be applied **inside** the job to avoid “same-second” congestion
-- Workflow timezone must be explicit: `TZ=Asia/Shanghai` and `DAILY3ALBUMS_TZ=Asia/Shanghai`
-
-Important: The generator must compute `today.json.date` using **Asia/Shanghai**, not runner-local UTC, to avoid “wrong day” artifacts.
-
-Maintenance boundary: production CI is pinned to **Python 3.11**. Newer local Python versions, such as 3.14, are development environments only and do not replace CI 3.11 validation. The product clock is fixed to Beijing Time (Asia/Shanghai); `config.timezone` and environment variables are for local/CI alignment, not multi-timezone product behavior.
-
-Cover boundary: `require_cover: true` currently means “prefer covered candidates”, not “fail the build if no non-placeholder cover exists”. If Cover Art Archive has no image, the generator may fall back to Last.fm imagery; if no image is available, it writes `assets/placeholder.svg` so the static site can still publish.
-
----
-
-## Debug Mode (time simulation)
-
-When developing, you shouldn’t wait for real-world clock boundaries. Use `debug_time` to simulate Beijing Time instantly.
-
-### How it works
-
-Append a query parameter:
-
-`?debug_time=YYYY-MM-DDTHH:MM:SS`
-
-Rules:
-
-- The value is interpreted as **Beijing Time (Asia/Shanghai)**
-- Seconds are optional: `YYYY-MM-DDTHH:MM` is also accepted
-- When `debug_time` is present, the UI uses it as “now” for:
-  - OFFLINE ↔ SLOT transitions
-  - Cross-slot boundaries (06:00 / 12:00 / 18:00)
-  - Cross-day rollover (23:59:xx → 00:00:xx)
-
-### Examples
-
-- Test OFFLINE → SLOT0:
-
-`http://localhost:8000/?debug_time=2024-03-21T05:59:50`
-
-then change to:
-
-`http://localhost:8000/?debug_time=2024-03-21T06:00:10`
-
-- Test SLOT2 → OFFLINE rollover:
-
-`http://localhost:8000/?debug_time=2024-03-20T23:59:50`
-
-then change to:
-
-`http://localhost:8000/?debug_time=2024-03-21T00:00:10`
-
-### Turning Debug Mode off
-
-Remove the `debug_time` query parameter and reload the page.
-
-If the UI also persists debug time in session storage, you can clear it manually:
-
-```js
-sessionStorage.removeItem("tri_debug_time");
+```text
+?debug_time=YYYY-MM-DDTHH:MM:SS
 ```
 
----
+HashRouter builds also support:
 
-## Generator constraints (current)
+```text
+/#/?debug_time=YYYY-MM-DDTHH:MM:SS
+```
 
-- Date/slot/cooldown math uses **Asia/Shanghai (BJT)** only.
-- Hard constraints: same-day album uniqueness, same-day main-artist disjointness, 7-day artist cooldown, and type gating (Album allowed by default; unknown type is allowed).
-- Slot theme model: each slot picks one `theme` from `tag_pool`; every pick in the slot uses `style_key == theme_key` (normalized theme).
-- Theme cooldown: exact `theme_key` cannot repeat within 3 days.
-- Decade constraints are disabled by default (`decade_mode: off`), so build validation no longer enforces decade coverage or unknown-year ceilings.
+It is commonly used to check 05:59 / 06:00 / 12:00 / 18:00 / cross-day states.
 
-## Notes on caching
+## Runtime notes
 
-Browsers/CDNs may cache `today.json`. At critical boundaries (especially OFFLINE → SLOT0 at 06:00 BJT), the UI may force a cache-busting fetch:
+- Production CI uses Python 3.11. Newer local Python versions, such as 3.14, can be used for development, but they do not replace CI 3.11 verification.
+- The product time model is fixed to Beijing time, Asia/Shanghai. `config.timezone` and environment variables keep local, CI, and generator behavior aligned; they do not mean the site supports a multi-timezone product mode.
+- `daily3albums build` builds the UI by default and writes data into `_build/public/data`. If the UI has already been built separately, `--skip-ui-build` can reuse the existing `ui/dist`, but it should not be used where `ui/dist` is missing.
+- Browsers or CDNs may cache `today.json`. Critical boundaries use cache-busting requests; if the returned data is not for the current Beijing date, the UI should enter a safe degraded state and retry.
+- `require_cover: true` currently means candidates with covers are preferred. It does not mean the build must fail whenever a cover is missing. When Cover Art Archive has no cover, Last.fm artwork may be used; if no image is available, `assets/placeholder.svg` is used.
 
-- `fetch("/data/today.json?t=" + Date.now(), { cache: "no-store" })`
+## Current status
 
-If fetching returns stale data (e.g. `today.json.date` is not today in BJT), the UI should enter a safe fallback state and retry until it receives the correct day.
+The project is being maintained toward stable publishing and long-running unattended operation. Recent work focuses on build-chain consistency, clearer cache and API failure behavior, static-output self-checks, and eventual release on a production domain.

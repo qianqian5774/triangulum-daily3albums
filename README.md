@@ -2,132 +2,116 @@
 
 [English](README.en.md) | 中文
 
-**Triangulum** （黑胶囊）是一个运行在 GitHub Pages 上的**时间确定性静态自动机**，也是一个极其克制的每日音乐推荐系统。
+Triangulum Daily 3 Albums 是一个每天推荐三张专辑的静态站点和生成系统。
 
-在一个算法无限流的时代，Triangulum 选择回归“有限”与“秩序”。它拒绝实时生成的无限列表，而是每天像派发“处方药”一样，严格按照**北京时间（Asia/Shanghai）** 的早、中、晚三个时段，向访问者解锁当日的三张精选专辑。
+我最开始做它，是想给自己一个每天听专辑的入口：不要总被流媒体平台和社交媒体的推荐逻辑推着走，而是每天看到几张不那么热门、但可能有意思的专辑。后来我发现，如果这个东西能稳定放到网上，让更多人每天打开看一眼，也是一件很好的事。所以这个仓库记录的是 Daily 3 Albums 项目的生成、发布和维护实现。
 
-### 核心理念：静态托管，动态灵魂
+## 它做什么
 
-这个项目的工程哲学在于**“一次构建，全天自治”**。它打破了静态站点必须依赖服务器部署才能更新内容的传统限制，通过**运行时时段解锁（Runtime Slot Unlock）** 机制，实现了一个无需后端介入的动态体验：
+系统每天生成 3 张专辑推荐，并发布成一个可以直接访问的静态网站。访问者看到的是当天内容、按北京时间解锁的三个时段，以及过去推荐的归档。
 
-- **数字新陈代谢**：系统拥有自己的作息。每天 **00:00 (BJT)** 准时进入 `OFFLINE`（休眠）状态，仅保留昨日存档；直到清晨 **06:00 (BJT)** 重新“苏醒”，开始新一天的运转。
-- **便当盒架构 (Bento-Box Architecture)**：每天凌晨，GitHub Actions 仅运行**一次**构建任务，将全天三个时段的数据（Slot 0/1/2）预先打包进一个静态 JSON 中。
-- **客户端时间主权**：浏览器不再被动等待服务器更新，而是根据**本地计算的北京时间**，自主决定是展示内容还是保持锁定。无论 CDN 缓存在何处，用户看到的永远是“此刻”应有的状态。
+核心目标很简单：
 
----
+- 每天给出 3 张值得听的专辑。
+- 尽量避开过于主流、过于熟悉的推荐结果。
+- 让推荐内容可以长期稳定地自动生成和发布。
+- 保留归档，方便回看过去每天出现过的专辑。
 
-## 本地构建 + 预览
+## 它怎么运转
 
-1) 安装依赖；如果你只想独立验证 UI，可单独构建 UI：
+Daily 3 Albums 由两个部分组成：
+
+- Python 生成器：读取配置、调用外部音乐数据源、筛选候选专辑、生成站点需要的 JSON 数据。
+- 前端静态站点：读取生成好的数据，在浏览器里展示当天推荐、归档和详情页。
+
+每天的自动流程大致是：
+
+1. GitHub Actions 在北京时间清晨运行一次构建。
+2. 生成器根据配置和缓存获取候选专辑。
+3. 系统筛选出当天 3 张专辑，写入 `today.json` 和 archive 数据。
+4. 前端构建为静态文件。
+5. GitHub Pages 发布 `_build/public` 中的站点文件。
+
+站点不依赖运行中的后端服务。发布完成后，访问者看到的页面都是静态资源。
+
+## 每日时段
+
+站点按北京时间 Asia/Shanghai 展示不同状态：
+
+- 00:00-05:59：当天内容尚未开放。
+- 06:00-11:59：开放第 1 张专辑。
+- 12:00-17:59：开放第 2 张专辑。
+- 18:00-23:59：开放第 3 张专辑。
+
+06:00 / 12:00 / 18:00 的切换由浏览器运行时判断，不需要在每个时段重新部署。
+
+## 主要功能
+
+- 每日 3 张专辑推荐。
+- 按北京时间分时段解锁。
+- 今日页面、归档页面和专辑详情页面。
+- 基于 Last.fm、MusicBrainz 等外部数据源补充音乐信息。
+- 本地 SQLite cache，减少重复请求和外部 API 压力。
+- 生成后的 `self_check`，用于检查当天数据、归档和关键输出是否一致。
+- `doctor` 命令，用于检查配置、环境、时区和外部服务基础可用性。
+- `debug_time` 参数，用于本地验证不同时段的页面状态。
+
+## 项目结构
+
+```text
+daily3albums/      Python 生成器和 CLI
+config/            标签、数据源和端点策略配置
+scripts/           维护和自检脚本
+ui/                前端静态站点
+docs/              运维记录、复健记录和审计文档
+_build/public/     本地生成的最终静态站点输出
+```
+
+`_build/public` 是最终发布目录。前端开发示例数据和生产生成数据需要区分，不要直接把 `ui/public/data` 当成生产输出。
+
+## 维护者本地命令
+
+这些命令用于维护者本地验证当前项目状态。更完整的运行记录见 `docs/runbook.md` 和 `docs/revive/`。
 
 ```bash
 npm --prefix ui ci
+npm --prefix ui test
 npm --prefix ui run build
-```
-
-2) 生成每日产物（生成器默认会自己构建 UI，并把运行时 JSON 写入 `_build/public/data`）：
-
-```bash
+daily3albums doctor
 daily3albums build --verbose --out ./_build/public
+python scripts/self_check.py --path ./_build/public
 ```
 
-如果 CI 或本地脚本已经刚刚运行过 `npm --prefix ui run build`，可以用 `daily3albums build --skip-ui-build ...` 复用已有 `ui/dist`。不要在没有 `ui/dist` 的环境里使用这个开关；保留默认行为可以保证 `daily3albums build` 仍是一条命令生成 `_build/public`。
-
-3) 从 `_build/public` 启动静态预览：
+本地预览：
 
 ```bash
 python -m http.server --directory _build/public 8000
 ```
 
-然后访问：`http://localhost:8000/`
+## debug_time
 
-> 注意：本地测试必须只服务 `_build/public`。不要服务 `ui/public/data`（或 `ui/dist/data`），否则会把 UI seed JSON 当成运行数据，造成“看似正常但数据不刷新/封面不对”等假象。
+本地调试时可以用 `debug_time` 模拟北京时间：
 
----
-
-## 运行时解锁窗口（北京时间）
-
-站点在浏览器端用 **北京时间（Asia/Shanghai）** 计算当前状态：
-
-- `OFFLINE`：00:00–05:59
-- `SLOT0`：06:00–11:59
-- `SLOT1`：12:00–17:59
-- `SLOT2`：18:00–23:59
-
-解锁切换是**纯前端行为**：只要当天 `today.json` 已生成并部署，浏览器就会根据北京时间选择展示哪个 slot；到达边界时可无刷新切档（取决于 UI 的运行时状态机实现）。
-
----
-
-## 定时构建 + 时区（GitHub Actions）
-
-GitHub Pages 工作流每天只跑一次，用于生成并部署“今天”的数据：
-
-- 目标时间：北京时间 **05:17**（Asia/Shanghai）
-- Cron（UTC）：`17 21 * * *`（注意：这是 **UTC 前一日 21:17**）
-- 可在工作流内部增加小幅抖动（例如 `0–120s`）用于避开同秒拥挤，但**解锁时刻不抖动**
-- 工作流时区必须显式指定：`TZ=Asia/Shanghai` 与 `DAILY3ALBUMS_TZ=Asia/Shanghai`
-
-重要：生成器必须用 Asia/Shanghai 计算“今天”的日期键（`today.json.date`），不能用 runner 默认 UTC，否则会出现“生成了 UTC 的日期 → 北京时间错一天”的灾难。
-
-维护边界：生产 CI 的 Python 基线是 **3.11**；本地使用更新 Python（例如 3.14）只能说明开发机可运行，不能替代 CI 3.11 验证。当前产品定义固定为北京时间（Asia/Shanghai），`config.timezone` 和环境变量用于让本地/CI 对齐，不表示可以把产品切换成多时区模式。
-
-封面边界：`require_cover: true` 当前表示“优先选择有封面的候选”，不是硬失败条件。Cover Art Archive 无封面时，生成器允许退回 Last.fm 图片；仍无图片时写入 `assets/placeholder.svg`，保持静态站可发布。
-
----
-
-## Debug Mode（时间模拟）
-
-开发时不可能等到真实时间边界。使用 `debug_time` 可以瞬间模拟北京时间的“跨 slot / 跨日 / OFFLINE 进入”等所有边界情况。
-
-### 用法
-
-在 URL 后追加：
-
-`?debug_time=YYYY-MM-DDTHH:MM:SS`
-
-规则：
-
-- 该时间按 **北京时间（Asia/Shanghai）** 解释
-- 秒可省略：`YYYY-MM-DDTHH:MM` 也可
-- `debug_time` 生效时，UI 会把它当作“当前时间”，用于：
-  - OFFLINE ↔ SLOT 切换
-  - 06:00 / 12:00 / 18:00 边界
-  - 跨日滚动（23:59:xx → 00:00:xx）
-
-### 示例
-
-- 测 OFFLINE → SLOT0：
-
-`http://localhost:8000/?debug_time=2024-03-21T05:59:50`
-
-然后改成：
-
-`http://localhost:8000/?debug_time=2024-03-21T06:00:10`
-
-- 测 SLOT2 → OFFLINE（跨日）：
-
-`http://localhost:8000/?debug_time=2024-03-20T23:59:50`
-
-然后改成：
-
-`http://localhost:8000/?debug_time=2024-03-21T00:00:10`
-
-### 关闭 Debug Mode
-
-移除 `debug_time` 参数并刷新页面即可。
-
-如果 UI 还会把 debug_time 写入 sessionStorage，可手动清理：
-
-```js
-sessionStorage.removeItem("tri_debug_time");
+```text
+?debug_time=YYYY-MM-DDTHH:MM:SS
 ```
 
----
+HashRouter 场景也支持：
 
-## 缓存注意事项
+```text
+/#/?debug_time=YYYY-MM-DDTHH:MM:SS
+```
 
-浏览器与 CDN 可能缓存 `today.json`。在关键边界（尤其是 OFFLINE → SLOT0 的 06:00）建议做一次强制穿透缓存的请求，例如：
+常用来检查 05:59 / 06:00 / 12:00 / 18:00 / 跨日等状态。
 
-- `fetch("/data/today.json?t=" + Date.now(), { cache: "no-store" })`
+## 运行边界
 
-如果拉到的数据仍是旧日（比如 `today.json.date` 不是“北京时间今天”），UI 应进入安全降级态并重试，直到拿到正确日期的数据为止。
+- 生产 CI 使用 Python 3.11。本地较新的 Python，例如 3.14，可以作为开发环境，但不能替代 CI 3.11 验证。
+- 产品时间固定为北京时间 Asia/Shanghai。`config.timezone` 和环境变量用于让本地、CI 和生成器对齐，不表示站点支持多时区产品模式。
+- `daily3albums build` 默认会构建 UI 并写入 `_build/public/data`。如果已经单独构建过 UI，可以使用 `--skip-ui-build` 复用已有 `ui/dist`，但不要在缺少 `ui/dist` 的环境使用。
+- 浏览器或 CDN 可能缓存 `today.json`。关键边界会使用 cache-busting 请求；如果取回的数据不是北京时间当天，UI 应进入安全降级态并重试。
+- `require_cover: true` 当前表示优先选择有封面的候选，不是封面缺失就让构建失败。Cover Art Archive 无封面时可退回 Last.fm 图片；仍无图片时使用 `assets/placeholder.svg`。
+
+## 当前状态
+
+项目正在围绕稳定发布和长期无人值守运行继续维护。近期工作重点包括构建链路一致性、缓存和 API 失败可解释性、静态输出自检，以及最终发布到正式域名。
