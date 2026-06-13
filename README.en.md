@@ -1,6 +1,6 @@
 # Triangulum Daily 3 Albums
 
-English | [中文](https://github.com/qianqian5774/triangulum-daily3albums/edit/main/README.md)
+English | [中文](https://github.com/qianqian5774/triangulum-daily3albums/tree/main)
 
 Three albums a day.
 No endless feed, no chart-chasing, no rush to hear everything.
