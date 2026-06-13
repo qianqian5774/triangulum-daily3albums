@@ -10,18 +10,20 @@ This repo builds **once per day**. The site switches between today’s slots **a
 
 ## Local build + preview
 
-1) (Optional) Build the UI (if you changed UI code):
+1) Install dependencies; if you want an independent UI check, build the UI:
 
 ```bash
 npm --prefix ui ci
 npm --prefix ui run build
 ```
 
-2) Build the daily artifacts (the generator writes runtime JSON into `_build/public/data`):
+2) Build the daily artifacts. By default, the generator builds the UI itself and writes runtime JSON into `_build/public/data`:
 
 ```bash
 daily3albums build --verbose --out ./_build/public
 ```
+
+If CI or a local script has just run `npm --prefix ui run build`, use `daily3albums build --skip-ui-build ...` to reuse the existing `ui/dist`. Do not use that flag when `ui/dist` is missing; the default keeps `daily3albums build` self-contained.
 
 3) Preview the static site from `_build/public`:
 
@@ -58,6 +60,10 @@ The GitHub Pages workflow runs **once per day** to generate and deploy “today�
 - Workflow timezone must be explicit: `TZ=Asia/Shanghai` and `DAILY3ALBUMS_TZ=Asia/Shanghai`
 
 Important: The generator must compute `today.json.date` using **Asia/Shanghai**, not runner-local UTC, to avoid “wrong day” artifacts.
+
+Maintenance boundary: production CI is pinned to **Python 3.11**. Newer local Python versions, such as 3.14, are development environments only and do not replace CI 3.11 validation. The product clock is fixed to Beijing Time (Asia/Shanghai); `config.timezone` and environment variables are for local/CI alignment, not multi-timezone product behavior.
+
+Cover boundary: `require_cover: true` currently means “prefer covered candidates”, not “fail the build if no non-placeholder cover exists”. If Cover Art Archive has no image, the generator may fall back to Last.fm imagery; if no image is available, it writes `assets/placeholder.svg` so the static site can still publish.
 
 ---
 
