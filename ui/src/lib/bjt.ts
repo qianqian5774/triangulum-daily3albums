@@ -159,18 +159,38 @@ export const saveDebugTime = (value: string | null) => {
   window.sessionStorage.setItem(DEBUG_TIME_STORAGE_KEY, value);
 };
 
-export const readDebugTimeParam = (...searches: Array<string | null | undefined>) => {
+const toSearchParams = (search: string) => {
+  const trimmed = search.trim();
+  if (!trimmed) {
+    return new URLSearchParams();
+  }
+  const hashQueryIndex = trimmed.startsWith("#") ? trimmed.indexOf("?") : -1;
+  if (hashQueryIndex >= 0) {
+    return new URLSearchParams(trimmed.slice(hashQueryIndex));
+  }
+  return new URLSearchParams(trimmed);
+};
+
+const readUrlParam = (name: string, ...searches: Array<string | null | undefined>) => {
   for (const search of searches) {
     if (!search) {
       continue;
     }
-    const params = new URLSearchParams(search);
-    const value = params.get("debug_time");
+    const params = toSearchParams(search);
+    const value = params.get(name);
     if (value) {
       return value;
     }
   }
   return null;
+};
+
+export const readDebugTimeParam = (...searches: Array<string | null | undefined>) =>
+  readUrlParam("debug_time", ...searches);
+
+export const readDebugFlagParam = (...searches: Array<string | null | undefined>) => {
+  const value = readUrlParam("debug", ...searches);
+  return value === "1" || value?.toLowerCase() === "true";
 };
 
 export const getBjtNowParts = (debugTime: string | null): BjtNow => {

@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { AmbientOverlay } from "../components/AmbientOverlay";
@@ -16,10 +16,10 @@ import {
   formatDebugTime,
   getBjtNowParts,
   loadDebugTime,
+  readDebugFlagParam,
   resolveVisualTheme,
   resolveNowState,
-  saveDebugTime,
-  shiftDebugTime
+  saveDebugTime
 } from "../lib/bjt";
 import { parseTodayIssue, type TodayIssue, type TodaySlot } from "../lib/types";
 import { useT } from "../lib/ui-settings";
@@ -94,6 +94,7 @@ function getStoredLastGood(): TodayIssue | null {
 export function TodayRoute() {
   const tx = useT();
   const hudContext = useContext(HudContext);
+  const location = useLocation();
 
   /**
    * Critical: do NOT put the entire hudContext object into the data-loading effect deps.
@@ -125,6 +126,7 @@ export function TodayRoute() {
   const [debugTime, setDebugTime] = useState<string | null>(() => loadDebugTime());
   const [bjtNow, setBjtNow] = useState(() => getBjtNowParts(loadDebugTime()));
   const [lastGoodIssue, setLastGoodIssue] = useState<TodayIssue | null>(() => getStoredLastGood());
+  const [lockedFeedback, setLockedFeedback] = useState(false);
 
   const lastActiveRef = useRef<HTMLElement | null>(null);
   const glitchTimeoutRef = useRef<number | null>(null);
@@ -133,6 +135,7 @@ export function TodayRoute() {
   const openingRef = useRef<string | null>(null);
   const transitionTimerRef = useRef<number | null>(null);
   const transitionSwapRef = useRef<number | null>(null);
+  const lockedFeedbackTimeoutRef = useRef<number | null>(null);
 
   const coverCacheKey = issue?.run_id ?? issue?.date ?? lastGoodIssue?.run_id ?? lastGoodIssue?.date ?? "";
 
@@ -204,6 +207,17 @@ export function TodayRoute() {
     nowSlotId !== null && selectedSlotId !== null && selectedSlotId !== nowSlotId && nowState !== "OFFLINE";
 
   const showNowAvailable = showReturnToNow;
+
+  const debugPanelEnabled = useMemo(
+    () =>
+      Boolean(debugTime) ||
+      readDebugFlagParam(
+        location.search,
+        typeof window === "undefined" ? "" : window.location.search,
+        typeof window === "undefined" ? "" : window.location.hash
+      ),
+    [debugTime, location.search]
+  );
 
   const activeIndex = useMemo(() => {
     if (!focusedId) {
@@ -494,6 +508,9 @@ export function TodayRoute() {
       if (transitionTimerRef.current) {
         window.clearTimeout(transitionTimerRef.current);
       }
+      if (lockedFeedbackTimeoutRef.current) {
+        window.clearTimeout(lockedFeedbackTimeoutRef.current);
+      }
     },
     []
   );
@@ -642,21 +659,28 @@ export function TodayRoute() {
     setSelectedSlotId(slotId);
   };
 
-  const applyDebugShift = (deltaSeconds: number) => {
-    if (!debugTime) {
-      return;
-    }
-    const next = shiftDebugTime(debugTime, deltaSeconds);
-    if (!next) {
-      return;
-    }
-    saveDebugTime(next);
-    setDebugTime(next);
-  };
-
   const clearDebug = () => {
     saveDebugTime(null);
     setDebugTime(null);
+  };
+
+  const setDebugClock = (hour: number, minute: number, second = 0) => {
+    const next = formatDebugTime({ ...bjtNow.parts, hour, minute, second });
+    saveDebugTime(next);
+    setDebugTime(next);
+    setBjtNow(getBjtNowParts(next));
+  };
+
+  const triggerLockedFeedback = () => {
+    if (lockedFeedbackTimeoutRef.current) {
+      window.clearTimeout(lockedFeedbackTimeoutRef.current);
+    }
+    setLockedFeedback(true);
+    triggerGlitch(140);
+    lockedFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setLockedFeedback(false);
+      lockedFeedbackTimeoutRef.current = null;
+    }, 1800);
   };
 
   useEffect(() => {
@@ -674,7 +698,7 @@ export function TodayRoute() {
               ? tx("today.offline.title")
               : null;
     updateHudRef.current?.({
-      status: error ? "ERROR" : signalState === "SIGNAL_LOST" ? "DEGRADED" : "OK",
+      status: error ? "ERROR" : nowState === "OFFLINE" ? "OFFLINE" : signalState === "SIGNAL_LOST" ? "DEGRADED" : "OK",
       marqueeItems,
       statusMessage
     });
@@ -683,6 +707,61 @@ export function TodayRoute() {
   if (error && nowState !== "OFFLINE" && !displayIssue) {
     return <BSOD message={`${tx("system.errors.todayLoad")}: ${error}`} />;
   }
+
+  const debugPanel = debugPanelEnabled ? (
+    <div className="hud-border rounded-card bg-panel-900/70 p-4 text-[0.72rem] uppercase tracking-[0.2em] text-clinical-white/60">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span>{tx("today.debug.label")}</span>
+        <span className="font-mono text-xs text-signal-accent">
+          {debugTime ? `${tx("today.debug.active")} ${debugTime}` : tx("today.debug.realTime")}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
+          onClick={() => setDebugClock(5, 59)}
+        >
+          {tx("today.debug.offline")}
+        </button>
+        <button
+          type="button"
+          className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
+          onClick={() => setDebugClock(6, 0)}
+        >
+          {tx("today.debug.slot0600")}
+        </button>
+        <button
+          type="button"
+          className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
+          onClick={() => setDebugClock(12, 0)}
+        >
+          {tx("today.debug.slot1200")}
+        </button>
+        <button
+          type="button"
+          className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
+          onClick={() => setDebugClock(18, 0)}
+        >
+          {tx("today.debug.slot1800")}
+        </button>
+        <button
+          type="button"
+          className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
+          onClick={() => setDebugClock(20, 0)}
+        >
+          {tx("today.debug.transition2000")}
+        </button>
+        <button
+          type="button"
+          className="ui-button border-alert-red/60 text-alert-red hover:border-alert-red"
+          onClick={clearDebug}
+        >
+          {tx("today.debug.clear")}
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   if (nowState === "OFFLINE") {
     return (
@@ -697,14 +776,12 @@ export function TodayRoute() {
             <p className="font-mono text-sm text-clinical-white/60">{tx("today.offline.nextBoot")}</p>
           </div>
           <div className="ambient-fade flex flex-wrap items-center gap-3">
-            <Link
-              to="/archive"
-              className="ui-button border-signal-accent/60 text-signal-accent hover:border-signal-accent hover:text-signal-accent/90"
-            >
-              {tx("today.offline.viewArchive")}
-            </Link>
+            <p className="max-w-sm font-mono text-xs uppercase tracking-[0.22em] text-clinical-white/45">
+              {tx("today.offline.archiveViaHud")}
+            </p>
           </div>
         </div>
+        {debugPanel}
         <div className="hud-border rounded-card bg-panel-900/60 p-6">
           <p className="text-xs uppercase tracking-[0.3em] text-clinical-white/50">
             {tx("today.offline.archivedHint")}
@@ -712,7 +789,12 @@ export function TodayRoute() {
           <div className="relative mt-6">
             <span className="archived-watermark">{tx("today.offline.archivedLabel")}</span>
             {archivedIssue ? (
-              <Link to="/archive" className="block">
+              <div
+                role="group"
+                aria-disabled="true"
+                onClick={triggerLockedFeedback}
+                className={`offline-locked-panel ${lockedFeedback ? "is-locked-feedback" : ""}`}
+              >
                 <div className="pointer-events-none grid gap-6 md:grid-cols-3">
                   {archivedIssue.picks.map((pick) => (
                     <SlotCard
@@ -724,7 +806,10 @@ export function TodayRoute() {
                     />
                   ))}
                 </div>
-              </Link>
+                <p className="mt-4 font-mono text-xs uppercase tracking-[0.26em] text-clinical-white/45">
+                  {lockedFeedback ? tx("today.offline.lockedFeedback") : tx("today.offline.lockedHint")}
+                </p>
+              </div>
             ) : (
               <div className="hud-border rounded-card bg-panel-900/60 p-6 font-mono text-sm text-clinical-white/60">
                 {archivedError ? tx("today.offline.noSignal") : tx("today.loading")}
@@ -796,65 +881,7 @@ export function TodayRoute() {
         </div>
       </div>
 
-      {debugTime ? (
-        <div className="hud-border rounded-card bg-panel-900/70 p-4 text-[0.72rem] uppercase tracking-[0.2em] text-clinical-white/60">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>{tx("today.debug.label")}</span>
-            <span className="font-mono text-xs text-signal-accent">{debugTime}</span>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-              onClick={() => applyDebugShift(-60)}
-            >
-              {tx("today.debug.minusMinute")}
-            </button>
-            <button
-              type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-              onClick={() => applyDebugShift(-3600)}
-            >
-              {tx("today.debug.minusHour")}
-            </button>
-            <button
-              type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-              onClick={() => applyDebugShift(-86400)}
-            >
-              {tx("today.debug.minusDay")}
-            </button>
-            <button
-              type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-              onClick={() => applyDebugShift(60)}
-            >
-              {tx("today.debug.addMinute")}
-            </button>
-            <button
-              type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-              onClick={() => applyDebugShift(3600)}
-            >
-              {tx("today.debug.addHour")}
-            </button>
-            <button
-              type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-              onClick={() => applyDebugShift(86400)}
-            >
-              {tx("today.debug.addDay")}
-            </button>
-            <button
-              type="button"
-              className="ui-button border-alert-red/60 text-alert-red hover:border-alert-red"
-              onClick={clearDebug}
-            >
-              {tx("today.debug.clear")}
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {debugPanel}
 
       {displayIssue ? (
         <LayoutGroup>

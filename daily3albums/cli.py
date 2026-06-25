@@ -783,6 +783,36 @@ def _reset_generated_data_dir(out_public_dir: Path) -> None:
         data_dir.unlink()
 
 
+def _restore_history_seed(out_public_dir: Path, repo_root: Path, log_line: callable) -> None:
+    raw_seed = os.getenv("DAILY3ALBUMS_HISTORY_SEED_DIR", "").strip()
+    if not raw_seed:
+        return
+
+    seed_dir = Path(raw_seed)
+    if not seed_dir.is_absolute():
+        seed_dir = repo_root / seed_dir
+    if not seed_dir.exists() or not seed_dir.is_dir():
+        log_line(f"history_seed status=missing path={seed_dir}")
+        return
+
+    data_dir = out_public_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    restored: list[str] = []
+    seed_index = seed_dir / "index.json"
+    if seed_index.exists():
+        shutil.copy2(seed_index, data_dir / "index.json")
+        restored.append("index.json")
+
+    seed_archive = seed_dir / "archive"
+    if seed_archive.exists() and seed_archive.is_dir():
+        _copy_tree_overwrite(seed_archive, data_dir / "archive")
+        restored.append("archive/")
+
+    restored_label = ",".join(restored) or "none"
+    log_line(f"history_seed status=restored path={seed_dir} artifacts={restored_label}")
+
+
 def _read_quarantine_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -1457,6 +1487,7 @@ def cmd_build(
         _copy_tree_overwrite(web_dir, out_public_dir)
         _copy_tree_overwrite(ui_dist_dir, out_public_dir, skip_top_level_dirs={"data"})
         _reset_generated_data_dir(out_public_dir)
+        _restore_history_seed(out_public_dir, repo_root, log_line)
 
         from daily3albums.artifact_writer import write_daily_artifacts
         paths = write_daily_artifacts(issue=issue, out_public_dir=out_public_dir, quarantine_rows=quarantine_rows or None)

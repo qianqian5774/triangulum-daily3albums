@@ -1371,6 +1371,10 @@ html[data-theme="day"] .slotcard-interactive:hover {
     animation: none;
   }
 
+  .offline-locked-panel.is-locked-feedback {
+    animation: none;
+  }
+
   .glitch-flash::after {
     display: none;
   }
@@ -1505,6 +1509,26 @@ html[data-theme="day"] .slotcard-interactive:hover {
   pointer-events: none;
 }
 
+.offline-locked-panel {
+  position: relative;
+  cursor: not-allowed;
+  user-select: none;
+}
+
+.offline-locked-panel::after {
+  content: "";
+  position: absolute;
+  inset: -0.55rem;
+  pointer-events: none;
+  border: 1px solid rgb(var(--theme-alert-rgb) / 0.18);
+  border-radius: 8px;
+  opacity: 0.42;
+}
+
+.offline-locked-panel.is-locked-feedback {
+  animation: locked-signal-shake 260ms steps(2, end);
+}
+
 .archived-watermark {
   position: absolute;
   top: -24px;
@@ -1517,6 +1541,22 @@ html[data-theme="day"] .slotcard-interactive:hover {
   text-transform: uppercase;
   z-index: 1;
   pointer-events: none;
+}
+
+@keyframes locked-signal-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
 }
 
 .share-dialog-backdrop {
