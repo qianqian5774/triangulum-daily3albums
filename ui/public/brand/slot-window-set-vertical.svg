@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="560" viewBox="0 0 240 560" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Triangulum three signal windows</title>
+  <desc id="desc">Three vertical signal windows for 06:00, 12:00, and 18:00 Beijing time.</desc>
+  <defs>
+    <filter id="acid-glow" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#A8C700" flood-opacity="0.32"/>
+    </filter>
+    <filter id="tiny-offset" x="-12%" y="-12%" width="124%" height="124%">
+      <feOffset dx="1.2" dy="0" result="cyan"/>
+      <feFlood flood-color="#31F7FF" flood-opacity="0.18" result="cyanColor"/>
+      <feComposite in="cyanColor" in2="cyan" operator="in" result="cyanLayer"/>
+      <feOffset dx="-1.2" dy="0" result="magenta"/>
+      <feFlood flood-color="#FF3AF2" flood-opacity="0.12" result="magentaColor"/>
+      <feComposite in="magentaColor" in2="magenta" operator="in" result="magentaLayer"/>
+      <feMerge>
+        <feMergeNode in="cyanLayer"/>
+        <feMergeNode in="magentaLayer"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <pattern id="slot-noise" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M0 1H3M6 6H10" stroke="#F3F6E8" stroke-opacity="0.07" stroke-width="1"/>
+      <path d="M1 9H5" stroke="#A8C700" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+    <style>
+      .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace; }
+      .time { font-size: 28px; font-weight: 800; letter-spacing: 2.4px; }
+      .label { font-size: 9px; font-weight: 800; letter-spacing: 2px; }
+    </style>
+  </defs>
+
+  <g opacity="0.42">
+    <path d="M120 34V526" stroke="#A8C700" stroke-opacity="0.34" stroke-width="1.5" stroke-dasharray="9 12"/>
+    <path d="M84 34V526" stroke="#F3F6E8" stroke-opacity="0.08"/>
+    <path d="M156 34V526" stroke="#F3F6E8" stroke-opacity="0.08"/>
+  </g>
+
+  <g filter="url(#tiny-offset)">
+    <path d="M78 28H162" stroke="#A8C700" stroke-width="2"/>
+    <path d="M120 28L138 56H102L120 28Z" stroke="#A8C700" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M78 532H162" stroke="#A8C700" stroke-width="2"/>
+  </g>
+
+  <g id="window-0600" transform="translate(24 72)">
+    <path d="M18 0H174L192 18V112L174 130H18L0 112V18L18 0Z" fill="#050505" fill-opacity="0.22" stroke="#A8C700" stroke-opacity="0.86" stroke-width="1.6"/>
+    <path d="M32 24V106M160 24V106" stroke="#A8C700" stroke-opacity="0.52" stroke-width="3"/>
+    <path d="M48 22H144M48 108H144" stroke="#A8C700" stroke-opacity="0.34" stroke-width="2"/>
+    <rect x="50" y="30" width="92" height="70" fill="url(#slot-noise)" opacity="0.9"/>
+    <path d="M56 90H136M56 40H84M108 40H136" stroke="#F3F6E8" stroke-opacity="0.28"/>
+    <circle cx="96" cy="0" r="4" fill="#A8C700"/>
+    <circle cx="96" cy="130" r="4" fill="#A8C700"/>
+    <text x="96" y="68" class="mono time" fill="#A8C700" text-anchor="middle">06:00</text>
+    <text x="96" y="86" class="mono label" fill="#F3F6E8" fill-opacity="0.55" text-anchor="middle">SIGNAL WINDOW 01</text>
+  </g>
+
+  <g id="window-1200" transform="translate(24 215)">
+    <path d="M18 0H174L192 18V112L174 130H18L0 112V18L18 0Z" fill="#050505" fill-opacity="0.22" stroke="#A8C700" stroke-opacity="0.86" stroke-width="1.6"/>
+    <path d="M32 24V106M160 24V106" stroke="#A8C700" stroke-opacity="0.52" stroke-width="3"/>
+    <path d="M48 22H144M48 108H144" stroke="#A8C700" stroke-opacity="0.34" stroke-width="2"/>
+    <rect x="50" y="30" width="92" height="70" fill="url(#slot-noise)" opacity="0.9"/>
+    <path d="M56 90H136M56 40H84M108 40H136" stroke="#F3F6E8" stroke-opacity="0.28"/>
+    <circle cx="96" cy="0" r="4" fill="#A8C700"/>
+    <circle cx="96" cy="130" r="4" fill="#A8C700"/>
+    <text x="96" y="68" class="mono time" fill="#A8C700" text-anchor="middle">12:00</text>
+    <text x="96" y="86" class="mono label" fill="#F3F6E8" fill-opacity="0.55" text-anchor="middle">SIGNAL WINDOW 02</text>
+  </g>
+
+  <g id="window-1800" transform="translate(24 358)">
+    <path d="M18 0H174L192 18V112L174 130H18L0 112V18L18 0Z" fill="#050505" fill-opacity="0.22" stroke="#A8C700" stroke-opacity="0.86" stroke-width="1.6"/>
+    <path d="M32 24V106M160 24V106" stroke="#A8C700" stroke-opacity="0.52" stroke-width="3"/>
+    <path d="M48 22H144M48 108H144" stroke="#A8C700" stroke-opacity="0.34" stroke-width="2"/>
+    <rect x="50" y="30" width="92" height="70" fill="url(#slot-noise)" opacity="0.9"/>
+    <path d="M56 90H136M56 40H84M108 40H136" stroke="#F3F6E8" stroke-opacity="0.28"/>
+    <circle cx="96" cy="0" r="4" fill="#A8C700"/>
+    <circle cx="96" cy="130" r="4" fill="#A8C700"/>
+    <text x="96" y="68" class="mono time" fill="#A8C700" text-anchor="middle">18:00</text>
+    <text x="96" y="86" class="mono label" fill="#F3F6E8" fill-opacity="0.55" text-anchor="middle">SIGNAL WINDOW 03</text>
+  </g>
+
+  <g filter="url(#acid-glow)" opacity="0.72">
+    <path d="M66 62H94M146 62H174" stroke="#A8C700" stroke-width="2"/>
+    <path d="M66 498H94M146 498H174" stroke="#A8C700" stroke-width="2"/>
+  </g>
+</svg>

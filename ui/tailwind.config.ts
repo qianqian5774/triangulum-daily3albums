@@ -7,7 +7,7 @@ export default {
       colors: {
         "void-black": "#050505",
         "clinical-white": "#F0F0F0",
-        "acid-green": "#CCFF00",
+        "signal-accent": "#A8C700",
         "alert-red": "#FF3300",
         "panel-900": "#0C0C0C",
         "panel-800": "#121212",
@@ -30,7 +30,7 @@ export default {
         "hard-lg": "0 12px 32px rgba(0,0,0,0.5)"
       },
       outline: {
-        "acid": "2px solid #CCFF00"
+        "signal": "2px solid #A8C700"
       }
     }
   },

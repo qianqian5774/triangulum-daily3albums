@@ -255,7 +255,7 @@ export function TreatmentViewerOverlay({
                 <div className="flex flex-wrap items-center gap-3 text-sm text-clinical-white/70">
                   {activePick.links?.musicbrainz && (
                     <a
-                      className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-acid-green underline decoration-acid-green/60 underline-offset-4 transition hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+                      className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-signal-accent underline decoration-signal-accent/60 underline-offset-4 transition hover:text-signal-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-accent/70"
                       href={activePick.links.musicbrainz}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -279,14 +279,14 @@ export function TreatmentViewerOverlay({
                     <button
                       type="button"
                       onClick={onPrev}
-                      className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green"
+                      className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent"
                     >
                       {tx("treatment.viewer.prev")}
                     </button>
                     <button
                       type="button"
                       onClick={onNext}
-                      className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green"
+                      className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent"
                     >
                       {tx("treatment.viewer.next")}
                     </button>

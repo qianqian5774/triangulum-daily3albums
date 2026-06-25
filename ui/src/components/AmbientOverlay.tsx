@@ -21,7 +21,7 @@ export function AmbientOverlay({ onExit }: AmbientOverlayProps) {
       <button
         type="button"
         onClick={onExit}
-        className="ambient-exit-hint ui-button border-acid-green/70 bg-panel-900/80 text-acid-green hover:border-acid-green"
+        className="ambient-exit-hint ui-button border-signal-accent/70 bg-panel-900/80 text-signal-accent hover:border-signal-accent"
       >
         {tx("today.ambientExit")}
       </button>

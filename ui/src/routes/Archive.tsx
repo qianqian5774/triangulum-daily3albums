@@ -123,7 +123,7 @@ export function ArchiveRoute() {
         </div>
         <Link
           to="/"
-          className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green"
+          className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent"
         >
           {tx("archive.openToday")}
         </Link>
@@ -148,7 +148,7 @@ export function ArchiveRoute() {
                     onClick={() => setSelectedEntry(item)}
                     className={`w-full rounded-hud border px-3 py-3 text-left font-mono text-[0.76rem] uppercase tracking-[0.22em] transition ${
                       selectedEntry?.date === item.date && selectedEntry?.run_id === item.run_id
-                        ? "border-acid-green/70 text-acid-green"
+                        ? "border-signal-accent/70 text-signal-accent"
                         : "border-panel-700/70 text-clinical-white/60 hover:border-clinical-white/40"
                     }`}
                   >

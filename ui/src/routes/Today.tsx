@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { AmbientOverlay } from "../components/AmbientOverlay";
+import { ShareCardDialog } from "../components/ShareCardDialog";
 import { SlotCard } from "../components/SlotCard";
 import { TreatmentViewerOverlay } from "../components/TreatmentViewerOverlay";
 import { FLAGS } from "../config/flags";
@@ -15,6 +16,7 @@ import {
   formatDebugTime,
   getBjtNowParts,
   loadDebugTime,
+  resolveVisualTheme,
   resolveNowState,
   saveDebugTime,
   shiftDebugTime
@@ -119,6 +121,7 @@ export function TodayRoute() {
   const [archivedIssue, setArchivedIssue] = useState<TodayIssue | null>(null);
   const [archivedError, setArchivedError] = useState<string | null>(null);
   const [transitionActive, setTransitionActive] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [debugTime, setDebugTime] = useState<string | null>(() => loadDebugTime());
   const [bjtNow, setBjtNow] = useState(() => getBjtNowParts(loadDebugTime()));
   const [lastGoodIssue, setLastGoodIssue] = useState<TodayIssue | null>(() => getStoredLastGood());
@@ -147,6 +150,7 @@ export function TodayRoute() {
   const nowStateInfo = useMemo(() => resolveNowState(bjtNow.secondsSinceMidnight), [bjtNow.secondsSinceMidnight]);
   const nowState = nowStateInfo.state;
   const nowSlotId = nowStateInfo.slotId;
+  const visualTheme = useMemo(() => resolveVisualTheme(bjtNow.secondsSinceMidnight), [bjtNow.secondsSinceMidnight]);
   const prevStateRef = useRef(nowState);
   const prevSlotRef = useRef(nowSlotId);
 
@@ -695,7 +699,7 @@ export function TodayRoute() {
           <div className="ambient-fade flex flex-wrap items-center gap-3">
             <Link
               to="/archive"
-              className="ui-button border-acid-green/60 text-acid-green hover:border-acid-green hover:text-acid-green/90"
+              className="ui-button border-signal-accent/60 text-signal-accent hover:border-signal-accent hover:text-signal-accent/90"
             >
               {tx("today.offline.viewArchive")}
             </Link>
@@ -746,7 +750,7 @@ export function TodayRoute() {
             </p>
           ) : null}
           {signalState === "RESTORED" ? (
-            <p className="mt-2 text-xs uppercase tracking-[0.35em] text-acid-green">
+            <p className="mt-2 text-xs uppercase tracking-[0.35em] text-signal-accent">
               {tx("today.offline.linkRestored")}
             </p>
           ) : null}
@@ -754,7 +758,7 @@ export function TodayRoute() {
         <div className="ambient-fade flex flex-wrap items-center gap-3">
           <Link
             to="/archive"
-            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green"
+            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent"
           >
             {tx("today.archiveCta")}
           </Link>
@@ -767,16 +771,25 @@ export function TodayRoute() {
             <button
               type="button"
               onClick={() => setSelectedSlotId(nowSlotId)}
-              className="ui-button border-acid-green/60 text-acid-green hover:border-acid-green hover:text-acid-green/90"
+              className="ui-button border-signal-accent/60 text-signal-accent hover:border-signal-accent hover:text-signal-accent/90"
             >
               {tx("today.returnToNow")}
             </button>
           )}
           <button
             type="button"
+            onClick={() => setShareOpen(true)}
+            disabled={!displayIssue || nowSlotId === null}
+            data-testid="share-card-toggle"
+            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
+          >
+            {tx("share.button")}
+          </button>
+          <button
+            type="button"
             onClick={handleAmbientToggle}
             data-testid="ambient-toggle"
-            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
+            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
           >
             {tx("today.ambientEnter")}
           </button>
@@ -787,47 +800,47 @@ export function TodayRoute() {
         <div className="hud-border rounded-card bg-panel-900/70 p-4 text-[0.72rem] uppercase tracking-[0.2em] text-clinical-white/60">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>{tx("today.debug.label")}</span>
-            <span className="font-mono text-xs text-acid-green">{debugTime}</span>
+            <span className="font-mono text-xs text-signal-accent">{debugTime}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
               onClick={() => applyDebugShift(-60)}
             >
               {tx("today.debug.minusMinute")}
             </button>
             <button
               type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
               onClick={() => applyDebugShift(-3600)}
             >
               {tx("today.debug.minusHour")}
             </button>
             <button
               type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
               onClick={() => applyDebugShift(-86400)}
             >
               {tx("today.debug.minusDay")}
             </button>
             <button
               type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
               onClick={() => applyDebugShift(60)}
             >
               {tx("today.debug.addMinute")}
             </button>
             <button
               type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
               onClick={() => applyDebugShift(3600)}
             >
               {tx("today.debug.addHour")}
             </button>
             <button
               type="button"
-              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-acid-green/60"
+              className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
               onClick={() => applyDebugShift(86400)}
             >
               {tx("today.debug.addDay")}
@@ -869,7 +882,7 @@ export function TodayRoute() {
                       onClick={() => handleSelectSlot(slot.slot_id)}
                       className={`timeline-button flex w-full items-center gap-4 rounded-card border px-4 py-4 text-left transition ${
                         isActive
-                          ? "border-acid-green/70 bg-panel-800/70 text-acid-green"
+                          ? "border-signal-accent/70 bg-panel-800/70 text-signal-accent"
                           : isLocked
                             ? "border-panel-800/70 text-clinical-white/30"
                             : "border-panel-700/70 text-clinical-white/70 hover:border-clinical-white/60"
@@ -971,6 +984,13 @@ export function TodayRoute() {
         </div>
       )}
       {ambientActive ? <AmbientOverlay onExit={() => setAmbientActive(false)} /> : null}
+      <ShareCardDialog
+        open={shareOpen}
+        issue={displayIssue}
+        nowSlotId={nowSlotId}
+        visualTheme={visualTheme}
+        onClose={() => setShareOpen(false)}
+      />
     </section>
   );
 }
