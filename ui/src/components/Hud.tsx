@@ -16,7 +16,7 @@ interface HudProps {
 }
 
 const statusStyles: Record<HudProps["status"], string> = {
-  OK: "text-acid-green border-acid-green/60",
+  OK: "text-signal-accent border-signal-accent/60",
   DEGRADED: "text-yellow-300 border-yellow-300/60",
   ERROR: "text-alert-red border-alert-red/60"
 };
@@ -79,10 +79,10 @@ export function Hud({
             {bjtTime}
           </span>
           <span className="ui-micro text-clinical-white/60">{windowLabel}</span>
-          <span className="text-[0.82rem] font-semibold uppercase tracking-[0.22em] text-acid-green">
+          <span className="text-[0.82rem] font-semibold uppercase tracking-[0.22em] text-signal-accent">
             {nextUnlockLabel}
           </span>
-          <span className="font-mono text-[0.78rem] uppercase tracking-[0.2em] text-acid-green/80">
+          <span className="font-mono text-[0.78rem] uppercase tracking-[0.2em] text-signal-accent/80">
             {countdownLabel}
           </span>
         </div>
@@ -108,13 +108,13 @@ export function Hud({
         <nav className="hud-actions" aria-label="Primary">
           <Link
             to="/"
-            className={`ui-button ${isArchive ? "border-panel-700/80 text-clinical-white/70" : "border-acid-green/70 text-acid-green"}`}
+            className={`ui-button ${isArchive ? "border-panel-700/80 text-clinical-white/70" : "border-signal-accent/70 text-signal-accent"}`}
           >
             {tx("nav.today")}
           </Link>
           <Link
             to="/archive"
-            className={`ui-button ${isArchive ? "border-acid-green/70 text-acid-green" : "border-panel-700/80 text-clinical-white/70"}`}
+            className={`ui-button ${isArchive ? "border-signal-accent/70 text-signal-accent" : "border-panel-700/80 text-clinical-white/70"}`}
           >
             {tx("nav.archive")}
           </Link>

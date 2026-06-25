@@ -56,7 +56,7 @@ export function ProjectInfoDialog({ open, onClose }: ProjectInfoDialogProps) {
             ref={closeRef}
             type="button"
             onClick={onClose}
-            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-acid-green/60 hover:text-acid-green"
+            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent"
           >
             {tx("about.close")}
           </button>
@@ -69,7 +69,7 @@ export function ProjectInfoDialog({ open, onClose }: ProjectInfoDialogProps) {
         </div>
         <div className="mt-7 flex flex-wrap gap-3">
           <a
-            className="ui-button border-acid-green/70 text-acid-green hover:border-acid-green hover:text-acid-green/90"
+            className="ui-button border-signal-accent/70 text-signal-accent hover:border-signal-accent hover:text-signal-accent/90"
             href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"

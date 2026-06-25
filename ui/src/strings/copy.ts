@@ -112,6 +112,21 @@ export const copy = {
     empty: "Select a date to view archived albums.",
     openToday: "Back to Today"
   },
+  share: {
+    button: "Share Card",
+    eyebrow: "Unlocked signal sheet",
+    title: "Share Card",
+    description: "Render a downloadable card from the albums already unlocked today.",
+    version: "Version",
+    theme: "Theme",
+    language: "Language",
+    day: "Day",
+    night: "Night",
+    locked: "This share card version is not unlocked yet.",
+    download: "Download PNG",
+    exporting: "Rendering...",
+    close: "Close"
+  },
   treatment: {
     dose: {
       readminister: "Re-administer Dose"
@@ -248,6 +263,21 @@ const zhCopy = {
     loadingIndex: "正在加载历史索引...",
     empty: "选择一个日期查看历史专辑。",
     openToday: "回到今日"
+  },
+  share: {
+    button: "分享卡",
+    eyebrow: "已解锁信号单",
+    title: "分享卡",
+    description: "根据今天已经解锁的专辑生成可下载卡片。",
+    version: "版本",
+    theme: "主题",
+    language: "语言",
+    day: "白昼",
+    night: "夜间",
+    locked: "这个分享卡版本尚未解锁。",
+    download: "下载 PNG",
+    exporting: "正在渲染...",
+    close: "关闭"
   },
   treatment: {
     dose: {

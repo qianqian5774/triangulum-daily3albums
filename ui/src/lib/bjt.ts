@@ -1,6 +1,7 @@
 const BJT_TIMEZONE = "Asia/Shanghai";
 
 export type NowState = "OFFLINE" | "SLOT0" | "SLOT1" | "SLOT2";
+export type VisualTheme = "day" | "night";
 
 export interface BjtParts {
   year: number;
@@ -197,6 +198,13 @@ export const resolveNowState = (
   if (secondsSinceMidnight < 12 * 3600) return { state: "SLOT0", slotId: 0 };
   if (secondsSinceMidnight < 18 * 3600) return { state: "SLOT1", slotId: 1 };
   return { state: "SLOT2", slotId: 2 };
+};
+
+export const resolveVisualTheme = (secondsSinceMidnight: number): VisualTheme => {
+  if (secondsSinceMidnight >= 20 * 3600 || secondsSinceMidnight < 6 * 3600) {
+    return "night";
+  }
+  return "day";
 };
 
 export const addDays = (dateKey: string, delta: number) => {

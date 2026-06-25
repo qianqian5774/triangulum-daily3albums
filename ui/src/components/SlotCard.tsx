@@ -6,9 +6,9 @@ import { useT } from "../lib/ui-settings";
 import type { PickItem } from "../lib/types";
 
 const slotStyles: Record<PickItem["slot"], string> = {
-  Headliner: "border-acid-green bg-acid-green text-void-black shadow-[0_0_18px_rgba(204,255,0,0.45)]",
-  Lineage: "border-acid-green bg-acid-green text-void-black shadow-[0_0_18px_rgba(204,255,0,0.45)]",
-  DeepCut: "border-acid-green bg-acid-green text-void-black shadow-[0_0_18px_rgba(204,255,0,0.45)]"
+  Headliner: "slotcard-badge-accent",
+  Lineage: "slotcard-badge-accent",
+  DeepCut: "slotcard-badge-accent"
 };
 
 interface SlotCardProps {
@@ -61,7 +61,7 @@ export function SlotCard({
   const glowShadow = useTransform(
     hoverSpring,
     [0, 1],
-    ["0 0 0 rgba(204, 255, 0, 0)", "0 0 26px rgba(204, 255, 0, 0.35)"]
+    ["0 0 0 rgb(var(--theme-accent-rgb) / 0)", "0 0 26px rgb(var(--theme-accent-rgb) / 0.35)"]
   );
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -110,9 +110,9 @@ export function SlotCard({
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
       aria-label={isInteractive ? tx("treatment.viewer.enter") : undefined}
-      className={`slotcard hud-border flex h-full flex-col overflow-hidden rounded-card bg-panel-800/70 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid ${
+      className={`slotcard hud-border flex h-full flex-col overflow-hidden rounded-card bg-panel-800/70 transition ${
         isInteractive
-          ? "cursor-pointer transition-shadow duration-200 hover:border-acid-green/80 hover:drop-shadow-[0_0_18px_rgba(204,255,0,0.45)]"
+          ? "slotcard-interactive cursor-pointer transition-shadow duration-200"
           : ""
       } ${className ?? ""}`}
       style={{
@@ -173,7 +173,7 @@ export function SlotCard({
           <div className="mt-auto flex flex-wrap gap-2 text-sm text-clinical-white/70">
             {pick.links?.musicbrainz && (
               <a
-                className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-acid-green underline decoration-acid-green/60 underline-offset-4 transition hover:text-acid-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-green/70"
+                className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-signal-accent underline decoration-signal-accent/60 underline-offset-4 transition hover:text-signal-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-accent/70"
                 href={pick.links.musicbrainz}
                 onClick={(event) => event.stopPropagation()}
                 target="_blank"

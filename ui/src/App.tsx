@@ -1,4 +1,4 @@
-import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Hud } from "./components/Hud";
 import { NoiseOverlay } from "./components/NoiseOverlay";
@@ -15,7 +15,9 @@ import {
   parseDebugTime,
   readDebugTimeParam,
   resolveNowState,
-  saveDebugTime
+  resolveVisualTheme,
+  saveDebugTime,
+  type VisualTheme
 } from "./lib/bjt";
 import { useLocalizedCopy, useT } from "./lib/ui-settings";
 
@@ -59,6 +61,11 @@ function App() {
     createDefaultHud(tx, [...localizedCopy.system.marqueeFallback])
   );
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [visualTheme, setVisualTheme] = useState<VisualTheme>(() =>
+    resolveVisualTheme(getBjtNowParts(loadDebugTime()).secondsSinceMidnight)
+  );
+  const [themeTransition, setThemeTransition] = useState<VisualTheme | null>(null);
+  const themeTransitionTimerRef = useRef<number | null>(null);
   const location = useLocation();
 
   const updateHud = useCallback((next: Partial<HudState>) => {
@@ -85,6 +92,7 @@ function App() {
   useEffect(() => {
     const tick = () => {
       const now = getBjtNowParts(loadDebugTime());
+      const nextVisualTheme = resolveVisualTheme(now.secondsSinceMidnight);
       const { state } = resolveNowState(now.secondsSinceMidnight);
       const windowMap: Record<string, string> = {
         SLOT0: "06:00–11:59",
@@ -101,6 +109,20 @@ function App() {
           ? `${tx("hud.nextBoot")} ${nextUnlock.label}`
           : `${tx("hud.nextUnlock")} ${nextUnlock.label}`;
       const countdownLabel = `${tx("hud.countdownPrefix")} ${formatCountdown(nextUnlock.targetMs - now.nowMs)}`;
+      setVisualTheme((prev) => {
+        if (prev === nextVisualTheme) {
+          return prev;
+        }
+        setThemeTransition(nextVisualTheme);
+        if (themeTransitionTimerRef.current) {
+          window.clearTimeout(themeTransitionTimerRef.current);
+        }
+        themeTransitionTimerRef.current = window.setTimeout(() => {
+          setThemeTransition(null);
+          themeTransitionTimerRef.current = null;
+        }, 1400);
+        return nextVisualTheme;
+      });
       setHud((prev) => ({
         ...prev,
         bjtTime: formatBjtTime(now.parts),
@@ -112,12 +134,35 @@ function App() {
     };
     tick();
     const timer = window.setInterval(tick, 500);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      if (themeTransitionTimerRef.current) {
+        window.clearTimeout(themeTransitionTimerRef.current);
+        themeTransitionTimerRef.current = null;
+      }
+    };
   }, [tx]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = visualTheme;
+    return () => {
+      delete document.documentElement.dataset.theme;
+    };
+  }, [visualTheme]);
 
   return (
     <HudContext.Provider value={contextValue}>
-      <div className="min-h-screen bg-void-black text-clinical-white">
+      <div
+        className="theme-shell min-h-screen text-clinical-white"
+        data-theme={visualTheme}
+        data-transition-active={themeTransition ? "signal-glitch" : undefined}
+      >
+        {themeTransition ? (
+          <div
+            className={`theme-transition-overlay theme-transition-${themeTransition}`}
+            aria-hidden="true"
+          />
+        ) : null}
         <Hud
           status={hud.status}
           marqueeItems={hud.marqueeItems}

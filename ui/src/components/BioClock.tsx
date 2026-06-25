@@ -59,7 +59,7 @@ export function BioClock({ nextRefreshAt, className }: BioClockProps) {
       <span className="text-[10px] uppercase tracking-[0.4em] text-clinical-white/50">
         {tx("hud.clock.nextCycle")}
       </span>
-      <span className="font-mono text-xs uppercase tracking-[0.25em] text-acid-green respire">
+      <span className="font-mono text-xs uppercase tracking-[0.25em] text-signal-accent respire">
         {tx("hud.clock.tMinus")} {pad2(hours)}
         <span className="pulse-separator">:</span>
         {pad2(minutes)}

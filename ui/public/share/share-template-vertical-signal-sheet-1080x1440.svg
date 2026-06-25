@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1440" viewBox="0 0 1080 1440" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Triangulum vertical signal sheet share template</title>
+  <desc id="desc">A 1080 by 1440 downloadable share-card template with three release windows and nine album placeholders.</desc>
+  <defs>
+    <pattern id="soft-scan" width="12" height="12" patternUnits="userSpaceOnUse">
+      <path d="M0 1H12" stroke="#F3F6E8" stroke-opacity="0.035"/>
+      <path d="M3 7H9" stroke="#A8C700" stroke-opacity="0.035"/>
+    </pattern>
+    <pattern id="broken-grid" width="72" height="72" patternUnits="userSpaceOnUse">
+      <path d="M72 0H0V72" stroke="#A8C700" stroke-opacity="0.045"/>
+      <path d="M7 35H26M42 35H54M35 7V25M35 48V65" stroke="#F3F6E8" stroke-opacity="0.035"/>
+    </pattern>
+    <filter id="acid-glow" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#A8C700" flood-opacity="0.28"/>
+    </filter>
+    <filter id="title-offset" x="-4%" y="-8%" width="108%" height="116%">
+      <feOffset dx="2" dy="0" result="cyan"/>
+      <feFlood flood-color="#31F7FF" flood-opacity="0.12" result="cyanColor"/>
+      <feComposite in="cyanColor" in2="cyan" operator="in" result="cyanLayer"/>
+      <feOffset dx="-2" dy="0" result="magenta"/>
+      <feFlood flood-color="#FF3AF2" flood-opacity="0.10" result="magentaColor"/>
+      <feComposite in="magentaColor" in2="magenta" operator="in" result="magentaLayer"/>
+      <feMerge>
+        <feMergeNode in="cyanLayer"/>
+        <feMergeNode in="magentaLayer"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <symbol id="cover-slot" viewBox="0 0 240 282">
+      <rect x="0.75" y="0.75" width="238.5" height="238.5" fill="#081008" stroke="#A8C700" stroke-opacity="0.55" stroke-width="1.5"/>
+      <rect x="12" y="12" width="216" height="216" fill="#050505" stroke="#F3F6E8" stroke-opacity="0.13"/>
+      <path d="M28 26V214M44 26V214M60 26V214M76 26V214M92 26V214M108 26V214M124 26V214M140 26V214M156 26V214M172 26V214M188 26V214M204 26V214" stroke="#A8C700" stroke-opacity="0.10"/>
+      <path d="M26 202H214M26 42H88M152 42H214" stroke="#A8C700" stroke-opacity="0.28" stroke-width="2"/>
+      <path d="M28 216L214 28" stroke="#31F7FF" stroke-opacity="0.08"/>
+      <path d="M26 28L212 216" stroke="#FF3AF2" stroke-opacity="0.06"/>
+      <text x="0" y="268" class="mono cover-label" fill="#F3F6E8">ALBUM / ARTIST</text>
+    </symbol>
+    <style>
+      .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace; }
+      .sans { font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; }
+      .title-main { font-size: 82px; font-weight: 900; letter-spacing: 0; }
+      .title-sub { font-size: 76px; font-weight: 900; letter-spacing: 0; }
+      .meta { font-size: 18px; font-weight: 800; letter-spacing: 2.5px; }
+      .time { font-size: 42px; font-weight: 900; letter-spacing: 2px; }
+      .window { font-size: 14px; font-weight: 800; letter-spacing: 3px; }
+      .cover-label { font-size: 18px; font-weight: 800; letter-spacing: 1.6px; }
+      .footer { font-size: 20px; font-weight: 900; letter-spacing: 2.4px; }
+    </style>
+  </defs>
+
+  <rect width="1080" height="1440" fill="#050505"/>
+  <rect width="1080" height="1440" fill="url(#soft-scan)" opacity="0.64"/>
+  <rect x="-80" y="-40" width="1240" height="1520" fill="url(#broken-grid)" opacity="0.52" transform="skewY(-2)"/>
+
+  <path d="M64 232H1016" stroke="#A8C700" stroke-opacity="0.42" stroke-width="2"/>
+  <path d="M64 1302H1016" stroke="#A8C700" stroke-opacity="0.36" stroke-width="2"/>
+  <path d="M64 62V1302" stroke="#A8C700" stroke-opacity="0.18"/>
+  <path d="M1016 62V1302" stroke="#A8C700" stroke-opacity="0.18"/>
+
+  <g filter="url(#title-offset)">
+    <text x="64" y="116" class="sans title-main" fill="#A8C700">TRIANGULUM</text>
+    <text x="64" y="194" class="sans title-sub" fill="#A8C700">DAILY 3 ALBUMS</text>
+  </g>
+
+  <g class="mono meta" text-anchor="end">
+    <text x="1016" y="92" fill="#F3F6E8" fill-opacity="0.68">YYYY-MM-DD</text>
+    <text x="1016" y="124" fill="#A8C700">BJT</text>
+    <text x="1016" y="156" fill="#F3F6E8" fill-opacity="0.68">DAILY 9 ALBUMS</text>
+  </g>
+
+  <g id="window-0600" transform="translate(64 276)">
+    <path d="M0 0H952" stroke="#A8C700" stroke-opacity="0.28"/>
+    <path d="M0 300H952" stroke="#A8C700" stroke-opacity="0.18"/>
+    <path d="M28 26V274" stroke="#A8C700" stroke-width="3"/>
+    <circle cx="28" cy="26" r="7" fill="#A8C700"/>
+    <circle cx="28" cy="274" r="7" fill="#A8C700"/>
+    <text x="58" y="70" class="mono time" fill="#A8C700">06:00</text>
+    <text x="61" y="101" class="mono window" fill="#F3F6E8" fill-opacity="0.58">WINDOW 01 / BJT</text>
+    <use href="#cover-slot" x="190" y="20" width="240" height="282"/>
+    <use href="#cover-slot" x="470" y="20" width="240" height="282"/>
+    <use href="#cover-slot" x="750" y="20" width="240" height="282"/>
+  </g>
+
+  <g id="window-1200" transform="translate(64 616)">
+    <path d="M0 0H952" stroke="#A8C700" stroke-opacity="0.28"/>
+    <path d="M0 300H952" stroke="#A8C700" stroke-opacity="0.18"/>
+    <path d="M28 26V274" stroke="#A8C700" stroke-width="3"/>
+    <circle cx="28" cy="26" r="7" fill="#A8C700"/>
+    <circle cx="28" cy="274" r="7" fill="#A8C700"/>
+    <text x="58" y="70" class="mono time" fill="#A8C700">12:00</text>
+    <text x="61" y="101" class="mono window" fill="#F3F6E8" fill-opacity="0.58">WINDOW 02 / BJT</text>
+    <use href="#cover-slot" x="190" y="20" width="240" height="282"/>
+    <use href="#cover-slot" x="470" y="20" width="240" height="282"/>
+    <use href="#cover-slot" x="750" y="20" width="240" height="282"/>
+  </g>
+
+  <g id="window-1800" transform="translate(64 956)">
+    <path d="M0 0H952" stroke="#A8C700" stroke-opacity="0.28"/>
+    <path d="M0 300H952" stroke="#A8C700" stroke-opacity="0.18"/>
+    <path d="M28 26V274" stroke="#A8C700" stroke-width="3"/>
+    <circle cx="28" cy="26" r="7" fill="#A8C700"/>
+    <circle cx="28" cy="274" r="7" fill="#A8C700"/>
+    <text x="58" y="70" class="mono time" fill="#A8C700">18:00</text>
+    <text x="61" y="101" class="mono window" fill="#F3F6E8" fill-opacity="0.58">WINDOW 03 / BJT</text>
+    <use href="#cover-slot" x="190" y="20" width="240" height="282"/>
+    <use href="#cover-slot" x="470" y="20" width="240" height="282"/>
+    <use href="#cover-slot" x="750" y="20" width="240" height="282"/>
+  </g>
+
+  <g filter="url(#acid-glow)">
+    <text x="64" y="1362" class="mono footer" fill="#A8C700">ANTI-FEED</text>
+    <text x="446" y="1362" class="mono footer" fill="#A8C700">ALBUMS ONLY</text>
+    <text x="798" y="1362" class="mono footer" fill="#A8C700">STATIC SIGNAL</text>
+  </g>
+  <path d="M64 1388H1016" stroke="#A8C700" stroke-opacity="0.34"/>
+</svg>

@@ -1,6 +1,14 @@
 // ui/src/lib/bjt.test.ts
 import { describe, it, expect } from "vitest";
-import { addDays, getBjtNowParts, parseDebugTime, readDebugTimeParam, resolveNowState, shiftDebugTime } from "./bjt";
+import {
+  addDays,
+  getBjtNowParts,
+  parseDebugTime,
+  readDebugTimeParam,
+  resolveNowState,
+  resolveVisualTheme,
+  shiftDebugTime
+} from "./bjt";
 
 const seconds = (hour: number, minute: number, second: number) =>
   hour * 3600 + minute * 60 + second;
@@ -15,6 +23,25 @@ describe("resolveNowState", () => {
     expect(resolveNowState(seconds(18, 0, 0)).state).toBe("SLOT2");
     expect(resolveNowState(seconds(23, 59, 59)).state).toBe("SLOT2");
     expect(resolveNowState(seconds(0, 0, 0)).state).toBe("OFFLINE");
+  });
+});
+
+describe("resolveVisualTheme", () => {
+  it("switches to night exactly at 20:00 BJT and back to day at 06:00 BJT", () => {
+    expect(resolveVisualTheme(seconds(19, 59, 59))).toBe("day");
+    expect(resolveVisualTheme(seconds(20, 0, 0))).toBe("night");
+    expect(resolveVisualTheme(seconds(5, 59, 59))).toBe("night");
+    expect(resolveVisualTheme(seconds(6, 0, 0))).toBe("day");
+  });
+
+  it("is driven by debug_time through the normal BJT clock path", () => {
+    const dayNow = getBjtNowParts("2026-06-13T19:59:58");
+    const nightNow = getBjtNowParts("2026-06-13T20:00:00");
+
+    expect(dayNow.source).toBe("debug");
+    expect(nightNow.source).toBe("debug");
+    expect(resolveVisualTheme(dayNow.secondsSinceMidnight)).toBe("day");
+    expect(resolveVisualTheme(nightNow.secondsSinceMidnight)).toBe("night");
   });
 });
 
