@@ -21,7 +21,7 @@ import {
 } from "./lib/bjt";
 import { useLocalizedCopy, useT } from "./lib/ui-settings";
 
-export type HudStatus = "OK" | "DEGRADED" | "ERROR";
+export type HudStatus = "OK" | "DEGRADED" | "ERROR" | "OFFLINE" | "ARCHIVE";
 
 export interface HudState {
   status: HudStatus;
@@ -77,7 +77,8 @@ function App() {
   useEffect(() => {
     const param = readDebugTimeParam(
       location.search,
-      typeof window === "undefined" ? "" : window.location.search
+      typeof window === "undefined" ? "" : window.location.search,
+      typeof window === "undefined" ? "" : window.location.hash
     );
     if (!param) {
       return;

@@ -4,7 +4,7 @@ import { Marquee } from "./Marquee";
 import { useT, useUiSettings } from "../lib/ui-settings";
 
 interface HudProps {
-  status: "OK" | "DEGRADED" | "ERROR";
+  status: "OK" | "DEGRADED" | "ERROR" | "OFFLINE" | "ARCHIVE";
   marqueeItems: string[];
   bjtTime: string;
   windowLabel: string;
@@ -18,7 +18,9 @@ interface HudProps {
 const statusStyles: Record<HudProps["status"], string> = {
   OK: "text-signal-accent border-signal-accent/60",
   DEGRADED: "text-yellow-300 border-yellow-300/60",
-  ERROR: "text-alert-red border-alert-red/60"
+  ERROR: "text-alert-red border-alert-red/60",
+  OFFLINE: "text-alert-red border-alert-red/60",
+  ARCHIVE: "text-yellow-300 border-yellow-300/60"
 };
 
 export function Hud({
@@ -60,7 +62,9 @@ export function Hud({
     () => ({
       OK: tx("system.status.operational"),
       DEGRADED: tx("system.status.degraded"),
-      ERROR: tx("system.status.error")
+      ERROR: tx("system.status.error"),
+      OFFLINE: tx("system.status.offline"),
+      ARCHIVE: tx("system.status.archiveMode")
     }),
     [tx]
   );

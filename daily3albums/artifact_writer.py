@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +11,9 @@ from typing import Any
 
 class OutputValidationError(RuntimeError):
     pass
+
+
+ARCHIVE_INDEX_DAY_LIMIT = 3
 
 
 def _to_jsonable(obj: Any) -> Any:
@@ -76,6 +80,18 @@ def _is_dev_seed_item(item: dict[str, Any]) -> bool:
     return isinstance(run_id, str) and run_id.startswith("dev-seed")
 
 
+def _prune_archive_files(archive_dir: Path, keep_dates: set[str]) -> None:
+    if not archive_dir.exists() or not archive_dir.is_dir():
+        return
+    for path in archive_dir.iterdir():
+        if path.is_dir():
+            if path.name not in keep_dates:
+                shutil.rmtree(path)
+            continue
+        if path.is_file() and path.suffix == ".json" and path.stem not in keep_dates:
+            path.unlink()
+
+
 def write_daily_artifacts(
     issue: dict,
     out_public_dir: Path,
@@ -117,7 +133,10 @@ def write_daily_artifacts(
     items = [
         x
         for x in items
-        if isinstance(x, dict) and x.get("run_id") != issue["run_id"] and not _is_dev_seed_item(x)
+        if isinstance(x, dict)
+        and x.get("run_id") != issue["run_id"]
+        and x.get("date") != date_key
+        and not _is_dev_seed_item(x)
     ]
     items.append(
         {
@@ -136,7 +155,18 @@ def write_daily_artifacts(
         return f"{item.get('date','')}-{item.get('run_id','')}"
 
     items.sort(key=sort_key, reverse=True)
-    index_obj["items"] = items
+    recent_items: list[dict[str, Any]] = []
+    seen_dates: set[str] = set()
+    for item in items:
+        item_date = item.get("date")
+        if not isinstance(item_date, str) or item_date in seen_dates:
+            continue
+        seen_dates.add(item_date)
+        recent_items.append(item)
+        if len(recent_items) >= ARCHIVE_INDEX_DAY_LIMIT:
+            break
+    index_obj["items"] = recent_items
+    _prune_archive_files(archive_dir, seen_dates)
 
     atomic_write_json(index_path, index_obj)
 

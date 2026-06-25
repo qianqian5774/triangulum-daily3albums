@@ -4,6 +4,7 @@ import {
   addDays,
   getBjtNowParts,
   parseDebugTime,
+  readDebugFlagParam,
   readDebugTimeParam,
   resolveNowState,
   resolveVisualTheme,
@@ -74,6 +75,13 @@ describe("debug time parsing", () => {
   it("reads debug_time from router search or window search", () => {
     expect(readDebugTimeParam("?debug_time=2024-03-20T06:00:00", "")).toBe("2024-03-20T06:00:00");
     expect(readDebugTimeParam("", "?debug_time=2024-03-20T06:00:00")).toBe("2024-03-20T06:00:00");
+  });
+
+  it("reads debug_time and debug flag from hash router URLs", () => {
+    expect(readDebugTimeParam("#/archive?debug_time=2024-03-20T12:00:00")).toBe("2024-03-20T12:00:00");
+    expect(readDebugFlagParam("#/?debug=1")).toBe(true);
+    expect(readDebugFlagParam("?debug=true")).toBe(true);
+    expect(readDebugFlagParam("#/?debug=0")).toBe(false);
   });
 
   it("drives frontend slot state from simulated BJT debug times", () => {
