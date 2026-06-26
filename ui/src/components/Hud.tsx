@@ -78,15 +78,15 @@ export function Hud({
     >
       <div className="hud-grid px-3 py-3 md:px-4">
         <div className="hud-time">
-          <span className="ui-kicker text-clinical-white/50">{tx("hud.labels.bjt")}</span>
-          <span className="font-mono text-[1.45rem] leading-none tracking-[0.28em] respire sm:text-[1.65rem]">
+          <span className="hud-clock-line text-clinical-white/50">{tx("hud.labels.bjt")}</span>
+          <span className="hud-clock-line font-mono respire">
             {bjtTime}
           </span>
-          <span className="ui-micro text-clinical-white/60">{windowLabel}</span>
-          <span className="text-[0.82rem] font-semibold uppercase tracking-[0.22em] text-signal-accent">
+          <span className="hud-clock-line text-clinical-white/60">{windowLabel}</span>
+          <span className="hud-clock-line font-semibold text-signal-accent">
             {nextUnlockLabel}
           </span>
-          <span className="font-mono text-[0.78rem] uppercase tracking-[0.2em] text-signal-accent/80">
+          <span className="hud-clock-line font-mono text-signal-accent/80">
             {countdownLabel}
           </span>
         </div>

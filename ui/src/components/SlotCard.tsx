@@ -1,5 +1,5 @@
 import type { KeyboardEvent, MouseEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
 import { resolveCoverUrl } from "../lib/covers";
 import { useT } from "../lib/ui-settings";
@@ -10,6 +10,15 @@ const slotStyles: Record<PickItem["slot"], string> = {
   Lineage: "slotcard-badge-accent",
   DeepCut: "slotcard-badge-accent"
 };
+
+function formatMbRating(pick: PickItem) {
+  const rating = pick.musicbrainz?.rating;
+  if (!rating || !Number.isFinite(rating.value)) {
+    return null;
+  }
+  const value = rating.value.toFixed(1);
+  return rating.votes_count ? `${value}/5 (${rating.votes_count})` : `${value}/5`;
+}
 
 interface SlotCardProps {
   pick: PickItem;
@@ -38,12 +47,18 @@ export function SlotCard({
 }: SlotCardProps) {
   const tx = useT();
   const cardRef = useRef<HTMLElement | null>(null);
+  const tiltFrameRef = useRef<number | null>(null);
+  const lastPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const [retryToken, setRetryToken] = useState<string | null>(null);
   const [coverFailed, setCoverFailed] = useState(false);
+  const [slotInfoOpen, setSlotInfoOpen] = useState(false);
+  const slotInfoId = useId();
   const coverUrl = resolveCoverUrl(pick.cover.optimized_cover_url, cacheKey, retryToken);
   const isInteractive = Boolean(onSelect) && !locked;
   const coverLayoutId = layoutId?.startsWith("card-") ? layoutId.replace("card-", "cover-") : undefined;
+  const mbRating = formatMbRating(pick);
+  const mbTags = pick.musicbrainz?.tags?.filter((tag) => tag.name).slice(0, 4) ?? [];
   const tiltX = useMotionValue(0);
   const tiltY = useMotionValue(0);
   const hover = useMotionValue(0);
@@ -53,6 +68,15 @@ export function SlotCard({
     setCoverFailed(false);
   }, [pick.cover.optimized_cover_url, cacheKey]);
 
+  useEffect(
+    () => () => {
+      if (tiltFrameRef.current) {
+        window.cancelAnimationFrame(tiltFrameRef.current);
+      }
+    },
+    []
+  );
+
   const tiltXSpring = useSpring(tiltX, { stiffness: 160, damping: 18 });
   const tiltYSpring = useSpring(tiltY, { stiffness: 160, damping: 18 });
   const hoverSpring = useSpring(hover, { stiffness: 120, damping: 20 });
@@ -61,7 +85,7 @@ export function SlotCard({
   const glowShadow = useTransform(
     hoverSpring,
     [0, 1],
-    ["0 0 0 rgb(var(--theme-accent-rgb) / 0)", "0 0 26px rgb(var(--theme-accent-rgb) / 0.35)"]
+    ["0 0 0 rgb(var(--theme-accent-rgb) / 0)", "0 0 14px rgb(var(--theme-accent-rgb) / 0.26)"]
   );
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -78,18 +102,34 @@ export function SlotCard({
     if (prefersReducedMotion || !cardRef.current) {
       return;
     }
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    const rotateX = ((y - centerY) / rect.height) * -12;
-    const rotateY = ((x - centerX) / rect.width) * 12;
-    tiltX.set(rotateX);
-    tiltY.set(rotateY);
+    lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
+    if (tiltFrameRef.current) {
+      return;
+    }
+    tiltFrameRef.current = window.requestAnimationFrame(() => {
+      tiltFrameRef.current = null;
+      const pointer = lastPointerRef.current;
+      if (!pointer || !cardRef.current) {
+        return;
+      }
+      const rect = cardRef.current.getBoundingClientRect();
+      const x = pointer.clientX - rect.left;
+      const y = pointer.clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const rotateX = ((y - centerY) / rect.height) * -7;
+      const rotateY = ((x - centerX) / rect.width) * 7;
+      tiltX.set(rotateX);
+      tiltY.set(rotateY);
+    });
   };
 
   const handleMouseLeave = () => {
+    if (tiltFrameRef.current) {
+      window.cancelAnimationFrame(tiltFrameRef.current);
+      tiltFrameRef.current = null;
+    }
+    lastPointerRef.current = null;
     tiltX.set(0);
     tiltY.set(0);
     hover.set(0);
@@ -156,19 +196,69 @@ export function SlotCard({
           </span>
         </div>
       </div>
-      <div className="slotcard-body flex flex-1 flex-col gap-3 px-5 py-4">
+      <div className="slotcard-body flex flex-1 flex-col gap-3 px-4 py-4">
         <div>
-          <h3 className="glitch-text text-lg font-semibold uppercase tracking-tightish text-clinical-white">
-            {locked ? tx("today.timeline.locked") : pick.title}
-          </h3>
-          <p className="text-sm text-clinical-white/60">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="glitch-text text-lg font-semibold uppercase tracking-tightish text-clinical-white">
+              {locked ? tx("today.timeline.locked") : pick.title}
+            </h3>
+            {!locked ? (
+              <button
+                type="button"
+                className="slotcard-info-button"
+                aria-label={`${tx("treatment.slotInfoButton")}: ${tx(`treatment.slot.${pick.slot}`)}`}
+                aria-expanded={slotInfoOpen}
+                aria-controls={slotInfoId}
+                title={`${tx("treatment.slotInfoButton")}: ${tx(`treatment.slot.${pick.slot}`)}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSlotInfoOpen((open) => !open);
+                }}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                info
+              </button>
+            ) : null}
+          </div>
+          <p className="text-base text-clinical-white/60">
             {locked ? "???" : pick.artist_credit || tx("treatment.cover.unknownArtist")}
           </p>
         </div>
+        {!locked && slotInfoOpen ? (
+          <div
+            id={slotInfoId}
+            className="slotcard-info-panel"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            <span>{tx(`treatment.slot.${pick.slot}`)}</span>
+            <p>{tx(`treatment.slotInfo.${pick.slot}`)}</p>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-clinical-white/50">
           {!locked && pick.first_release_year && <span>{pick.first_release_year}</span>}
           {!locked && pick.tags?.[0]?.name && <span>#{pick.tags[0].name}</span>}
         </div>
+        {!locked ? (
+          <div className="slotcard-metadata" onClick={(event) => event.stopPropagation()}>
+            <div>
+              <span>{tx("treatment.metadata.rating")}</span>
+              <strong>{mbRating ?? tx("treatment.metadata.missing")}</strong>
+            </div>
+            <div>
+              <span>{tx("treatment.metadata.tags")}</span>
+              {mbTags.length ? (
+                <p>
+                  {mbTags.map((tag) => (
+                    <b key={tag.name}>#{tag.name}</b>
+                  ))}
+                </p>
+              ) : (
+                <strong>{tx("treatment.metadata.missing")}</strong>
+              )}
+            </div>
+          </div>
+        ) : null}
         {!disableLinks && !locked ? (
           <div className="mt-auto flex flex-wrap gap-2 text-sm text-clinical-white/70">
             {pick.links?.musicbrainz && (

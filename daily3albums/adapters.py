@@ -1,7 +1,7 @@
 # daily3albums/adapters.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any
 from urllib.parse import urlencode, quote_plus
@@ -314,6 +314,120 @@ class MbReleaseGroupSummary:
     primary_type: str | None
 
 
+@dataclass
+class MbReleaseGroupDetails(MbReleaseGroupSummary):
+    rating_value: float | None = None
+    rating_votes_count: int | None = None
+    tags: list[dict[str, Any]] = field(default_factory=list)
+    wikipedia_url: str | None = None
+
+
+def _extract_mb_rating(payload: dict[str, Any]) -> tuple[float | None, int | None]:
+    rating = payload.get("rating")
+    if not isinstance(rating, dict):
+        return None, None
+    value_raw = rating.get("value")
+    votes_raw = rating.get("votes-count")
+    value: float | None = None
+    votes: int | None = None
+    try:
+      if value_raw is not None:
+          value = float(value_raw)
+    except Exception:
+      value = None
+    try:
+      if votes_raw is not None:
+          votes = int(votes_raw)
+    except Exception:
+      votes = None
+    return value, votes
+
+
+def _extract_mb_tags(payload: dict[str, Any], limit: int = 8) -> list[dict[str, Any]]:
+    tags = payload.get("tags")
+    if not isinstance(tags, list):
+        return []
+    parsed: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for tag in tags:
+        if not isinstance(tag, dict):
+            continue
+        name = str(tag.get("name") or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        count = tag.get("count")
+        item: dict[str, Any] = {"name": name, "source": "musicbrainz"}
+        try:
+            if count is not None:
+                item["count"] = int(count)
+        except Exception:
+            pass
+        parsed.append(item)
+    parsed.sort(key=lambda item: int(item.get("count") or 0), reverse=True)
+    return parsed[:limit]
+
+
+def _extract_wikipedia_url(payload: dict[str, Any]) -> str | None:
+    relations = payload.get("relations")
+    if not isinstance(relations, list):
+        return None
+    fallback: str | None = None
+    for relation in relations:
+        if not isinstance(relation, dict):
+            continue
+        url = relation.get("url")
+        resource = url.get("resource") if isinstance(url, dict) else None
+        if not isinstance(resource, str) or "wikipedia.org/wiki/" not in resource:
+            continue
+        rel_type = str(relation.get("type") or "").lower()
+        if rel_type == "wikipedia":
+            return resource
+        fallback = fallback or resource
+    return fallback
+
+
+def _release_group_summary_from_payload(payload: dict[str, Any], *, include_details: bool = False) -> MbReleaseGroupSummary | None:
+    got_id = (payload.get("id") or "").strip()
+    if not got_id:
+        return None
+
+    artist_mbids: list[str] = []
+    ac = payload.get("artist-credit") or []
+    if isinstance(ac, list):
+        for x in ac:
+            if not isinstance(x, dict):
+                continue
+            art = x.get("artist")
+            if isinstance(art, dict):
+                art_id = art.get("id")
+                if isinstance(art_id, str) and art_id:
+                    artist_mbids.append(art_id)
+
+    if not include_details:
+        return MbReleaseGroupSummary(
+            id=got_id,
+            artist_mbids=artist_mbids,
+            first_release_date=payload.get("first-release-date") or None,
+            primary_type=payload.get("primary-type") or None,
+        )
+
+    rating_value, rating_votes_count = _extract_mb_rating(payload)
+    return MbReleaseGroupDetails(
+        id=got_id,
+        artist_mbids=artist_mbids,
+        first_release_date=payload.get("first-release-date") or None,
+        primary_type=payload.get("primary-type") or None,
+        rating_value=rating_value,
+        rating_votes_count=rating_votes_count,
+        tags=_extract_mb_tags(payload),
+        wikipedia_url=_extract_wikipedia_url(payload),
+    )
+
+
 def musicbrainz_get_release_group(
     broker: RequestBroker,
     mb_user_agent: str,
@@ -336,28 +450,29 @@ def musicbrainz_get_release_group(
 
     if not isinstance(j, dict):
         return None
-    got_id = (j.get("id") or "").strip()
-    if not got_id:
+    return _release_group_summary_from_payload(j)
+
+
+def musicbrainz_get_release_group_details(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    rg_id: str,
+) -> MbReleaseGroupDetails | None:
+    rg_id = (rg_id or "").strip()
+    if not rg_id:
         return None
 
-    artist_mbids: list[str] = []
-    ac = j.get("artist-credit") or []
-    if isinstance(ac, list):
-        for x in ac:
-            if not isinstance(x, dict):
-                continue
-            art = x.get("artist")
-            if isinstance(art, dict):
-                art_id = art.get("id")
-                if isinstance(art_id, str) and art_id:
-                    artist_mbids.append(art_id)
+    url = f"https://musicbrainz.org/ws/2/release-group/{rg_id}?fmt=json&inc=ratings+tags+url-rels"
+    headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
+    try:
+        j = broker.get_json(url, headers=headers, adapter_name="MusicBrainzAdapter")
+    except Exception:
+        return None
 
-    return MbReleaseGroupSummary(
-        id=got_id,
-        artist_mbids=artist_mbids,
-        first_release_date=j.get("first-release-date") or None,
-        primary_type=j.get("primary-type") or None,
-    )
+    if not isinstance(j, dict):
+        return None
+    details = _release_group_summary_from_payload(j, include_details=True)
+    return details if isinstance(details, MbReleaseGroupDetails) else None
 
 
 def musicbrainz_get_release_group_debug(
@@ -383,32 +498,12 @@ def musicbrainz_get_release_group_debug(
     if not isinstance(j, dict):
         return None, "rg:bad-json"
 
-    got_id = (j.get("id") or "").strip()
-    if not got_id:
+    summary = _release_group_summary_from_payload(j)
+    if summary is None:
         # 这通常意味着不是 rg endpoint 返回的结构
         return None, "rg:missing-id"
 
-    artist_mbids: list[str] = []
-    ac = j.get("artist-credit") or []
-    if isinstance(ac, list):
-        for x in ac:
-            if not isinstance(x, dict):
-                continue
-            art = x.get("artist")
-            if isinstance(art, dict):
-                art_id = art.get("id")
-                if isinstance(art_id, str) and art_id:
-                    artist_mbids.append(art_id)
-
-    return (
-        MbReleaseGroupSummary(
-            id=got_id,
-            artist_mbids=artist_mbids,
-            first_release_date=j.get("first-release-date") or None,
-            primary_type=j.get("primary-type") or None,
-        ),
-        "rg:ok",
-    )
+    return (summary, "rg:ok")
 
 
 @dataclass

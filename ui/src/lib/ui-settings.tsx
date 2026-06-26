@@ -12,10 +12,10 @@ import { t } from "../strings/t";
 
 const LANGUAGE_KEY = "tri_ui_language";
 const FONT_SCALE_KEY = "tri_ui_font_scale";
-const DEFAULT_FONT_SCALE = 1.08;
-const MIN_FONT_SCALE = 0.96;
-const MAX_FONT_SCALE = 1.26;
-const FONT_STEP = 0.06;
+export const FONT_SCALE_TIERS = [1.08, 1.14, 1.2, 1.26, 1.32, 1.38, 1.44, 1.5, 1.56] as const;
+export const DEFAULT_FONT_SCALE = 1.38;
+const MIN_FONT_SCALE = FONT_SCALE_TIERS[0];
+const MAX_FONT_SCALE = FONT_SCALE_TIERS[FONT_SCALE_TIERS.length - 1];
 
 interface UiSettingsContextValue {
   language: Language;
@@ -28,8 +28,16 @@ interface UiSettingsContextValue {
 
 const UiSettingsContext = createContext<UiSettingsContextValue | null>(null);
 
-function clampFontScale(value: number) {
+export function clampFontScale(value: number) {
   return Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, value));
+}
+
+export function stepFontScale(current: number, direction: -1 | 1) {
+  const clamped = clampFontScale(current);
+  if (direction < 0) {
+    return [...FONT_SCALE_TIERS].reverse().find((tier) => tier < clamped - 0.001) ?? MIN_FONT_SCALE;
+  }
+  return FONT_SCALE_TIERS.find((tier) => tier > clamped + 0.001) ?? MAX_FONT_SCALE;
 }
 
 function readLanguage(): Language {
@@ -79,11 +87,11 @@ export function UiSettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const decreaseFont = useCallback(() => {
-    setFontScale((current) => clampFontScale(Number((current - FONT_STEP).toFixed(2))));
+    setFontScale((current) => stepFontScale(current, -1));
   }, []);
 
   const increaseFont = useCallback(() => {
-    setFontScale((current) => clampFontScale(Number((current + FONT_STEP).toFixed(2))));
+    setFontScale((current) => stepFontScale(current, 1));
   }, []);
 
   const resetFont = useCallback(() => {
