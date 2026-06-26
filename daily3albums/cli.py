@@ -14,6 +14,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from daily3albums.config import load_env, load_config
 from daily3albums.request_broker import BrokerRequestError, RequestBroker, RequestFailed
@@ -22,6 +23,7 @@ from daily3albums.adapters import (
     CoverArtResult,
     ProviderApiError,
     lastfm_tag_top_albums,
+    musicbrainz_get_release_group_details,
     musicbrainz_search_release_group,
 )
 from daily3albums.constraints import (
@@ -829,12 +831,62 @@ def _read_quarantine_jsonl(path: Path) -> list[dict[str, Any]]:
     return items
 
 
+WIKIPEDIA_CC_BY_SA_URL = "https://creativecommons.org/licenses/by-sa/3.0/"
+
+
+def _wikipedia_overview_from_url(
+    broker: RequestBroker,
+    wiki_url: str | None,
+    user_agent: str,
+    log_line: callable,
+) -> dict[str, Any] | None:
+    wiki_url = (wiki_url or "").strip()
+    if not wiki_url:
+        return None
+    parsed = urlparse(wiki_url)
+    host = parsed.netloc.lower()
+    if "wikipedia.org" not in host or "/wiki/" not in parsed.path:
+        return None
+    title_path = parsed.path.split("/wiki/", 1)[1].strip("/")
+    if not title_path:
+        return None
+
+    api_url = f"https://{host}/api/rest_v1/page/summary/{title_path}"
+    headers = {"User-Agent": user_agent, "Accept": "application/json"}
+    try:
+        payload = broker.get_json(api_url, headers=headers, adapter_name="WikipediaAdapter")
+    except Exception as exc:
+        log_line(f"wikipedia_overview status=miss url={wiki_url} error={type(exc).__name__}")
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    extract = str(payload.get("extract") or "").strip()
+    if not extract:
+        return None
+    content_urls = payload.get("content_urls")
+    source_url = wiki_url
+    if isinstance(content_urls, dict):
+        desktop = content_urls.get("desktop")
+        if isinstance(desktop, dict) and isinstance(desktop.get("page"), str):
+            source_url = desktop["page"]
+
+    return {
+        "text": extract,
+        "source": "wikipedia",
+        "source_url": source_url,
+        "license_url": WIKIPEDIA_CC_BY_SA_URL,
+    }
+
+
 def _pick_to_issue_item(
     tag: str,
     slot: str,
     s: Any,
     cover_version: str | None = None,
     cover_result: CoverArtResult | None = None,
+    mb_details: Any | None = None,
+    wikipedia_overview: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     c = s.c
     n = s.n
@@ -856,6 +908,26 @@ def _pick_to_issue_item(
     album_key = album_key_from_parts(rg_id, title, artist, first_release_year)
     artist_keys = artist_keys_from_parts(artist_mbids, artist)
     style_key = style_key_from_parts(tag, ptype, first_release_year)
+    mb_tags = list(getattr(mb_details, "tags", []) or []) if mb_details else []
+    merged_tags: list[dict[str, Any]] = [{"name": tag, "source": "lastfm"}]
+    seen_tags = {tag.lower().strip()}
+    for mb_tag in mb_tags:
+        if not isinstance(mb_tag, dict):
+            continue
+        name = str(mb_tag.get("name") or "").strip()
+        if not name or name.lower() in seen_tags:
+            continue
+        seen_tags.add(name.lower())
+        merged_tags.append(mb_tag)
+
+    mb_rating = None
+    rating_value = getattr(mb_details, "rating_value", None) if mb_details else None
+    if rating_value is not None:
+        mb_rating = {
+            "value": float(rating_value),
+            "votes_count": getattr(mb_details, "rating_votes_count", None),
+        }
+    wikipedia_url = getattr(mb_details, "wikipedia_url", None) if mb_details else None
 
     return {
         "slot": slot,
@@ -869,7 +941,13 @@ def _pick_to_issue_item(
         "artist_keys": artist_keys,
         "style_key": style_key,
         "secondary_types": [],
-        "tags": [{"name": tag, "source": "lastfm"}],
+        "tags": merged_tags,
+        "musicbrainz": {
+            "rating": mb_rating,
+            "tags": mb_tags,
+            "wikipedia_url": wikipedia_url,
+            "overview": wikipedia_overview,
+        },
         "popularity": None,
         "cover": {
             "has_cover": bool(cover_url),
@@ -1422,7 +1500,26 @@ def cmd_build(
             for slot_name, s in zip(slot_names, scored_items):
                 rg_id = getattr(getattr(s, "n", None), "mb_release_group_id", "") or ""
                 cover_result = cover_adapter.fetch_cover(rg_id) if rg_id else None
-                item = _pick_to_issue_item(tag=slot_payload.get("theme") or effective_theme, slot=slot_name, s=s, cover_version=cover_version, cover_result=cover_result)
+                mb_details = musicbrainz_get_release_group_details(
+                    broker,
+                    mb_user_agent=env.mb_user_agent,
+                    rg_id=rg_id,
+                ) if rg_id else None
+                wikipedia_overview = _wikipedia_overview_from_url(
+                    broker,
+                    getattr(mb_details, "wikipedia_url", None),
+                    env.mb_user_agent,
+                    log_line,
+                ) if mb_details else None
+                item = _pick_to_issue_item(
+                    tag=slot_payload.get("theme") or effective_theme,
+                    slot=slot_name,
+                    s=s,
+                    cover_version=cover_version,
+                    cover_result=cover_result,
+                    mb_details=mb_details,
+                    wikipedia_overview=wikipedia_overview,
+                )
                 item["style_key"] = slot_payload.get("theme_key")
                 item["theme_key"] = slot_payload.get("theme_key")
                 slot_payload["picks"].append(item)

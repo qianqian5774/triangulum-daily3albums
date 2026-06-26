@@ -692,8 +692,18 @@ export function TodayRoute() {
   };
 
   useEffect(() => {
+    const unlockedPicks =
+      nowSlotId === null
+        ? []
+        : slots
+            .filter((slot) => slot.slot_id <= nowSlotId)
+            .flatMap((slot) => slot.picks);
     const marqueeSource =
-      nowState === "OFFLINE" ? archivedIssue?.picks ?? [] : activeSlot?.picks ?? displayIssue?.picks ?? [];
+      nowState === "OFFLINE"
+        ? archivedIssue?.picks ?? []
+        : unlockedPicks.length
+          ? unlockedPicks
+          : activeSlot?.picks ?? displayIssue?.picks ?? [];
     const marqueeItems = marqueeSource.map((pick) => `${pick.title} — ${pick.artist_credit}`);
     const statusMessage =
       signalState === "SIGNAL_LOST" && nowState !== "OFFLINE"
@@ -710,7 +720,7 @@ export function TodayRoute() {
       marqueeItems,
       statusMessage
     });
-  }, [activeSlot, archivedIssue, displayIssue, error, nowState, signalState, tx]);
+  }, [activeSlot, archivedIssue, displayIssue, error, nowSlotId, nowState, signalState, slots, tx]);
 
   if (error && nowState !== "OFFLINE" && !displayIssue) {
     return <BSOD message={`${tx("system.errors.todayLoad")}: ${error}`} />;
@@ -876,7 +886,7 @@ export function TodayRoute() {
             onClick={() => setShareOpen(true)}
             disabled={!displayIssue || nowSlotId === null}
             data-testid="share-card-toggle"
-            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
+            className="share-card-primary-button ui-button disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
           >
             {tx("share.button")}
           </button>
@@ -887,7 +897,7 @@ export function TodayRoute() {
 
       {displayIssue ? (
         <LayoutGroup>
-          <div className="today-layout grid gap-8 lg:grid-cols-[minmax(15rem,18rem)_1fr]">
+          <div className="today-layout grid gap-6 lg:grid-cols-[minmax(13rem,15.5rem)_1fr]">
             <aside className="ambient-fade hud-border rounded-card bg-panel-900/70 p-4 sm:p-5">
               <p className="text-sm uppercase tracking-[0.25em] text-clinical-white/60">
                 {tx("today.timeline.title")}
@@ -972,7 +982,7 @@ export function TodayRoute() {
               ) : null}
             </aside>
             <motion.div
-              className={`album-grid grid gap-6 md:grid-cols-3 xl:gap-8 ${FLAGS.dominantViewport ? "md:min-h-[68vh]" : ""}`}
+              className={`album-grid grid gap-4 md:grid-cols-3 xl:gap-5 ${FLAGS.dominantViewport ? "md:min-h-[68vh]" : ""}`}
               variants={prefersReducedMotion ? undefined : containerVariants}
               initial={prefersReducedMotion ? undefined : "hidden"}
               animate={prefersReducedMotion ? undefined : "show"}

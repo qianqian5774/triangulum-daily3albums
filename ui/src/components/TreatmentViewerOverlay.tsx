@@ -9,6 +9,15 @@ export interface TreatmentPick extends PickItem {
   stableId: string;
 }
 
+function formatMbRating(pick: PickItem) {
+  const rating = pick.musicbrainz?.rating;
+  if (!rating || !Number.isFinite(rating.value)) {
+    return null;
+  }
+  const value = rating.value.toFixed(1);
+  return rating.votes_count ? `${value}/5 (${rating.votes_count})` : `${value}/5`;
+}
+
 interface TreatmentViewerOverlayProps {
   picks: TreatmentPick[];
   activeId: string;
@@ -83,6 +92,14 @@ export function TreatmentViewerOverlay({
   const coverUrl = resolveCoverUrl(activePick.cover.optimized_cover_url, coverVersionKey, retryToken);
   const scrambledTitle = useScrambleText(activePick.title);
   const displayCover = !coverFailed && coverUrl;
+  const mbRating = formatMbRating(activePick);
+  const mbTags = activePick.musicbrainz?.tags?.filter((tag) => tag.name).slice(0, 6) ?? [];
+  const overview = activePick.musicbrainz?.overview?.text?.trim() ?? "";
+  const overviewUrl =
+    activePick.musicbrainz?.overview?.source_url ??
+    activePick.musicbrainz?.wikipedia_url ??
+    null;
+  const licenseUrl = activePick.musicbrainz?.overview?.license_url ?? "https://creativecommons.org/licenses/by-sa/3.0/";
 
   const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
     touchStartXRef.current = event.touches[0]?.clientX ?? null;
@@ -190,7 +207,7 @@ export function TreatmentViewerOverlay({
       >
         <motion.div
           layoutId={`card-${activePick.stableId}`}
-          className={`viewer-dialog relative w-full max-w-[82rem] overflow-hidden rounded-card border border-panel-700/80 bg-panel-900/95 shadow-hard-xl ${
+          className={`viewer-dialog relative w-full max-w-[90rem] overflow-hidden rounded-card border border-panel-700/80 bg-panel-900/95 shadow-hard-xl ${
             glitchActive ? "glitch-flash" : ""
           }`}
           role="dialog"
@@ -204,14 +221,14 @@ export function TreatmentViewerOverlay({
           <AnimatePresence mode="wait">
             <motion.div
               key={activePick.stableId}
-              className="viewer-content relative z-30 grid gap-6 p-5 sm:p-6 md:grid-cols-[46%_1fr] md:items-stretch md:gap-9 md:p-8"
+              className="viewer-content relative z-30 grid gap-6 p-5 sm:p-6 md:grid-cols-[47%_1fr] md:items-stretch md:gap-9 md:p-8"
               variants={parentVariants}
               initial="initial"
               animate="animate"
               exit="exit"
             >
               <motion.div className="w-full" variants={childVariants}>
-                <div className="relative mx-auto aspect-square w-full max-w-[44rem] overflow-hidden rounded-card bg-panel-800">
+                <div className="relative mx-auto aspect-square w-full max-w-[48rem] overflow-hidden rounded-card bg-panel-800">
                   <div className="absolute inset-0 bg-gradient-to-br from-panel-900 via-panel-800 to-panel-900" />
                   {displayCover ? (
                     <motion.img
@@ -273,6 +290,41 @@ export function TreatmentViewerOverlay({
                       {tx("treatment.links.youtube")}
                     </a>
                   )}
+                </div>
+                <div className="viewer-overview-panel">
+                  <div className="viewer-metadata-grid">
+                    <div>
+                      <span>{tx("treatment.metadata.rating")}</span>
+                      <strong>{mbRating ?? tx("treatment.metadata.missing")}</strong>
+                    </div>
+                    <div>
+                      <span>{tx("treatment.metadata.tags")}</span>
+                      {mbTags.length ? (
+                        <p>
+                          {mbTags.map((tag) => (
+                            <b key={tag.name}>#{tag.name}</b>
+                          ))}
+                        </p>
+                      ) : (
+                        <strong>{tx("treatment.metadata.missing")}</strong>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h3>{tx("treatment.overview.title")}</h3>
+                    <p>{overview || tx("treatment.overview.empty")}</p>
+                    {overview && overviewUrl ? (
+                      <p className="viewer-overview-license">
+                        <a href={overviewUrl} target="_blank" rel="noopener noreferrer">
+                          {tx("treatment.overview.continue")}
+                        </a>{" "}
+                        {tx("treatment.overview.licensePrefix")}{" "}
+                        <a href={licenseUrl} target="_blank" rel="noopener noreferrer">
+                          {tx("treatment.overview.licenseName")}
+                        </a>
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="viewer-actions mt-auto flex flex-col items-end gap-3 text-right">
                   <div className="flex flex-wrap justify-end gap-3">

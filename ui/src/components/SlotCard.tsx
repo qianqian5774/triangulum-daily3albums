@@ -11,6 +11,15 @@ const slotStyles: Record<PickItem["slot"], string> = {
   DeepCut: "slotcard-badge-accent"
 };
 
+function formatMbRating(pick: PickItem) {
+  const rating = pick.musicbrainz?.rating;
+  if (!rating || !Number.isFinite(rating.value)) {
+    return null;
+  }
+  const value = rating.value.toFixed(1);
+  return rating.votes_count ? `${value}/5 (${rating.votes_count})` : `${value}/5`;
+}
+
 interface SlotCardProps {
   pick: PickItem;
   onSelect?: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => void;
@@ -48,6 +57,8 @@ export function SlotCard({
   const coverUrl = resolveCoverUrl(pick.cover.optimized_cover_url, cacheKey, retryToken);
   const isInteractive = Boolean(onSelect) && !locked;
   const coverLayoutId = layoutId?.startsWith("card-") ? layoutId.replace("card-", "cover-") : undefined;
+  const mbRating = formatMbRating(pick);
+  const mbTags = pick.musicbrainz?.tags?.filter((tag) => tag.name).slice(0, 4) ?? [];
   const tiltX = useMotionValue(0);
   const tiltY = useMotionValue(0);
   const hover = useMotionValue(0);
@@ -185,7 +196,7 @@ export function SlotCard({
           </span>
         </div>
       </div>
-      <div className="slotcard-body flex flex-1 flex-col gap-3 px-5 py-4">
+      <div className="slotcard-body flex flex-1 flex-col gap-3 px-4 py-4">
         <div>
           <div className="flex items-start justify-between gap-3">
             <h3 className="glitch-text text-lg font-semibold uppercase tracking-tightish text-clinical-white">
@@ -198,17 +209,18 @@ export function SlotCard({
                 aria-label={`${tx("treatment.slotInfoButton")}: ${tx(`treatment.slot.${pick.slot}`)}`}
                 aria-expanded={slotInfoOpen}
                 aria-controls={slotInfoId}
+                title={`${tx("treatment.slotInfoButton")}: ${tx(`treatment.slot.${pick.slot}`)}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   setSlotInfoOpen((open) => !open);
                 }}
                 onKeyDown={(event) => event.stopPropagation()}
               >
-                i
+                info
               </button>
             ) : null}
           </div>
-          <p className="text-sm text-clinical-white/60">
+          <p className="text-base text-clinical-white/60">
             {locked ? "???" : pick.artist_credit || tx("treatment.cover.unknownArtist")}
           </p>
         </div>
@@ -227,6 +239,26 @@ export function SlotCard({
           {!locked && pick.first_release_year && <span>{pick.first_release_year}</span>}
           {!locked && pick.tags?.[0]?.name && <span>#{pick.tags[0].name}</span>}
         </div>
+        {!locked ? (
+          <div className="slotcard-metadata" onClick={(event) => event.stopPropagation()}>
+            <div>
+              <span>{tx("treatment.metadata.rating")}</span>
+              <strong>{mbRating ?? tx("treatment.metadata.missing")}</strong>
+            </div>
+            <div>
+              <span>{tx("treatment.metadata.tags")}</span>
+              {mbTags.length ? (
+                <p>
+                  {mbTags.map((tag) => (
+                    <b key={tag.name}>#{tag.name}</b>
+                  ))}
+                </p>
+              ) : (
+                <strong>{tx("treatment.metadata.missing")}</strong>
+              )}
+            </div>
+          </div>
+        ) : null}
         {!disableLinks && !locked ? (
           <div className="mt-auto flex flex-wrap gap-2 text-sm text-clinical-white/70">
             {pick.links?.musicbrainz && (

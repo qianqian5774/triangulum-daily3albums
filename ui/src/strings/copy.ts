@@ -164,6 +164,18 @@ export const copy = {
       Lineage: "A recommendation tied to style lineage, historical influence, or a neighboring scene.",
       DeepCut: "A more hidden, exploratory recommendation for deeper listening."
     },
+    metadata: {
+      rating: "MusicBrainz Rating",
+      tags: "MusicBrainz Tags",
+      missing: "Pending"
+    },
+    overview: {
+      title: "Overview",
+      empty: "No Overview available.",
+      continue: "Continue reading at Wikipedia...",
+      licensePrefix: "Wikipedia content provided under the terms of the",
+      licenseName: "Creative Commons BY-SA license"
+    },
     cover: {
       missing: "No Cover",
       unknownArtist: "Unknown Artist"
@@ -337,6 +349,18 @@ const zhCopy = {
       Headliner: "当天该时段最直接、最醒目的入口推荐。",
       Lineage: "与风格脉络、历史影响或相邻场景有关的推荐。",
       DeepCut: "更隐蔽、更偏探索向的推荐。"
+    },
+    metadata: {
+      rating: "MusicBrainz Rating",
+      tags: "MusicBrainz Tags",
+      missing: "暂无"
+    },
+    overview: {
+      title: "Overview",
+      empty: "暂无 Overview",
+      continue: "Continue reading at Wikipedia...",
+      licensePrefix: "Wikipedia content provided under the terms of the",
+      licenseName: "Creative Commons BY-SA license"
     },
     cover: {
       missing: "无封面",

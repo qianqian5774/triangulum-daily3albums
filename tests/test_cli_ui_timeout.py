@@ -53,6 +53,8 @@ def test_cmd_build_ui_timeout_returns_nonzero(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli, "run_dry_run", lambda *args, **kwargs: _fake_dry_run_result())
 
     monkeypatch.setattr(cli, "validate_today_constraints", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cli, "musicbrainz_get_release_group_details", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "_wikipedia_overview_from_url", lambda *args, **kwargs: None)
 
     def fake_run(*args, **kwargs):
         raise subprocess.TimeoutExpired(cmd=kwargs.get("args", args[0]), timeout=1)
@@ -101,6 +103,8 @@ def test_cmd_build_skip_ui_build_reuses_existing_dist(monkeypatch, tmp_path: Pat
 
     monkeypatch.setattr(cli, "run_dry_run", fake_run_dry_run)
     monkeypatch.setattr(cli, "validate_today_constraints", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cli, "musicbrainz_get_release_group_details", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "_wikipedia_overview_from_url", lambda *args, **kwargs: None)
 
     def fail_if_npm_runs(*args, **kwargs):
         raise AssertionError("npm should not run when --skip-ui-build is set")

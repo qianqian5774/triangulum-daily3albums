@@ -12,7 +12,21 @@ export interface PickItem {
   title: string;
   artist_credit: string;
   first_release_year?: number | null;
-  tags?: Array<{ name: string; source?: string }>;
+  tags?: Array<{ name: string; source?: string; count?: number }>;
+  musicbrainz?: {
+    rating?: {
+      value: number;
+      votes_count?: number | null;
+    } | null;
+    tags?: Array<{ name: string; source?: string; count?: number }>;
+    wikipedia_url?: string | null;
+    overview?: {
+      text: string;
+      source?: string;
+      source_url?: string | null;
+      license_url?: string | null;
+    } | null;
+  };
   cover: CoverInfo;
   links?: {
     musicbrainz?: string | null;
@@ -89,9 +103,42 @@ export function parseTodayIssue(payload: unknown): TodayIssue {
       tags: Array.isArray(pick.tags)
         ? pick.tags.filter(isRecord).map((tag) => ({
             name: isString(tag.name) ? tag.name : "",
-            source: isString(tag.source) ? tag.source : undefined
+            source: isString(tag.source) ? tag.source : undefined,
+            count: isNumber(tag.count) ? tag.count : undefined
           }))
         : [],
+      musicbrainz: isRecord(pick.musicbrainz)
+        ? {
+            rating: isRecord(pick.musicbrainz.rating) && isNumber(pick.musicbrainz.rating.value)
+              ? {
+                  value: pick.musicbrainz.rating.value,
+                  votes_count: isNumber(pick.musicbrainz.rating.votes_count)
+                    ? pick.musicbrainz.rating.votes_count
+                    : null
+                }
+              : null,
+            tags: Array.isArray(pick.musicbrainz.tags)
+              ? pick.musicbrainz.tags.filter(isRecord).map((tag) => ({
+                  name: isString(tag.name) ? tag.name : "",
+                  source: isString(tag.source) ? tag.source : undefined,
+                  count: isNumber(tag.count) ? tag.count : undefined
+                }))
+              : [],
+            wikipedia_url: isString(pick.musicbrainz.wikipedia_url) ? pick.musicbrainz.wikipedia_url : null,
+            overview: isRecord(pick.musicbrainz.overview) && isString(pick.musicbrainz.overview.text)
+              ? {
+                  text: pick.musicbrainz.overview.text,
+                  source: isString(pick.musicbrainz.overview.source) ? pick.musicbrainz.overview.source : undefined,
+                  source_url: isString(pick.musicbrainz.overview.source_url)
+                    ? pick.musicbrainz.overview.source_url
+                    : null,
+                  license_url: isString(pick.musicbrainz.overview.license_url)
+                    ? pick.musicbrainz.overview.license_url
+                    : null
+                }
+              : null
+          }
+        : undefined,
       cover: {
         has_cover: Boolean(cover.has_cover),
         optimized_cover_url: cover.optimized_cover_url,

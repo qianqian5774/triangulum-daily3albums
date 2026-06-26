@@ -12,8 +12,8 @@ import { t } from "../strings/t";
 
 const LANGUAGE_KEY = "tri_ui_language";
 const FONT_SCALE_KEY = "tri_ui_font_scale";
-export const FONT_SCALE_TIERS = [0.96, 1.02, 1.08, 1.14, 1.2, 1.26, 1.32] as const;
-export const DEFAULT_FONT_SCALE = 1.32;
+export const FONT_SCALE_TIERS = [1.08, 1.14, 1.2, 1.26, 1.32, 1.38, 1.44, 1.5, 1.56] as const;
+export const DEFAULT_FONT_SCALE = 1.38;
 const MIN_FONT_SCALE = FONT_SCALE_TIERS[0];
 const MAX_FONT_SCALE = FONT_SCALE_TIERS[FONT_SCALE_TIERS.length - 1];
 
