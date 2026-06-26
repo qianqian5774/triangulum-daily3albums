@@ -1587,7 +1587,12 @@ def cmd_build(
         _restore_history_seed(out_public_dir, repo_root, log_line)
 
         from daily3albums.artifact_writer import write_daily_artifacts
-        paths = write_daily_artifacts(issue=issue, out_public_dir=out_public_dir, quarantine_rows=quarantine_rows or None)
+        paths = write_daily_artifacts(
+            issue=issue,
+            out_public_dir=out_public_dir,
+            quarantine_rows=quarantine_rows or None,
+            archive_retention_days=int(getattr(cfg, "archive_retention_days", 7)),
+        )
 
         if diagnostics:
             print("\n== Diagnostics Summary ==")

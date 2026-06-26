@@ -40,7 +40,7 @@ def _issue(date: str, run_id: str, run_at: str) -> dict:
     }
 
 
-def test_writer_keeps_recent_three_unique_archive_dates(tmp_path: Path):
+def test_writer_keeps_configured_recent_unique_archive_dates(tmp_path: Path):
     out = tmp_path / "public"
     index_path = out / "data" / "index.json"
     index_path.parent.mkdir(parents=True)
@@ -71,6 +71,26 @@ def test_writer_keeps_recent_three_unique_archive_dates(tmp_path: Path):
                     },
                     {
                         "date": "2026-06-21",
+                        "run_id": "day-5",
+                        "run_at": "2026-06-21T06:00:00+08:00",
+                    },
+                    {
+                        "date": "2026-06-20",
+                        "run_id": "day-6",
+                        "run_at": "2026-06-20T06:00:00+08:00",
+                    },
+                    {
+                        "date": "2026-06-19",
+                        "run_id": "day-7",
+                        "run_at": "2026-06-19T06:00:00+08:00",
+                    },
+                    {
+                        "date": "2026-06-18",
+                        "run_id": "day-8",
+                        "run_at": "2026-06-18T06:00:00+08:00",
+                    },
+                    {
+                        "date": "2026-06-21",
                         "run_id": "dev-seed-local",
                         "run_at": "2026-06-21T06:00:00+08:00",
                     },
@@ -80,7 +100,7 @@ def test_writer_keeps_recent_three_unique_archive_dates(tmp_path: Path):
         encoding="utf-8",
     )
     old_archive = out / "data" / "archive"
-    for date in ["2026-06-24", "2026-06-23", "2026-06-22"]:
+    for date in ["2026-06-24", "2026-06-23", "2026-06-22", "2026-06-21", "2026-06-20", "2026-06-19", "2026-06-18"]:
         (old_archive / date).mkdir(parents=True, exist_ok=True)
         (old_archive / date / "seed.json").write_text("{}", encoding="utf-8")
         (old_archive / f"{date}.json").write_text("{}", encoding="utf-8")
@@ -95,8 +115,15 @@ def test_writer_keeps_recent_three_unique_archive_dates(tmp_path: Path):
         ("2026-06-25", "new-same-day"),
         ("2026-06-24", "day-2"),
         ("2026-06-23", "day-3"),
+        ("2026-06-22", "day-4"),
+        ("2026-06-21", "day-5"),
+        ("2026-06-20", "day-6"),
+        ("2026-06-19", "day-7"),
     ]
+    assert index["archive_retention_days"] == 7
     assert (old_archive / "2026-06-24").exists()
     assert (old_archive / "2026-06-23").exists()
-    assert not (old_archive / "2026-06-22").exists()
-    assert not (old_archive / "2026-06-22.json").exists()
+    assert (old_archive / "2026-06-22").exists()
+    assert (old_archive / "2026-06-19").exists()
+    assert not (old_archive / "2026-06-18").exists()
+    assert not (old_archive / "2026-06-18.json").exists()

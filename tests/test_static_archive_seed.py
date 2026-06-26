@@ -19,3 +19,22 @@ def test_select_recent_unique_dates_prefers_latest_run_per_day():
         ("2026-06-24", "morning"),
         ("2026-06-23", "previous"),
     ]
+
+
+def test_select_recent_unique_dates_can_keep_seven_days():
+    items = [
+        {"date": f"2026-06-{day:02d}", "run_id": str(day), "run_at": f"2026-06-{day:02d}T06:00:00+08:00"}
+        for day in range(18, 26)
+    ]
+
+    selected = _select_recent_unique_dates(items, max_days=7)
+
+    assert [item["date"] for item in selected] == [
+        "2026-06-25",
+        "2026-06-24",
+        "2026-06-23",
+        "2026-06-22",
+        "2026-06-21",
+        "2026-06-20",
+        "2026-06-19",
+    ]

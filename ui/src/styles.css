@@ -520,6 +520,7 @@ html[data-theme="day"] .timeline-button::before {
 .slotcard-interactive:hover {
   border-color: rgb(var(--theme-accent-rgb) / 0.8);
   box-shadow: 0 0 16px rgb(var(--theme-accent-rgb) / 0.24);
+  will-change: transform, box-shadow;
 }
 
 .slotcard::before {
@@ -745,6 +746,12 @@ html[data-theme="day"] .slotcard-metadata {
 .viewer-dialog {
   max-height: calc(100vh - 1.5rem);
   width: min(100%, 90rem);
+  contain: layout paint;
+}
+
+.viewer-backdrop {
+  background: rgba(0, 0, 0, 0.86);
+  backdrop-filter: blur(6px);
 }
 
 .viewer-content {
@@ -950,8 +957,8 @@ html[data-theme="day"] .slotcard-metadata {
   background:
     conic-gradient(from 120deg at 50% 50%, transparent, rgb(var(--ambient-accent-rgb) / 0.12), transparent 34%, rgb(var(--ambient-magenta-rgb) / 0.055), transparent 62%, rgb(var(--ambient-cyan-rgb) / 0.065), transparent),
     linear-gradient(20deg, transparent 0%, rgba(243, 246, 232, 0.04) 52%, transparent 100%);
-  filter: blur(8px);
-  animation: ambient-color-drift 24s linear infinite;
+  filter: blur(4px);
+  animation: ambient-color-drift 30s linear infinite;
 }
 
 .ambient-noise {
@@ -961,7 +968,7 @@ html[data-theme="day"] .slotcard-metadata {
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 3px),
     repeating-linear-gradient(90deg, rgb(var(--ambient-accent-rgb) / 0.05) 0 1px, transparent 1px 7px);
-  animation: ambient-noise-shift 2.8s steps(2, end) infinite;
+  animation: ambient-noise-shift 4.6s steps(2, end) infinite;
 }
 
 .ambient-grid {
@@ -1019,7 +1026,7 @@ html[data-theme="day"] .slotcard-metadata {
     linear-gradient(90deg, rgb(var(--ambient-accent-rgb) / 0.08), transparent 48%, rgb(var(--ambient-cyan-rgb) / 0.04));
   box-shadow:
     0 0 0 1px rgb(var(--ambient-accent-rgb) / 0.1),
-    0 0 42px rgb(var(--ambient-accent-rgb) / 0.24),
+    0 0 28px rgb(var(--ambient-accent-rgb) / 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: translate(-50%, -50%);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1028,8 +1035,8 @@ html[data-theme="day"] .slotcard-metadata {
   text-shadow:
     2px 0 0 rgb(var(--ambient-cyan-rgb) / 0.2),
     -2px 0 0 rgb(var(--ambient-magenta-rgb) / 0.16),
-    0 0 36px rgb(var(--ambient-accent-rgb) / 0.5);
-  animation: ambient-screensaver 24s linear infinite, ambient-glitch-pop 4.8s steps(1, end) infinite;
+    0 0 24px rgb(var(--ambient-accent-rgb) / 0.38);
+  animation: ambient-screensaver 30s linear infinite, ambient-glitch-pop 6.8s steps(1, end) infinite;
 }
 
 .ambient-ghost::before,
@@ -1645,6 +1652,20 @@ html[data-theme="day"] .slotcard-metadata {
   .ui-button:hover {
     transform: none;
   }
+
+  .slotcard-interactive:hover {
+    will-change: auto;
+  }
+
+  .ambient-gradient,
+  .ambient-noise,
+  .ambient-signal {
+    display: none;
+  }
+
+  .ambient-overlay::after {
+    opacity: 0.08;
+  }
 }
 
 .transition-overlay {
@@ -1795,8 +1816,8 @@ html[data-theme="day"] .slotcard-metadata {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.68);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.74);
+  backdrop-filter: blur(5px);
 }
 
 .share-dialog {
@@ -1811,6 +1832,7 @@ html[data-theme="day"] .slotcard-metadata {
   border-radius: 8px;
   background: var(--theme-panel);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+  contain: layout paint;
 }
 
 .share-dialog-panel,
@@ -1929,6 +1951,7 @@ html[data-theme="day"] .slotcard-metadata {
 }
 
 .share-card-export-root {
+  display: none;
   position: fixed;
   top: 0;
   left: -2400px;
@@ -1936,6 +1959,10 @@ html[data-theme="day"] .slotcard-metadata {
   width: 1080px;
   height: 1440px;
   pointer-events: none;
+}
+
+.share-card-export-root.is-exporting {
+  display: block;
 }
 
 .share-card-canvas {

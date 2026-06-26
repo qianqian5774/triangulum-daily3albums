@@ -66,6 +66,7 @@ export interface IndexItem {
 
 export interface ArchiveIndex {
   output_schema_version: string;
+  archive_retention_days?: number;
   items: IndexItem[];
 }
 
@@ -231,6 +232,7 @@ export function parseArchiveIndex(payload: unknown): ArchiveIndex {
     .filter((item) => item.date);
   return {
     output_schema_version,
+    archive_retention_days: isNumber(payload.archive_retention_days) ? payload.archive_retention_days : undefined,
     items: parsedItems
   };
 }
