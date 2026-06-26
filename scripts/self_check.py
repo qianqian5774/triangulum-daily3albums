@@ -139,6 +139,27 @@ def _validate_index_contains_today(index_payload: Any, path: Path, today_payload
     raise SelfCheckError(f"Index missing current today entry date={date_key} run_id={run_id}: {path}")
 
 
+def _validate_recommendation_observability(payload: Any, path: Path) -> None:
+    if not isinstance(payload, dict):
+        raise SelfCheckError(f"Recommendation observability payload must be object: {path}")
+    if payload.get("schema_version") != 1:
+        raise SelfCheckError(f"recommendation-observability.json schema_version must be 1: {path}")
+    slots = payload.get("slots")
+    if not isinstance(slots, list) or len(slots) != 3:
+        raise SelfCheckError(f"recommendation-observability.json must contain exactly 3 slots: {path}")
+    coverage = payload.get("final_pick_coverage")
+    if not isinstance(coverage, dict) or coverage.get("total") != 9:
+        raise SelfCheckError(f"recommendation-observability.json final_pick_coverage.total must be 9: {path}")
+    for idx, slot in enumerate(slots):
+        if not isinstance(slot, dict):
+            raise SelfCheckError(f"recommendation-observability slot[{idx}] must be object: {path}")
+        counts = slot.get("candidate_counts")
+        if not isinstance(counts, dict):
+            raise SelfCheckError(f"recommendation-observability slot[{idx}].candidate_counts missing: {path}")
+        if counts.get("final_picks") != 3:
+            raise SelfCheckError(f"recommendation-observability slot[{idx}].candidate_counts.final_picks must be 3: {path}")
+
+
 def _scan_for_absolute_assets(paths: Iterable[Path]) -> list[str]:
     problems: list[str] = []
     fetch_http = re.compile(r"fetch\(\s*['\"]https?://", re.IGNORECASE)
@@ -200,6 +221,10 @@ def main() -> int:
     index_payload = _read_json(index_path)
     _validate_index(index_payload, index_path)
     _validate_index_contains_today(index_payload, index_path, today_payload)
+
+    observability_path = out_dir / "data" / "recommendation-observability.json"
+    if observability_path.exists():
+        _validate_recommendation_observability(_read_json(observability_path), observability_path)
 
     scan_paths = list(out_dir.rglob("*.html")) + list(out_dir.rglob("*.js"))
     problems = _scan_for_absolute_assets(scan_paths)

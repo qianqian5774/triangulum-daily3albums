@@ -248,6 +248,18 @@ def _merge_candidates(cands: list[Candidate]) -> list[Candidate]:
     return list(merged.values())
 
 
+def _candidate_source_counts(cands: list[Candidate]) -> dict[str, int]:
+    counts = {"lastfm": 0, "discogs": 0, "listenbrainz": 0, "multi_source": 0}
+    for c in cands:
+        sources = {str(source).lower() for source in getattr(c, "sources", set()) or set()}
+        for key in ("lastfm", "discogs", "listenbrainz"):
+            if key in sources:
+                counts[key] += 1
+        if len(sources) > 1:
+            counts["multi_source"] += 1
+    return counts
+
+
 def _score(norm: Optional[NormalizedCandidate], cand: Candidate, *, deepcut: bool, seed_key: str) -> float:
     src_bonus = max(0, len(cand.sources) - 1) * 6.0
 
@@ -374,6 +386,7 @@ def run_dry_run(
 
     discogs_diag = {
         "discogs_enabled": bool(discogs_enabled),
+        "discogs_attempted": bool(env.discogs_token and discogs_enabled),
         "discogs_pages_fetched": 0,
         "discogs_page_cap_hit": bool(discogs_page_cap_hit),
         "discogs_failed": False,
@@ -410,6 +423,11 @@ def run_dry_run(
         except Exception:
             discogs_diag["discogs_failed"] = True
 
+    listenbrainz_diag = {
+        "listenbrainz_attempted": True,
+        "listenbrainz_failed": False,
+        "listenbrainz_candidates": 0,
+    }
     try:
         lbs = listenbrainz_sitewide_release_groups(broker, count=lb_count, offset=lb_offset, range_="all_time")
         mbids = [x.release_group_mbid for x in lbs if x.release_group_mbid]
@@ -446,10 +464,14 @@ def run_dry_run(
             if st.artist_mbid:
                 c.artist_mbid_hint = st.artist_mbid
             raw.append(c)
+            listenbrainz_diag["listenbrainz_candidates"] += 1
     except Exception:
-        pass
+        listenbrainz_diag["listenbrainz_failed"] = True
 
     merged = _merge_candidates(raw)
+    raw_count = len(raw)
+    merged_count = len(merged)
+    source_counts = _candidate_source_counts(merged)
 
     pre: list[tuple[float, Candidate]] = []
     for c in merged:
@@ -524,9 +546,14 @@ def run_dry_run(
     top = scored[:topk]
     slots = _pick_slots(top) if split_slots else {}
     candidates = [x.c for x in scored]
+    normalization_success_count = sum(1 for x in scored if x.n is not None)
+    normalization_failed_count = sum(1 for x in scored if x.n is None)
     return {
         "lastfm_pages_fetched": pages_fetched,
         "lastfm_pages_planned": len(lastfm_pages),
+        "raw_candidate_count": raw_count,
+        "merged_candidate_count": merged_count,
+        "source_counts": source_counts,
         "candidates": candidates,
         "scored": scored,
         "top": top,
@@ -534,6 +561,8 @@ def run_dry_run(
         "prefilter_total": prefilter_total,
         "prefilter_topn": len(pre),
         "normalized_count": normalized_count,
+        "normalization_success_count": normalization_success_count,
+        "normalization_failed_count": normalization_failed_count,
         "mb_candidates_considered": mb_candidates_considered,
         "mb_candidates_normalized": mb_candidates_normalized,
         "mb_queries_attempted_total": mb_queries_attempted_total,
@@ -545,4 +574,5 @@ def run_dry_run(
         "mb_max_candidates_per_slot": candidate_cap,
         "mb_time_budget_s_per_slot": mb_budget_s,
         **discogs_diag,
+        **listenbrainz_diag,
     }

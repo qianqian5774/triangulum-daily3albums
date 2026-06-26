@@ -91,6 +91,7 @@ Wikipedia 当前只在 build-time metadata enrichment 中使用。MusicBrainz re
 - archive JSON：按 date/run 保存的 issue payload。
 - `index.json`：最近归档条目和 `archive_retention_days`。
 - `meta.json`：Pages workflow 写入的 build metadata。
+- `recommendation-observability.json`：build-time 推荐链路观测数据，包括候选计数、来源占比、拒绝原因、metadata coverage 和 enrichment success rate。
 
 公开 JSON 不能包含：
 
@@ -139,6 +140,7 @@ Verified from source:
 - Last.fm、MusicBrainz、Cover Art Archive、Discogs、ListenBrainz、Wikipedia 调用：`daily3albums/adapters.py`、`daily3albums/dry_run.py`、`daily3albums/cli.py`。
 - cache、retry、redaction、rate limit：`daily3albums/request_broker.py` 和 `config/endpoint_policies.yaml`。
 - 公开产物写入：`daily3albums/artifact_writer.py` 和 `scripts/self_check.py`。
+- 推荐可观测性公开 JSON：`daily3albums/cli.py` 和 `scripts/recommendation_observability_summary.py`。
 - 浏览器 fetch 路径：`ui/src/lib/data.ts`、`ui/src/lib/covers.ts`、`ui/src/lib/paths.ts`。
 - workflow 环境变量声明：`.github/workflows/pages_daily.yml` 和 `.github/workflows/ci.yml`。
 

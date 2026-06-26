@@ -132,6 +132,14 @@ MusicBrainz 归一化前有轻量 prefilter，会给 MBID hint 和 release-group
 
 `daily3albums/dry_run.py` 的 split-slot helper `_pick_slots()` 有另一套 Lineage 年份逻辑，但当前 daily build 没有用它分配最终角色。
 
+## Recommendation Observability
+
+当前 daily build 会额外写出 `data/recommendation-observability.json`。它记录每个 slot 的 selected tag、attempted tags、candidate counts、source share、rejection reasons、final picks source flags，以及最终 9 张 pick 的 metadata coverage、year coverage 和 enrichment success rate。
+
+这些指标是观测层，不参与候选打分、slot 抽样、角色分配或最终 picks 选择。它们用于判断候选池健康、metadata 缺失、来源分布和 enrichment 成功率，不表示推荐算法权重已经调整。
+
+region/country/language 当前不在最终 pick schema 中时，observability 会明确写为 unavailable / missing，不会从 artist name、title、tag 或 Wikipedia text 推断地区、语言或性别。
+
 ## Current Shortcomings
 
 当前明确短板：
@@ -141,7 +149,7 @@ MusicBrainz 归一化前有轻量 prefilter，会给 MBID hint 和 release-group
 - 最终 pick JSON 中 `popularity` 当前为 `null`。
 - Discogs detail enrichment 尚未完整写入最终公开 JSON。
 - MusicBrainz 和 Wikipedia 覆盖率可能让 metadata 更完整的发行更容易显得“质量高”。
-- 推荐可观测性仍是后续方向：candidate counts、source share、rejection reasons、metadata missing rate、最终 9 张的 year/region/language coverage、enrichment success rate 等应先被报告，再调整算法权重。
+- 推荐可观测性已经提供 candidate counts、source share、rejection reasons、metadata missing rate、最终 9 张的 year/region/language coverage 和 enrichment success rate，但这些指标尚未反馈为算法权重或 balancing 约束。
 
 ## Source basis
 
@@ -150,6 +158,7 @@ Verified from source:
 - BJT slot 行为：`daily3albums/cli.py` 和 `ui/src/lib/bjt.ts`。
 - tag selection 与 build loop：`daily3albums/cli.py`。
 - 候选、归一化、得分和抽样输入：`daily3albums/dry_run.py`、`daily3albums/adapters.py`、`daily3albums/constraints.py`。
+- 推荐可观测性输出与 summary：`daily3albums/cli.py`、`scripts/recommendation_observability_summary.py`、`.github/workflows/pages_daily.yml`。
 - Slot role 渲染和文案：`ui/src/components/SlotCard.tsx`、`ui/src/components/TreatmentViewerOverlay.tsx`、`ui/src/strings/copy.ts`。
 - 配置值：`config/config.yaml`。
 

@@ -188,6 +188,11 @@ jobs:
         continue-on-error: true
         run: python scripts/build_metrics.py summarize --public _build/public --out .state/build-metrics/build-metrics.json
 
+      - name: Summarize recommendation observability
+        if: always()
+        continue-on-error: true
+        run: python scripts/recommendation_observability_summary.py --path _build/public/data/recommendation-observability.json --github-summary
+
       - name: Maintain state SQLite cache
         if: always()
         run: |

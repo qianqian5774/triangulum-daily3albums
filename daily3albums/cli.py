@@ -1126,6 +1126,323 @@ def _top_rejection_reasons(reject_counts: dict[str, int], limit: int = 3) -> lis
     return [{"reason": k, "count": int(v)} for k, v in ordered[:limit] if int(v) > 0]
 
 
+def _slot_window_start(slot_id: int) -> str:
+    if slot_id == 0:
+        return "06:00"
+    if slot_id == 1:
+        return "12:00"
+    return "18:00"
+
+
+def _empty_source_counts() -> dict[str, int]:
+    return {"lastfm": 0, "discogs": 0, "listenbrainz": 0, "multi_source": 0}
+
+
+def _sources_for_scored(s: Any) -> list[str]:
+    c = getattr(s, "c", None)
+    raw_sources = getattr(c, "sources", None) if c is not None else None
+    if not raw_sources:
+        return ["unknown"]
+    sources = sorted({str(source).lower() for source in raw_sources if str(source).strip()})
+    return sources or ["unknown"]
+
+
+def _source_counts_for_scored(items: list[Any]) -> dict[str, int]:
+    counts = {**_empty_source_counts(), "unknown": 0}
+    for item in items:
+        sources = set(_sources_for_scored(item))
+        for key in ("lastfm", "discogs", "listenbrainz"):
+            if key in sources:
+                counts[key] += 1
+        if "unknown" in sources:
+            counts["unknown"] += 1
+        if len(sources - {"unknown"}) > 1:
+            counts["multi_source"] += 1
+    return counts
+
+
+def _selected_attempt_meta(attempts_meta: list[dict[str, Any]], picked_theme_tag: str) -> dict[str, Any]:
+    for attempt in reversed(attempts_meta):
+        if not isinstance(attempt, dict):
+            continue
+        if attempt.get("tag") == picked_theme_tag and attempt.get("fetch_limit") is not None:
+            return attempt
+    for attempt in reversed(attempts_meta):
+        if isinstance(attempt, dict) and attempt.get("fetch_limit") is not None:
+            return attempt
+    return {}
+
+
+def _rejection_reasons_for_observability(
+    reject_counts: dict[str, int],
+    selected_attempt: dict[str, Any],
+) -> dict[str, int]:
+    return {
+        "various_artists": int(reject_counts.get("va", 0)),
+        "unsupported_primary_type": int(reject_counts.get("type", 0)),
+        "duplicate_album_same_day": int(reject_counts.get("album_collision", 0)),
+        "duplicate_artist_same_day": int(reject_counts.get("artist_same_day", 0)),
+        "artist_cooldown": int(reject_counts.get("artist_cooldown", 0)),
+        "theme_cooldown": int(reject_counts.get("theme_cooldown", 0)),
+        "musicbrainz_normalization_failed": int(selected_attempt.get("normalization_failed_count", 0)),
+        "missing_required_metadata": 0,
+        "other": 0,
+    }
+
+
+def _slot_observability_payload(
+    *,
+    slot_id: int,
+    tag_attempts: list[str],
+    picked_theme_tag: str,
+    attempts_meta: list[dict[str, Any]],
+    reject_counts: dict[str, int],
+    scored_items: list[Any],
+) -> dict[str, Any]:
+    selected_attempt = _selected_attempt_meta(attempts_meta, picked_theme_tag)
+    attempted_tags = list(dict.fromkeys([str(tag) for tag in tag_attempts if str(tag).strip()]))
+    source_counts = _empty_source_counts()
+    raw_source_counts = selected_attempt.get("source_counts")
+    if isinstance(raw_source_counts, dict):
+        for key in source_counts:
+            source_counts[key] = int(raw_source_counts.get(key, 0) or 0)
+
+    return {
+        "slot_id": slot_id,
+        "window": _slot_window_start(slot_id),
+        "window_label": _slot_label(slot_id),
+        "theme": picked_theme_tag,
+        "attempted_tags": attempted_tags,
+        "candidate_counts": {
+            "raw": int(selected_attempt.get("raw_candidate_count", selected_attempt.get("candidate_count", 0)) or 0),
+            "merged": int(selected_attempt.get("merged_candidate_count", selected_attempt.get("candidate_count", 0)) or 0),
+            "normalization_attempted": int(selected_attempt.get("mb_candidates_normalized", 0) or 0),
+            "normalized": int(selected_attempt.get("normalization_success_count", 0) or 0),
+            "eligible": int(selected_attempt.get("eligible", 0) or 0),
+            "final_picks": len(scored_items),
+        },
+        "source_share": source_counts,
+        "final_picks_by_source": _source_counts_for_scored(scored_items),
+        "rejection_reasons": _rejection_reasons_for_observability(reject_counts, selected_attempt),
+        "source_diagnostics": {
+            "discogs_enabled": bool(selected_attempt.get("discogs_enabled", False)),
+            "discogs_attempted": bool(selected_attempt.get("discogs_attempted", False)),
+            "discogs_pages_fetched": int(selected_attempt.get("discogs_pages_fetched", 0) or 0),
+            "discogs_failed_status": selected_attempt.get("discogs_failed_status"),
+            "discogs_cached_negative_used": bool(selected_attempt.get("discogs_cached_negative_used", False)),
+            "listenbrainz_attempted": bool(selected_attempt.get("listenbrainz_attempted", False)),
+            "listenbrainz_failed": bool(selected_attempt.get("listenbrainz_failed", False)),
+            "listenbrainz_candidates": int(selected_attempt.get("listenbrainz_candidates", 0) or 0),
+        },
+        "final_picks": [],
+    }
+
+
+def _head_commit_sha(repo_root: Path) -> str:
+    env_sha = (os.getenv("GITHUB_SHA") or "").strip()
+    if env_sha:
+        return env_sha
+
+    head_path = repo_root / ".git" / "HEAD"
+    try:
+        head = head_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "unknown"
+    if head.startswith("ref:"):
+        ref_name = head.split(":", 1)[1].strip()
+        ref_path = repo_root / ".git" / ref_name
+        try:
+            return ref_path.read_text(encoding="utf-8").strip() or "unknown"
+        except OSError:
+            packed_refs = repo_root / ".git" / "packed-refs"
+            try:
+                for line in packed_refs.read_text(encoding="utf-8").splitlines():
+                    if not line or line.startswith("#") or line.startswith("^"):
+                        continue
+                    sha, _, name = line.partition(" ")
+                    if name.strip() == ref_name and sha.strip():
+                        return sha.strip()
+            except OSError:
+                return "unknown"
+            return "unknown"
+    return head or "unknown"
+
+
+def _new_recommendation_observability(
+    *,
+    repo_root: Path,
+    issue: dict[str, Any],
+    slot_payloads: list[dict[str, Any]],
+    discogs_enabled: bool,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "date": issue.get("date"),
+        "run_id": issue.get("run_id"),
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "commit_sha": _head_commit_sha(repo_root),
+        "slots": [
+            slot["observability"]
+            for slot in slot_payloads
+            if isinstance(slot.get("observability"), dict)
+        ],
+        "final_pick_coverage": {},
+        "final_pick_metadata_coverage": {},
+        "enrichment": {
+            "musicbrainz_normalization_attempted": 0,
+            "musicbrainz_normalization_success": 0,
+            "musicbrainz_detail_attempted": 0,
+            "musicbrainz_detail_success": 0,
+            "wikipedia_overview_attempted": 0,
+            "wikipedia_overview_success": 0,
+            "cover_attempted": 0,
+            "cover_success": 0,
+            "discogs_candidate_source_enabled": bool(discogs_enabled),
+            "discogs_candidate_source_attempted": False,
+            "discogs_candidate_source_failed": False,
+            "listenbrainz_candidate_source_attempted": False,
+            "listenbrainz_candidate_source_failed": False,
+            "listenbrainz_candidate_source_ignored": 0,
+        },
+        "notes": [
+            "Candidate counts are observability only and do not change recommendation weights.",
+            "Slot candidate counts describe the selected tag fetch window; attempted_tags records the slot search space.",
+            "Region/country/language are unavailable in the current public pick schema and are not inferred.",
+        ],
+    }
+
+
+def _cover_source_for_observability(item: dict[str, Any], sources: list[str]) -> str:
+    cover = item.get("cover") if isinstance(item.get("cover"), dict) else {}
+    url = str(cover.get("optimized_cover_url") or "")
+    original_url = str(cover.get("original_cover_url") or "")
+    if cover.get("source_release_mbid") or "coverartarchive.org" in url or "coverartarchive.org" in original_url:
+        return "cover_art_archive"
+    if not cover.get("has_cover") or url.endswith("assets/placeholder.svg"):
+        return "placeholder"
+    if "discogs" in sources and "lastfm" not in sources:
+        return "discogs_candidate"
+    if "lastfm" in sources:
+        return "lastfm_candidate"
+    return "candidate_image"
+
+
+def _observability_final_pick(item: dict[str, Any], scored: Any) -> dict[str, Any]:
+    musicbrainz = item.get("musicbrainz") if isinstance(item.get("musicbrainz"), dict) else {}
+    links = item.get("links") if isinstance(item.get("links"), dict) else {}
+    cover = item.get("cover") if isinstance(item.get("cover"), dict) else {}
+    sources = _sources_for_scored(scored)
+    mb_tags = musicbrainz.get("tags")
+    return {
+        "role": item.get("slot"),
+        "title": item.get("title"),
+        "artist": item.get("artist_credit"),
+        "year": item.get("first_release_year"),
+        "sources": sources,
+        "metadata": {
+            "musicbrainz_rg_mbid": bool(item.get("rg_mbid")),
+            "artist_mbids": bool(item.get("artist_mbids")),
+            "rating": bool(musicbrainz.get("rating")),
+            "tags": bool(mb_tags),
+            "wikipedia_overview": bool(musicbrainz.get("overview")),
+            "cover": bool(cover.get("has_cover")),
+            "cover_source": _cover_source_for_observability(item, sources),
+            "musicbrainz_url": bool(links.get("musicbrainz")),
+            "youtube_search_url": bool(links.get("youtube_search")),
+        },
+    }
+
+
+def _decade_label(year: int) -> str:
+    start = (year // 10) * 10
+    return f"{start}s"
+
+
+def _finalize_recommendation_observability(payload: dict[str, Any]) -> None:
+    slots = [slot for slot in payload.get("slots", []) if isinstance(slot, dict)]
+    picks = [
+        pick
+        for slot in slots
+        for pick in slot.get("final_picks", [])
+        if isinstance(pick, dict)
+    ]
+    total = len(picks)
+    decades: dict[str, int] = {}
+    year_present = 0
+    for pick in picks:
+        year = pick.get("year")
+        if isinstance(year, int):
+            year_present += 1
+            label = _decade_label(year)
+            decades[label] = decades.get(label, 0) + 1
+
+    payload["final_pick_coverage"] = {
+        "total": total,
+        "year_present": year_present,
+        "year_missing": total - year_present,
+        "decades": decades,
+        "region_present": 0,
+        "region_missing": total,
+        "region_status": "unavailable_in_current_pick_schema",
+        "country_present": 0,
+        "country_missing": total,
+        "country_status": "unavailable_in_current_pick_schema",
+        "region_country_present": 0,
+        "region_country_missing": total,
+        "language_present": 0,
+        "language_missing": total,
+        "language_status": "unavailable_in_current_pick_schema",
+    }
+
+    metadata_fields = [
+        "musicbrainz_rg_mbid",
+        "artist_mbids",
+        "rating",
+        "tags",
+        "wikipedia_overview",
+        "cover",
+        "musicbrainz_url",
+        "youtube_search_url",
+    ]
+    metadata_coverage: dict[str, Any] = {"total": total, "cover_source_distribution": {}}
+    for field in metadata_fields:
+        present = sum(1 for pick in picks if bool((pick.get("metadata") or {}).get(field)))
+        metadata_coverage[f"{field}_present"] = present
+        metadata_coverage[f"{field}_missing"] = total - present
+    for pick in picks:
+        cover_source = str((pick.get("metadata") or {}).get("cover_source") or "unknown")
+        distribution = metadata_coverage["cover_source_distribution"]
+        distribution[cover_source] = int(distribution.get(cover_source, 0)) + 1
+    payload["final_pick_metadata_coverage"] = metadata_coverage
+
+    enrichment = payload.get("enrichment")
+    if isinstance(enrichment, dict):
+        enrichment["musicbrainz_normalization_attempted"] = sum(
+            int((slot.get("candidate_counts") or {}).get("normalization_attempted", 0) or 0)
+            for slot in slots
+        )
+        enrichment["musicbrainz_normalization_success"] = sum(
+            int((slot.get("candidate_counts") or {}).get("normalized", 0) or 0)
+            for slot in slots
+        )
+        enrichment["discogs_candidate_source_attempted"] = any(
+            bool((slot.get("source_diagnostics") or {}).get("discogs_attempted", False))
+            for slot in slots
+        )
+        enrichment["discogs_candidate_source_failed"] = any(
+            (slot.get("source_diagnostics") or {}).get("discogs_failed_status") is not None
+            for slot in slots
+        )
+        enrichment["listenbrainz_candidate_source_attempted"] = any(
+            bool((slot.get("source_diagnostics") or {}).get("listenbrainz_attempted", False))
+            for slot in slots
+        )
+        enrichment["listenbrainz_candidate_source_failed"] = any(
+            bool((slot.get("source_diagnostics") or {}).get("listenbrainz_failed", False))
+            for slot in slots
+        )
+
+
 def cmd_build(
     repo_root: Path,
     tag: str,
@@ -1217,7 +1534,14 @@ def cmd_build(
             picked: list[Any] = []
             picked_theme_tag = ""
             picked_theme_key = ""
-            reject_counts = {"va": 0, "type": 0, "artist_cooldown": 0, "artist_same_day": 0, "album_collision": 0}
+            reject_counts = {
+                "va": 0,
+                "type": 0,
+                "artist_cooldown": 0,
+                "artist_same_day": 0,
+                "album_collision": 0,
+                "theme_cooldown": 0,
+            }
             fetched_count = 0
             attempts_meta: list[dict[str, Any]] = []
 
@@ -1227,6 +1551,7 @@ def cmd_build(
                 if last_theme_day:
                     delta = (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last_theme_day).date()).days
                     if delta <= THEME_COOLDOWN_DAYS:
+                        reject_counts["theme_cooldown"] += 1
                         attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "skipped": "theme_cooldown", "last_seen": last_theme_day})
                         continue
 
@@ -1318,6 +1643,11 @@ def cmd_build(
                         "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
                         "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
                         "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
+                        "raw_candidate_count": int(out.get("raw_candidate_count", prefetched)),
+                        "merged_candidate_count": int(out.get("merged_candidate_count", prefetched)),
+                        "normalization_success_count": int(out.get("normalization_success_count", 0)),
+                        "normalization_failed_count": int(out.get("normalization_failed_count", 0)),
+                        "source_counts": dict(out.get("source_counts") or {}),
                         "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
                         "mb_search_queries_attempted_total": int(out.get("mb_search_queries_attempted_total", 0)),
                         "mb_http_calls_total": int(out.get("mb_http_calls_total", 0)),
@@ -1390,6 +1720,11 @@ def cmd_build(
                         "eligible": len(eligible),
                         "mb_candidates_considered": int(out.get("mb_candidates_considered", 0)),
                         "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
+                        "raw_candidate_count": int(out.get("raw_candidate_count", prefetched)),
+                        "merged_candidate_count": int(out.get("merged_candidate_count", prefetched)),
+                        "normalization_success_count": int(out.get("normalization_success_count", 0)),
+                        "normalization_failed_count": int(out.get("normalization_failed_count", 0)),
+                        "source_counts": dict(out.get("source_counts") or {}),
                         "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
                         "mb_search_queries_attempted_total": int(out.get("mb_search_queries_attempted_total", 0)),
                         "mb_http_calls_total": int(out.get("mb_http_calls_total", 0)),
@@ -1397,10 +1732,14 @@ def cmd_build(
                         "mb_cap_hit": bool(out.get("mb_cap_hit", False)),
                         "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
                         "discogs_enabled": bool(out.get("discogs_enabled", False)),
+                        "discogs_attempted": bool(out.get("discogs_attempted", False)),
                         "discogs_pages_fetched": int(out.get("discogs_pages_fetched", 0)),
                         "discogs_page_cap_hit": bool(out.get("discogs_page_cap_hit", False)),
                         "discogs_failed_status": out.get("discogs_failed_status"),
                         "discogs_cached_negative_used": bool(out.get("discogs_cached_negative_used", False)),
+                        "listenbrainz_attempted": bool(out.get("listenbrainz_attempted", False)),
+                        "listenbrainz_failed": bool(out.get("listenbrainz_failed", False)),
+                        "listenbrainz_candidates": int(out.get("listenbrainz_candidates", 0)),
                     })
                     if len(eligible) >= 3:
                         rng = random.Random(f"{date_key}:{slot_id}:{theme_key}")
@@ -1462,6 +1801,14 @@ def cmd_build(
                 "picks": [],
                 "scored_items": scored_items,
             }
+            slot_payload["observability"] = _slot_observability_payload(
+                slot_id=slot_id,
+                tag_attempts=tag_attempts,
+                picked_theme_tag=picked_theme_tag,
+                attempts_meta=attempts_meta,
+                reject_counts=reject_counts,
+                scored_items=scored_items,
+            )
             slots_payload.append(slot_payload)
             exhaustion.append({"slot_id": slot_id, "attempts": attempts_meta, "reject_counts": reject_counts, "fetched_count": fetched_count})
 
@@ -1493,24 +1840,43 @@ def cmd_build(
             "warnings": [],
             "diagnostics": {"exhaustion": exhaustion, "summary": diagnostics_summary},
         }
+        observability_payload = _new_recommendation_observability(
+            repo_root=repo_root,
+            issue=issue,
+            slot_payloads=slots_payload,
+            discogs_enabled=discogs_enabled,
+        )
 
         cover_version = issue["generation"].get("started_at")
         for slot_payload in slots_payload:
             scored_items = slot_payload.pop("scored_items", [])
+            slot_observability = slot_payload.get("observability") if isinstance(slot_payload.get("observability"), dict) else None
             for slot_name, s in zip(slot_names, scored_items):
                 rg_id = getattr(getattr(s, "n", None), "mb_release_group_id", "") or ""
+                if rg_id:
+                    observability_payload["enrichment"]["cover_attempted"] += 1
+                    observability_payload["enrichment"]["musicbrainz_detail_attempted"] += 1
                 cover_result = cover_adapter.fetch_cover(rg_id) if rg_id else None
+                if cover_result and cover_result.has_cover:
+                    observability_payload["enrichment"]["cover_success"] += 1
                 mb_details = musicbrainz_get_release_group_details(
                     broker,
                     mb_user_agent=env.mb_user_agent,
                     rg_id=rg_id,
                 ) if rg_id else None
+                if mb_details:
+                    observability_payload["enrichment"]["musicbrainz_detail_success"] += 1
+                wikipedia_url = getattr(mb_details, "wikipedia_url", None) if mb_details else None
+                if wikipedia_url:
+                    observability_payload["enrichment"]["wikipedia_overview_attempted"] += 1
                 wikipedia_overview = _wikipedia_overview_from_url(
                     broker,
-                    getattr(mb_details, "wikipedia_url", None),
+                    wikipedia_url,
                     env.mb_user_agent,
                     log_line,
                 ) if mb_details else None
+                if wikipedia_overview:
+                    observability_payload["enrichment"]["wikipedia_overview_success"] += 1
                 item = _pick_to_issue_item(
                     tag=slot_payload.get("theme") or effective_theme,
                     slot=slot_name,
@@ -1523,7 +1889,10 @@ def cmd_build(
                 item["style_key"] = slot_payload.get("theme_key")
                 item["theme_key"] = slot_payload.get("theme_key")
                 slot_payload["picks"].append(item)
+                if slot_observability is not None:
+                    slot_observability["final_picks"].append(_observability_final_pick(item, s))
             issue["slots"].append({k: v for k, v in slot_payload.items() if k in {"slot_id", "window_label", "theme", "theme_key", "constraints", "picks"}})
+        _finalize_recommendation_observability(observability_payload)
 
         now_slot_payload = next((s for s in issue["slots"] if s.get("slot_id") == now_slot_id), issue["slots"][0])
         issue["picks"] = now_slot_payload.get("picks", [])
@@ -1586,13 +1955,16 @@ def cmd_build(
         _reset_generated_data_dir(out_public_dir)
         _restore_history_seed(out_public_dir, repo_root, log_line)
 
-        from daily3albums.artifact_writer import write_daily_artifacts
+        from daily3albums.artifact_writer import atomic_write_json, write_daily_artifacts
         paths = write_daily_artifacts(
             issue=issue,
             out_public_dir=out_public_dir,
             quarantine_rows=quarantine_rows or None,
             archive_retention_days=int(getattr(cfg, "archive_retention_days", 7)),
         )
+        observability_path = out_public_dir / "data" / "recommendation-observability.json"
+        atomic_write_json(observability_path, observability_payload)
+        paths["recommendation_observability"] = observability_path
 
         if diagnostics:
             print("\n== Diagnostics Summary ==")
