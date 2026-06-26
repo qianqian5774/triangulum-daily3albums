@@ -175,14 +175,14 @@ export function TreatmentViewerOverlay({
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-[70] flex items-center justify-center bg-void-black/84 backdrop-blur-xl"
+        className="fixed inset-0 z-[70] flex items-center justify-center bg-void-black/84 backdrop-blur-md"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         aria-hidden="true"
       />
       <motion.div
-        className="fixed inset-0 z-[80] flex items-center justify-center px-3 py-4 sm:px-4 sm:py-6"
+        className="fixed inset-0 z-[80] flex items-center justify-center px-3 py-4 sm:px-5 sm:py-6"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -190,7 +190,7 @@ export function TreatmentViewerOverlay({
       >
         <motion.div
           layoutId={`card-${activePick.stableId}`}
-          className={`viewer-dialog relative w-full max-w-5xl overflow-hidden rounded-card border border-panel-700/80 bg-panel-900/95 shadow-hard-xl ${
+          className={`viewer-dialog relative w-full max-w-[82rem] overflow-hidden rounded-card border border-panel-700/80 bg-panel-900/95 shadow-hard-xl ${
             glitchActive ? "glitch-flash" : ""
           }`}
           role="dialog"
@@ -204,14 +204,14 @@ export function TreatmentViewerOverlay({
           <AnimatePresence mode="wait">
             <motion.div
               key={activePick.stableId}
-              className="viewer-content relative z-30 grid gap-5 p-4 sm:p-5 md:grid-cols-[44%_1fr] md:items-stretch md:gap-7 md:p-6"
+              className="viewer-content relative z-30 grid gap-6 p-5 sm:p-6 md:grid-cols-[46%_1fr] md:items-stretch md:gap-9 md:p-8"
               variants={parentVariants}
               initial="initial"
               animate="animate"
               exit="exit"
             >
               <motion.div className="w-full" variants={childVariants}>
-                <div className="relative mx-auto aspect-square w-full max-w-[34rem] overflow-hidden rounded-card bg-panel-800">
+                <div className="relative mx-auto aspect-square w-full max-w-[44rem] overflow-hidden rounded-card bg-panel-800">
                   <div className="absolute inset-0 bg-gradient-to-br from-panel-900 via-panel-800 to-panel-900" />
                   {displayCover ? (
                     <motion.img
@@ -231,19 +231,19 @@ export function TreatmentViewerOverlay({
                   )}
                 </div>
               </motion.div>
-              <motion.div className="viewer-detail-panel flex min-h-0 flex-col gap-5 md:col-start-2" variants={childVariants}>
+              <motion.div className="viewer-detail-panel flex min-h-0 flex-col gap-6 md:col-start-2" variants={childVariants}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="pt-1">
                     <p className="ui-kicker text-clinical-white/50">
-                      {tx("treatment.viewer.enter")}
+                      {tx("treatment.viewer.eyebrow")}
                     </p>
-                    <h2 className="glow-text mt-2 text-2xl font-semibold uppercase tracking-tightish sm:text-3xl">
+                    <h2 className="glow-text mt-3 text-3xl font-semibold uppercase tracking-tightish sm:text-4xl">
                       {scrambledTitle}
                     </h2>
-                    <p className="text-base text-clinical-white/70">
+                    <p className="mt-2 text-lg text-clinical-white/70">
                       {activePick.artist_credit || tx("treatment.cover.unknownArtist")}
                     </p>
-                    <p className="mt-4 text-xs uppercase tracking-[0.2em] text-clinical-white/60">
+                    <p className="mt-5 text-sm uppercase tracking-[0.2em] text-clinical-white/60">
                       {activePick.first_release_year && <span>{activePick.first_release_year}</span>}
                       {activePick.tags?.[0]?.name && (
                         <span className="ml-3">#{activePick.tags[0].name}</span>
@@ -252,10 +252,10 @@ export function TreatmentViewerOverlay({
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-clinical-white/70">
+                <div className="flex flex-wrap items-center gap-4 text-base text-clinical-white/70">
                   {activePick.links?.musicbrainz && (
                     <a
-                      className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-signal-accent underline decoration-signal-accent/60 underline-offset-4 transition hover:text-signal-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-accent/70"
+                      className="inline-flex min-h-[40px] items-center px-2 py-1 text-xs uppercase tracking-[0.3em] text-signal-accent underline decoration-signal-accent/60 underline-offset-4 transition hover:text-signal-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-accent/70"
                       href={activePick.links.musicbrainz}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -265,7 +265,7 @@ export function TreatmentViewerOverlay({
                   )}
                   {activePick.links?.youtube_search && (
                     <a
-                      className="inline-flex min-h-[36px] items-center px-2 py-1 text-[11px] uppercase tracking-[0.3em] text-clinical-white underline decoration-clinical-white/50 underline-offset-4 transition hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
+                      className="inline-flex min-h-[40px] items-center px-2 py-1 text-xs uppercase tracking-[0.3em] text-clinical-white underline decoration-clinical-white/50 underline-offset-4 transition hover:text-clinical-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clinical-white/60"
                       href={activePick.links.youtube_search}
                       target="_blank"
                       rel="noopener noreferrer"

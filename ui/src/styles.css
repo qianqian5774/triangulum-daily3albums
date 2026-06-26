@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: dark;
-  --ui-font-scale: 1.08;
+  --ui-font-scale: 1.32;
   --hud-height: 168px;
   --art-accent: #A8C700;
   --art-cyan: #31f7ff;
@@ -45,12 +45,12 @@ html[data-theme="day"] {
   --day-bg: #F7F6F2;
   --day-surface: #FFFFFF;
   --day-surface-2: #F0EFEA;
-  --day-border: #D8D5CE;
+  --day-border: #C9C3B8;
   --day-text: #1D1D1F;
-  --day-muted: #61636A;
+  --day-muted: #474A50;
   --day-accent: #C96F3F;
   --day-accent-strong: #A9542C;
-  --day-accent-soft: rgba(201, 111, 63, 0.1);
+  --day-accent-soft: rgba(201, 111, 63, 0.14);
   --day-on-accent: #FFFDF8;
   --art-accent: var(--day-accent);
   --art-cyan: #A4A8AF;
@@ -58,16 +58,16 @@ html[data-theme="day"] {
   --art-amber: #D19564;
   --theme-bg: var(--day-bg);
   --theme-bg-mid: var(--day-surface-2);
-  --theme-panel: rgba(255, 255, 255, 0.84);
-  --theme-panel-muted: rgba(255, 255, 255, 0.68);
-  --theme-card: rgba(255, 255, 255, 0.88);
+  --theme-panel: rgba(255, 255, 255, 0.92);
+  --theme-panel-muted: rgba(255, 255, 255, 0.82);
+  --theme-card: rgba(255, 255, 255, 0.94);
   --theme-surface-rgb: 255 255 255;
   --theme-text: var(--day-text);
   --theme-text-rgb: 29 29 31;
   --theme-muted: var(--day-muted);
   --theme-muted-rgb: 97 99 106;
-  --theme-faint: rgba(29, 29, 31, 0.34);
-  --theme-border: rgba(29, 29, 31, 0.13);
+  --theme-faint: rgba(29, 29, 31, 0.46);
+  --theme-border: rgba(29, 29, 31, 0.2);
   --theme-border-rgb: 29 29 31;
   --theme-accent: var(--day-accent);
   --theme-accent-rgb: 201 111 63;
@@ -78,7 +78,7 @@ html[data-theme="day"] {
   --theme-alert-rgb: 169 84 44;
   --theme-texture-opacity: 0.018;
   --theme-texture-blend: multiply;
-  --theme-shadow: 0 22px 60px rgba(29, 29, 31, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --theme-shadow: 0 18px 44px rgba(29, 29, 31, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.76);
   --theme-selection-bg: var(--day-accent);
   --theme-selection-text: var(--day-on-accent);
 }
@@ -202,9 +202,9 @@ body::before {
 
 html[data-theme="day"] .hud-shell {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.72)),
-    linear-gradient(90deg, rgb(var(--theme-accent-rgb) / 0.028), transparent 38%, rgba(255, 255, 255, 0.42));
-  backdrop-filter: blur(22px) saturate(1.08);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 249, 246, 0.86)),
+    linear-gradient(90deg, rgb(var(--theme-accent-rgb) / 0.045), transparent 38%, rgba(255, 255, 255, 0.52));
+  backdrop-filter: blur(12px) saturate(1.03);
 }
 
 html[data-theme="day"] .hud-shell::before {
@@ -213,11 +213,11 @@ html[data-theme="day"] .hud-shell::before {
 }
 
 html[data-theme="day"] .hud-shell::after {
-  border-color: rgba(29, 29, 31, 0.08);
+  border-color: rgba(29, 29, 31, 0.16);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 42%),
-    linear-gradient(90deg, transparent, rgb(var(--theme-accent-rgb) / 0.026), transparent);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.66);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 42%),
+    linear-gradient(90deg, transparent, rgb(var(--theme-accent-rgb) / 0.045), transparent);
+  box-shadow: inset 0 0 0 1px rgba(29, 29, 31, 0.05);
 }
 
 .hud-grid {
@@ -323,8 +323,21 @@ html[data-theme="day"] .hud-shell::after {
 
 html[data-theme="day"] .ui-button,
 html[data-theme="day"] .segmented-control {
-  background: rgba(255, 255, 255, 0.66);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 8px 22px rgba(29, 29, 31, 0.045);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 6px 16px rgba(29, 29, 31, 0.055);
+}
+
+html[data-theme="day"] .ui-button {
+  border-color: rgb(var(--theme-border-rgb) / 0.28);
+  color: rgb(var(--theme-text-rgb) / 0.86);
+}
+
+html[data-theme="day"] .segmented-control {
+  border-color: rgb(var(--theme-border-rgb) / 0.24);
+}
+
+html[data-theme="day"] .segmented-control button {
+  color: rgb(var(--theme-text-rgb) / 0.68);
 }
 
 .ui-button:hover {
@@ -379,9 +392,9 @@ html[data-theme="day"] .segmented-control {
 
 html[data-theme="day"] .hud-marquee {
   background:
-    linear-gradient(90deg, rgb(var(--theme-accent-rgb) / 0.04), rgba(255, 255, 255, 0.58), rgba(164, 168, 175, 0.04)),
-    rgba(255, 255, 255, 0.48);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), inset 0 -1px 0 rgba(29, 29, 31, 0.05);
+    linear-gradient(90deg, rgb(var(--theme-accent-rgb) / 0.065), rgba(255, 255, 255, 0.72), rgba(164, 168, 175, 0.055)),
+    rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74), inset 0 -1px 0 rgba(29, 29, 31, 0.1);
 }
 
 .section-toolbar {
@@ -425,7 +438,7 @@ html[data-theme="day"] .hud-marquee {
 
 html[data-theme="day"] .today-layout > aside {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(250, 249, 246, 0.76)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 249, 246, 0.84)),
     var(--theme-panel-muted);
 }
 
@@ -463,13 +476,13 @@ html[data-theme="day"] .today-layout > aside::before {
 }
 
 html[data-theme="day"] .timeline-button {
-  background-color: rgba(255, 255, 255, 0.62);
-  box-shadow: inset 0 0 0 1px rgba(29, 29, 31, 0.045);
+  background-color: rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(29, 29, 31, 0.1), 0 8px 22px rgba(29, 29, 31, 0.045);
 }
 
 html[data-theme="day"] .timeline-button::before {
-  background: linear-gradient(180deg, rgb(var(--theme-accent-rgb) / 0.72), rgb(var(--theme-accent-rgb) / 0.12));
-  opacity: 0.44;
+  background: linear-gradient(180deg, rgb(var(--theme-accent-rgb) / 0.88), rgb(var(--theme-accent-rgb) / 0.2));
+  opacity: 0.58;
 }
 
 .slotcard {
@@ -490,7 +503,7 @@ html[data-theme="day"] .timeline-button::before {
 
 .slotcard-interactive:hover {
   border-color: rgb(var(--theme-accent-rgb) / 0.8);
-  filter: drop-shadow(0 0 18px rgb(var(--theme-accent-rgb) / 0.45));
+  box-shadow: 0 0 16px rgb(var(--theme-accent-rgb) / 0.24);
 }
 
 .slotcard::before {
@@ -522,7 +535,7 @@ html[data-theme="day"] .timeline-button::before {
 
 html[data-theme="day"] .slotcard {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(250, 249, 246, 0.84));
-  box-shadow: 0 20px 48px rgba(29, 29, 31, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 42px rgba(29, 29, 31, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.76);
 }
 
 html[data-theme="day"] .slotcard::before {
@@ -531,8 +544,8 @@ html[data-theme="day"] .slotcard::before {
 }
 
 html[data-theme="day"] .slotcard::after {
-  border-color: rgba(29, 29, 31, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62);
+  border-color: rgba(29, 29, 31, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.58);
 }
 
 .slotcard-body {
@@ -543,7 +556,7 @@ html[data-theme="day"] .slotcard::after {
 }
 
 html[data-theme="day"] .slotcard-body {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(247, 246, 242, 0.72));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(247, 246, 242, 0.84));
 }
 
 .slotcard-cover {
@@ -572,7 +585,7 @@ html[data-theme="day"] .slotcard-cover::after {
 
 html[data-theme="day"] .slotcard-interactive:hover {
   border-color: rgb(var(--theme-accent-rgb) / 0.42);
-  filter: drop-shadow(0 14px 28px rgba(29, 29, 31, 0.12));
+  box-shadow: 0 16px 34px rgba(29, 29, 31, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.76);
 }
 
 .slotcard h3,
@@ -584,11 +597,76 @@ html[data-theme="day"] .slotcard-interactive:hover {
   border-color: var(--theme-accent);
   background: var(--theme-accent);
   color: var(--theme-on-accent);
-  box-shadow: 0 0 18px rgb(var(--theme-accent-rgb) / 0.45);
+  box-shadow: 0 0 14px rgb(var(--theme-accent-rgb) / 0.32);
+}
+
+.slotcard-info-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 1.65rem;
+  height: 1.65rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--theme-border-rgb) / 0.72);
+  border-radius: 999px;
+  background: rgb(var(--theme-surface-rgb) / 0.38);
+  color: var(--theme-accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+  touch-action: manipulation;
+}
+
+.slotcard-info-button:hover,
+.slotcard-info-button[aria-expanded="true"] {
+  border-color: var(--theme-accent);
+  background: rgb(var(--theme-accent-rgb) / 0.16);
+  color: var(--theme-accent);
+}
+
+.slotcard-info-button:focus-visible {
+  outline: 2px solid rgb(var(--theme-accent-rgb) / 0.78);
+  outline-offset: 2px;
+}
+
+.slotcard-info-panel {
+  border: 1px solid rgb(var(--theme-border-rgb) / 0.68);
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  background: rgb(var(--theme-surface-rgb) / 0.5);
+  color: rgb(var(--theme-text-rgb) / 0.78);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.slotcard-info-panel span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--theme-accent);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+html[data-theme="day"] .slotcard-info-button {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(29, 29, 31, 0.22);
+}
+
+html[data-theme="day"] .slotcard-info-panel {
+  background: rgba(255, 255, 255, 0.84);
+  border-color: rgba(29, 29, 31, 0.18);
+  color: rgb(var(--theme-text-rgb) / 0.84);
 }
 
 .viewer-dialog {
   max-height: calc(100vh - 1.5rem);
+  width: min(100%, 82rem);
 }
 
 .viewer-content {
@@ -722,24 +800,24 @@ html[data-theme="day"] .slotcard-interactive:hover {
   background:
     conic-gradient(from 120deg at 50% 50%, transparent, rgb(var(--ambient-accent-rgb) / 0.12), transparent 34%, rgb(var(--ambient-magenta-rgb) / 0.055), transparent 62%, rgb(var(--ambient-cyan-rgb) / 0.065), transparent),
     linear-gradient(20deg, transparent 0%, rgba(243, 246, 232, 0.04) 52%, transparent 100%);
-  filter: blur(12px);
-  animation: ambient-color-drift 18s linear infinite;
+  filter: blur(8px);
+  animation: ambient-color-drift 24s linear infinite;
 }
 
 .ambient-noise {
   position: absolute;
   inset: 0;
-  opacity: 0.16;
+  opacity: 0.11;
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 3px),
     repeating-linear-gradient(90deg, rgb(var(--ambient-accent-rgb) / 0.05) 0 1px, transparent 1px 7px);
-  animation: ambient-noise-shift 1.6s steps(2, end) infinite;
+  animation: ambient-noise-shift 2.8s steps(2, end) infinite;
 }
 
 .ambient-grid {
   position: absolute;
   inset: 0;
-  opacity: 0.18;
+  opacity: 0.14;
   background-image: linear-gradient(rgb(var(--ambient-accent-rgb) / 0.12) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--ambient-accent-rgb) / 0.12) 1px, transparent 1px);
   background-size: 64px 64px;
@@ -758,9 +836,9 @@ html[data-theme="day"] .slotcard-interactive:hover {
     linear-gradient(90deg, transparent 0 8%, rgb(var(--ambient-accent-rgb) / 0.14) 12% 42%, transparent 46% 58%, rgb(var(--ambient-cyan-rgb) / 0.08) 62% 74%, transparent),
     linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.055), transparent);
   filter: blur(0.2px);
-  opacity: 0.5;
+  opacity: 0.42;
   transform: skewY(-5deg);
-  animation: ambient-signal-slice 7.5s steps(1, end) infinite;
+  animation: ambient-signal-slice 9s steps(1, end) infinite;
 }
 
 .ambient-signal-a {
@@ -1101,27 +1179,27 @@ html[data-theme="day"] .slotcard-interactive:hover {
 }
 
 [data-theme="day"] [class*="text-clinical-white"] {
-  color: rgb(var(--theme-text-rgb) / 0.74) !important;
+  color: rgb(var(--theme-text-rgb) / 0.82) !important;
 }
 
 [data-theme="day"] [class*="text-clinical-white/30"] {
-  color: rgb(var(--theme-text-rgb) / 0.32) !important;
+  color: rgb(var(--theme-text-rgb) / 0.5) !important;
 }
 
 [data-theme="day"] [class*="text-clinical-white/40"] {
-  color: rgb(var(--theme-text-rgb) / 0.44) !important;
+  color: rgb(var(--theme-text-rgb) / 0.58) !important;
 }
 
 [data-theme="day"] [class*="text-clinical-white/50"] {
-  color: rgb(var(--theme-text-rgb) / 0.56) !important;
+  color: rgb(var(--theme-text-rgb) / 0.68) !important;
 }
 
 [data-theme="day"] [class*="text-clinical-white/60"] {
-  color: rgb(var(--theme-text-rgb) / 0.66) !important;
+  color: rgb(var(--theme-text-rgb) / 0.76) !important;
 }
 
 [data-theme="day"] [class*="text-clinical-white/70"] {
-  color: rgb(var(--theme-text-rgb) / 0.78) !important;
+  color: rgb(var(--theme-text-rgb) / 0.86) !important;
 }
 
 [data-theme="day"] h1,
@@ -1186,7 +1264,7 @@ html[data-theme="day"] .slotcard-interactive:hover {
 }
 
 [data-theme="day"] .slotcard {
-  box-shadow: 0 20px 48px rgba(29, 29, 31, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 42px rgba(29, 29, 31, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.76);
 }
 
 [data-theme="day"] .slotcard-cover::after {
@@ -1567,16 +1645,16 @@ html[data-theme="day"] .slotcard-interactive:hover {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(18px);
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(10px);
 }
 
 .share-dialog {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(18rem, 26rem) minmax(20rem, 32rem);
-  gap: 1rem;
-  width: min(100%, 64rem);
+  grid-template-columns: minmax(22rem, 34rem) minmax(28rem, 43rem);
+  gap: 1.25rem;
+  width: min(100%, 83rem);
   max-height: calc(100vh - 2rem);
   overflow: auto;
   border: 1px solid rgb(var(--theme-border-rgb) / 0.72);
@@ -1588,7 +1666,7 @@ html[data-theme="day"] .slotcard-interactive:hover {
 .share-dialog-panel,
 .share-preview-panel {
   min-width: 0;
-  padding: 1rem;
+  padding: 1.25rem;
 }
 
 .share-dialog-heading {
@@ -1599,31 +1677,31 @@ html[data-theme="day"] .slotcard-interactive:hover {
 }
 
 .share-dialog-heading h2 {
-  font-size: 1.45rem;
+  font-size: 1.75rem;
   font-weight: 700;
   letter-spacing: 0;
 }
 
 .share-dialog-heading p:last-child {
   margin-top: 0.5rem;
-  max-width: 27rem;
+  max-width: 32rem;
   color: rgb(var(--theme-muted-rgb) / 0.82);
   font-family: var(--mono-font);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   line-height: 1.7;
 }
 
 .share-controls {
   display: grid;
-  gap: 1rem;
-  margin-top: 1.25rem;
+  gap: 1.15rem;
+  margin-top: 1.45rem;
 }
 
 .share-controls p {
   margin-bottom: 0.45rem;
   color: rgb(var(--theme-muted-rgb) / 0.8);
   font-family: var(--mono-font);
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
@@ -1635,14 +1713,14 @@ html[data-theme="day"] .slotcard-interactive:hover {
 }
 
 .share-control-row button {
-  min-height: 2.55rem;
+  min-height: 2.85rem;
   border: 1px solid rgb(var(--theme-border-rgb) / 0.72);
   border-radius: 999px;
-  padding: 0.55rem 0.85rem;
+  padding: 0.65rem 1rem;
   color: rgb(var(--theme-text-rgb) / 0.72);
   background: rgb(var(--theme-surface-rgb) / 0.48);
   font-family: var(--mono-font);
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1667,7 +1745,7 @@ html[data-theme="day"] .slotcard-interactive:hover {
   color: var(--theme-alert);
   background: rgb(var(--theme-alert-rgb) / 0.08);
   font-family: var(--mono-font);
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   line-height: 1.6;
 }
 
@@ -1686,8 +1764,8 @@ html[data-theme="day"] .slotcard-interactive:hover {
 }
 
 .share-card-preview-frame {
-  width: 420px;
-  height: 560px;
+  width: 546px;
+  height: 728px;
   overflow: hidden;
   border: 1px solid rgb(var(--theme-border-rgb) / 0.72);
   border-radius: 8px;
@@ -1696,7 +1774,7 @@ html[data-theme="day"] .slotcard-interactive:hover {
 }
 
 .share-card-preview-frame .share-card-canvas {
-  transform: scale(0.3888889);
+  transform: scale(0.5055556);
   transform-origin: top left;
 }
 

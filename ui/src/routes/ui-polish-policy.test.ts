@@ -19,6 +19,30 @@ describe("public UI polish policies", () => {
     expect(todaySource).not.toContain("onClick={() => setAmbientActive((prev) => !prev)}");
   });
 
+  it("keeps manual Ambient entry scoped to Time Lab and doubles the idle delay", () => {
+    expect(todaySource).toContain("const AMBIENT_IDLE_DELAY_MS = 120000");
+    const normalTodayStart = todaySource.indexOf('${ambientActive ? "ambient-mode" : ""}');
+    expect(normalTodayStart).toBeGreaterThanOrEqual(0);
+    const toolbarStart = todaySource.indexOf(
+      '<div className="ambient-fade flex flex-wrap items-center gap-3">',
+      normalTodayStart
+    );
+    const toolbarEnd = todaySource.indexOf("{debugPanel}", toolbarStart);
+    expect(toolbarStart).toBeGreaterThanOrEqual(0);
+    expect(toolbarEnd).toBeGreaterThan(toolbarStart);
+    const toolbar = todaySource.slice(toolbarStart, toolbarEnd);
+    expect(toolbar).not.toContain("today.ambientEnter");
+    expect(toolbar).not.toContain("today.archiveCta");
+
+    const debugPanelStart = todaySource.indexOf("const debugPanel = debugPanelEnabled");
+    const debugPanelEnd = todaySource.indexOf("if (nowState === \"OFFLINE\")", debugPanelStart);
+    expect(debugPanelStart).toBeGreaterThanOrEqual(0);
+    expect(debugPanelEnd).toBeGreaterThan(debugPanelStart);
+    const debugPanel = todaySource.slice(debugPanelStart, debugPanelEnd);
+    expect(debugPanel).toContain("today.ambientEnter");
+    expect(debugPanel).toContain("data-testid=\"ambient-toggle\"");
+  });
+
   it("keeps standby exit explicit through the overlay exit button", () => {
     expect(todaySource).not.toContain('window.addEventListener("keydown", exitAmbient)');
     expect(todaySource).not.toContain('window.addEventListener("click", exitAmbient)');

@@ -68,7 +68,7 @@ export const copy = {
   today: {
     label: "Today",
     headerFallback: "Calibrating today's triage",
-    intro: "Three albums, released through the day outside the usual recommendation loop.",
+    intro: "Nine albums daily, released in three signal windows outside the usual recommendation loop.",
     loading: "Synthesizing compounds...",
     themePrefix: "Theme",
     archiveCta: "Archive",
@@ -147,6 +147,7 @@ export const copy = {
       readminister: "Re-administer Dose"
     },
     viewer: {
+      eyebrow: "Album detail",
       enter: "Open album detail",
       close: "Close viewer",
       prev: "Previous dose",
@@ -156,6 +157,12 @@ export const copy = {
       Headliner: "Headliner",
       Lineage: "Lineage",
       DeepCut: "Deep Cut"
+    },
+    slotInfoButton: "Explain recommendation role",
+    slotInfo: {
+      Headliner: "The most direct and immediately striking entry point for this signal window.",
+      Lineage: "A recommendation tied to style lineage, historical influence, or a neighboring scene.",
+      DeepCut: "A more hidden, exploratory recommendation for deeper listening."
     },
     cover: {
       missing: "No Cover",
@@ -235,7 +242,7 @@ const zhCopy = {
   today: {
     label: "今日",
     headerFallback: "正在校准今日推荐",
-    intro: "每天三张专辑，按时段释放，尽量跳出惯常推荐循环。",
+    intro: "每日九张专辑，分三轮信号窗口释放，避开惯常推荐回路。",
     loading: "正在生成...",
     themePrefix: "主题",
     archiveCta: "历史",
@@ -314,6 +321,7 @@ const zhCopy = {
       readminister: "重新查看"
     },
     viewer: {
+      eyebrow: "专辑详情",
       enter: "打开专辑详情",
       close: "关闭浏览器",
       prev: "上一张",
@@ -323,6 +331,12 @@ const zhCopy = {
       Headliner: "Headliner",
       Lineage: "Lineage",
       DeepCut: "Deep Cut"
+    },
+    slotInfoButton: "说明推荐角色",
+    slotInfo: {
+      Headliner: "当天该时段最直接、最醒目的入口推荐。",
+      Lineage: "与风格脉络、历史影响或相邻场景有关的推荐。",
+      DeepCut: "更隐蔽、更偏探索向的推荐。"
     },
     cover: {
       missing: "无封面",

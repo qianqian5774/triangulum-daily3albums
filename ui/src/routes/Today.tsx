@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { AmbientOverlay } from "../components/AmbientOverlay";
@@ -56,6 +56,8 @@ const LAST_FETCHED_AT_KEY = "lastFetchedAtBjt";
 const TRANSITION_DURATION_MS = 900;
 const TRANSITION_SWAP_MS = 420;
 const PRELOAD_TIMEOUT_MS = 2000;
+const AMBIENT_IDLE_DELAY_MS = 120000;
+const IDLE_ACTIVITY_THROTTLE_MS = 750;
 const RETRY_FAST_MS = 5000;
 const RETRY_SLOW_MS = 30000;
 const RETRY_SLOW_AFTER_MS = 10 * 60 * 1000;
@@ -136,6 +138,7 @@ export function TodayRoute() {
   const transitionTimerRef = useRef<number | null>(null);
   const transitionSwapRef = useRef<number | null>(null);
   const lockedFeedbackTimeoutRef = useRef<number | null>(null);
+  const lastIdleResetAtRef = useRef(0);
 
   const coverCacheKey = issue?.run_id ?? issue?.date ?? lastGoodIssue?.run_id ?? lastGoodIssue?.date ?? "";
 
@@ -200,7 +203,7 @@ export function TodayRoute() {
     if (!displayIssue) {
       return tx("today.headerFallback");
     }
-    return `${displayIssue.date} · ${tx("today.themePrefix")} ${displayIssue.theme_of_day}`;
+    return displayIssue.date;
   }, [displayIssue, tx]);
 
   const showReturnToNow =
@@ -526,23 +529,28 @@ export function TodayRoute() {
     }
   }, [focusedId]);
 
-  const resetIdleTimer = useCallback(() => {
+  const resetIdleTimer = useCallback((force = false) => {
     if (focusedId || ambientActive) {
       return;
     }
+    const now = Date.now();
+    if (!force && now - lastIdleResetAtRef.current < IDLE_ACTIVITY_THROTTLE_MS) {
+      return;
+    }
+    lastIdleResetAtRef.current = now;
     if (idleTimeoutRef.current) {
       window.clearTimeout(idleTimeoutRef.current);
     }
     idleTimeoutRef.current = window.setTimeout(() => {
       setAmbientActive(true);
-    }, 60000);
+    }, AMBIENT_IDLE_DELAY_MS);
   }, [ambientActive, focusedId]);
 
   useEffect(() => {
     const handleActivity = () => resetIdleTimer();
     const events = ["mousemove", "mousedown", "keydown", "touchstart", "pointerdown", "wheel"];
     events.forEach((eventName) => window.addEventListener(eventName, handleActivity, { passive: true }));
-    resetIdleTimer();
+    resetIdleTimer(true);
     return () => {
       events.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
       if (idleTimeoutRef.current) {
@@ -759,6 +767,14 @@ export function TodayRoute() {
         >
           {tx("today.debug.clear")}
         </button>
+        <button
+          type="button"
+          onClick={handleAmbientToggle}
+          data-testid="ambient-toggle"
+          className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
+        >
+          {tx("today.ambientEnter")}
+        </button>
       </div>
     </div>
   ) : null;
@@ -841,12 +857,6 @@ export function TodayRoute() {
           ) : null}
         </div>
         <div className="ambient-fade flex flex-wrap items-center gap-3">
-          <Link
-            to="/archive"
-            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent"
-          >
-            {tx("today.archiveCta")}
-          </Link>
           {showNowAvailable && (
             <span className="rounded-full border border-alert-red/60 px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-alert-red">
               {tx("today.nowAvailable")}
@@ -869,14 +879,6 @@ export function TodayRoute() {
             className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
           >
             {tx("share.button")}
-          </button>
-          <button
-            type="button"
-            onClick={handleAmbientToggle}
-            data-testid="ambient-toggle"
-            className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
-          >
-            {tx("today.ambientEnter")}
           </button>
         </div>
       </div>
@@ -930,9 +932,11 @@ export function TodayRoute() {
                       </div>
                       <div className="flex flex-1 flex-col gap-1">
                         <span className="text-xs uppercase tracking-[0.3em]">{slot.window_label}</span>
-                        <span className="text-[11px] uppercase tracking-[0.2em] text-clinical-white/50">
-                          {isLocked ? "???" : slot.theme}
-                        </span>
+                        {!isLocked ? (
+                          <span className="text-[11px] uppercase tracking-[0.2em] text-clinical-white/50">
+                            {slot.theme}
+                          </span>
+                        ) : null}
                       </div>
                       {isLocked ? (
                         <span className="text-[10px] uppercase tracking-[0.3em] text-clinical-white/30">
