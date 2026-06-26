@@ -1,12 +1,13 @@
 import type { ArchiveIndex, IndexItem, TodayIssue, TodaySlot } from "./types";
 
-export const RECENT_ARCHIVE_DAY_LIMIT = 3;
+export const DEFAULT_ARCHIVE_RETENTION_DAYS = 7;
 
 function archiveSortKey(item: IndexItem) {
   return item.run_at ?? `${item.date}-${item.run_id ?? ""}`;
 }
 
-export function getRecentArchiveEntries(index: ArchiveIndex, limit = RECENT_ARCHIVE_DAY_LIMIT): IndexItem[] {
+export function getRecentArchiveEntries(index: ArchiveIndex, limit = index.archive_retention_days ?? DEFAULT_ARCHIVE_RETENTION_DAYS): IndexItem[] {
+  const resolvedLimit = Math.max(0, Math.floor(limit));
   const seenDates = new Set<string>();
   const sorted = [...index.items].sort((a, b) => archiveSortKey(b).localeCompare(archiveSortKey(a)));
   const entries: IndexItem[] = [];
@@ -17,7 +18,7 @@ export function getRecentArchiveEntries(index: ArchiveIndex, limit = RECENT_ARCH
     }
     seenDates.add(item.date);
     entries.push(item);
-    if (entries.length >= limit) {
+    if (entries.length >= resolvedLimit) {
       break;
     }
   }

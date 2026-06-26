@@ -15,9 +15,10 @@ function pick(title: string): PickItem {
 }
 
 describe("archive helpers", () => {
-  it("keeps the latest three unique archive dates", () => {
+  it("keeps the configured number of latest unique archive dates", () => {
     const index: ArchiveIndex = {
       output_schema_version: "1",
+      archive_retention_days: 4,
       items: [
         { date: "2026-06-24", run_id: "older", run_at: "2026-06-24T06:00:00+08:00" },
         { date: "2026-06-25", run_id: "latest", run_at: "2026-06-25T06:00:00+08:00" },
@@ -30,7 +31,8 @@ describe("archive helpers", () => {
     expect(getRecentArchiveEntries(index).map((item) => `${item.date}:${item.run_id}`)).toEqual([
       "2026-06-25:manual",
       "2026-06-24:older",
-      "2026-06-23:third"
+      "2026-06-23:third",
+      "2026-06-22:fourth"
     ]);
   });
 

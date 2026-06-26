@@ -82,10 +82,13 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
+      - name: Start build metrics
+        run: python scripts/build_metrics.py start
+
       - name: Install (Python package)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .
+          python scripts/build_metrics.py run --name "Install Python package" -- python -m pip install -e .
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -95,11 +98,14 @@ jobs:
           cache-dependency-path: ui/package-lock.json
 
       - name: Install UI deps
-        run: npm --prefix ui ci
+        run: python scripts/build_metrics.py run --name "npm ci" -- npm --prefix ui ci
 
       # ✅ 方案A附加：UI 单测（防止 resolveCoverUrl 被回滚/误删）
       - name: Run UI tests
-        run: npm --prefix ui test
+        run: python scripts/build_metrics.py run --name "UI test" -- npm --prefix ui test
+
+      - name: Run Python tests
+        run: python scripts/build_metrics.py run --name "pytest" -- python -m pytest
 
       - name: Restore state cache
         uses: actions/cache@v5
@@ -117,10 +123,10 @@ jobs:
           fi
 
       - name: Build UI
-        run: npm --prefix ui run build
+        run: python scripts/build_metrics.py run --name "UI build" -- npm --prefix ui run build
 
       - name: Restore published archive seed
-        run: python scripts/restore_static_archive_seed.py --out .state/pages-history-seed/data --max-days 3
+        run: python scripts/build_metrics.py run --name "Restore archive seed" -- python scripts/restore_static_archive_seed.py --out .state/pages-history-seed/data --max-days 7
 
       # ✅ 方案A核心：每次都“真正重新生成”
       # 同时把 workflow_dispatch 的 n/topk/tag 接进 build 参数，避免你以为填了其实没生效
@@ -144,7 +150,7 @@ jobs:
           printf 'daily3albums build args:'
           printf ' %q' "${args[@]}"
           printf '\n'
-          daily3albums build "${args[@]}"
+          python scripts/build_metrics.py run --name "daily3albums build" -- daily3albums build "${args[@]}"
 
       # ✅ 方案A附加：生成 data/meta.json，给前端做版本参数/对齐用
       - name: Write data/meta.json
@@ -175,7 +181,12 @@ jobs:
           PY
 
       - name: Self-check output
-        run: python scripts/self_check.py --path _build/public
+        run: python scripts/build_metrics.py run --name "self_check" -- python scripts/self_check.py --path _build/public
+
+      - name: Summarize build metrics
+        if: always()
+        continue-on-error: true
+        run: python scripts/build_metrics.py summarize --public _build/public --out .state/build-metrics/build-metrics.json
 
       - name: Maintain state SQLite cache
         if: always()

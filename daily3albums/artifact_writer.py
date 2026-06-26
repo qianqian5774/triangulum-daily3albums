@@ -13,7 +13,7 @@ class OutputValidationError(RuntimeError):
     pass
 
 
-ARCHIVE_INDEX_DAY_LIMIT = 3
+DEFAULT_ARCHIVE_RETENTION_DAYS = 7
 
 
 def _to_jsonable(obj: Any) -> Any:
@@ -96,6 +96,7 @@ def write_daily_artifacts(
     issue: dict,
     out_public_dir: Path,
     quarantine_rows: list[dict] | None = None,
+    archive_retention_days: int = DEFAULT_ARCHIVE_RETENTION_DAYS,
 ) -> dict[str, Path]:
     # ...（这里是你原来函数里已经存在的：data_dir/archive_dir/quarantine_dir/date_key/today_path/...）
     data_dir = out_public_dir / "data"
@@ -113,6 +114,8 @@ def write_daily_artifacts(
     atomic_write_json(today_path, issue)
     atomic_write_json(archive_path, issue)
     atomic_write_json(archive_flat_path, issue)
+
+    retention_days = max(1, int(archive_retention_days))
 
     # 2) index：读旧的（不存在就新建），追加一条（带兜底）
     index_obj: dict[str, Any]
@@ -163,8 +166,9 @@ def write_daily_artifacts(
             continue
         seen_dates.add(item_date)
         recent_items.append(item)
-        if len(recent_items) >= ARCHIVE_INDEX_DAY_LIMIT:
+        if len(recent_items) >= retention_days:
             break
+    index_obj["archive_retention_days"] = retention_days
     index_obj["items"] = recent_items
     _prune_archive_files(archive_dir, seen_dates)
 

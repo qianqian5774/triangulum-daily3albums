@@ -14,6 +14,7 @@ from typing import Any
 
 
 DEFAULT_TIMEOUT_SECONDS = 12
+DEFAULT_ARCHIVE_RETENTION_DAYS = 7
 
 
 def _pages_base_url() -> str:
@@ -117,6 +118,7 @@ def restore_static_archive_seed(out_dir: Path, max_days: int) -> int:
 
     seed_index = {
         "output_schema_version": str(index.get("output_schema_version") or "1"),
+        "archive_retention_days": max_days,
         "items": selected,
     }
     (out_dir / "index.json").write_text(
@@ -142,7 +144,7 @@ def main() -> int:
     parser.add_argument(
         "--max-days",
         type=int,
-        default=3,
+        default=DEFAULT_ARCHIVE_RETENTION_DAYS,
         help="Recent unique archive dates to restore",
     )
     args = parser.parse_args()

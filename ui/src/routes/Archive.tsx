@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { SlotCard } from "../components/SlotCard";
-import { getArchiveIssueSlots, getRecentArchiveEntries } from "../lib/archive";
+import { DEFAULT_ARCHIVE_RETENTION_DAYS, getArchiveIssueSlots, getRecentArchiveEntries } from "../lib/archive";
 import { getBjtNowParts, loadDebugTime, resolveNowState } from "../lib/bjt";
 import { loadArchiveDay, loadArchiveIndex } from "../lib/data";
 import { useT } from "../lib/ui-settings";
@@ -75,6 +75,7 @@ export function ArchiveRoute() {
   }, []);
 
   const recentEntries = useMemo(() => (index ? getRecentArchiveEntries(index) : []), [index]);
+  const archiveRetentionDays = index?.archive_retention_days ?? DEFAULT_ARCHIVE_RETENTION_DAYS;
 
   useEffect(() => {
     if (!recentEntries.length) {
@@ -147,7 +148,7 @@ export function ArchiveRoute() {
           <p className="ui-kicker text-clinical-white/60">{tx("archive.label")}</p>
           <h1 className="text-3xl font-semibold uppercase tracking-tightish">{tx("archive.recentTitle")}</h1>
           <p className="font-mono text-sm text-clinical-white/60">{tx("archive.recentIntro")}</p>
-          {recentEntries.length > 0 && recentEntries.length < 3 ? (
+          {recentEntries.length > 0 && recentEntries.length < archiveRetentionDays ? (
             <p className="font-mono text-xs uppercase tracking-[0.22em] text-clinical-white/50">
               {tx("archive.partialHint")}
             </p>

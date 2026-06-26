@@ -99,7 +99,7 @@ export function SlotCard({
   };
 
   const handleMouseMove = (event: MouseEvent<HTMLElement>) => {
-    if (prefersReducedMotion || !cardRef.current) {
+    if (prefersReducedMotion || !isInteractive || !cardRef.current) {
       return;
     }
     lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY };

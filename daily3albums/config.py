@@ -88,6 +88,7 @@ class AppConfig:
     decade_mode: str
     ignored_legacy_decade_keys: list[str]
     ui_build_timeout_s: int
+    archive_retention_days: int
 
 
 def load_config(repo_root: Path) -> AppConfig:
@@ -101,6 +102,7 @@ def load_config(repo_root: Path) -> AppConfig:
     lastfm_max_pages = int(candidate_lastfm_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6)))
     max_tag_tries_per_slot = int(build_cfg.get("max_tag_tries_per_slot", 8))
     normalizer_cfg = cfg.get("normalizer", {}) or {}
+    history_cfg = cfg.get("history", {}) or {}
     scoring_cfg = cfg.get("scoring", {}) or {}
     mb_max_queries_per_candidate = int(normalizer_cfg.get("mb_max_queries_per_candidate", 3))
     mb_max_candidates_per_slot = int(normalizer_cfg.get("mb_max_candidates_per_slot", 120))
@@ -114,6 +116,7 @@ def load_config(repo_root: Path) -> AppConfig:
     raw_decade_mode = str(cfg.get("decade_mode", "off") or "off").strip().lower()
     decade_mode = "on" if raw_decade_mode == "on" else "off"
     ui_build_timeout_s = int((cfg.get("build", {}) or {}).get("ui_build_timeout_s", 300))
+    archive_retention_days = max(1, int(history_cfg.get("archive_retention_days", 7)))
     legacy_decade_keys = [
         key for key in ("decade_theme", "min_in_decade", "max_unknown_year", "decade_axis", "day_decade")
         if key in build_cfg or key in cfg
@@ -136,4 +139,5 @@ def load_config(repo_root: Path) -> AppConfig:
         decade_mode=decade_mode,
         ignored_legacy_decade_keys=legacy_decade_keys,
         ui_build_timeout_s=max(1, int(ui_build_timeout_s)),
+        archive_retention_days=archive_retention_days,
     )

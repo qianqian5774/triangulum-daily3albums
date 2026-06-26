@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { Language } from "../strings/copy";
 import type { VisualTheme } from "../lib/bjt";
 import type { PickItem, TodayIssue } from "../lib/types";
@@ -234,12 +235,17 @@ export function ShareCardDialog({ open, issue, nowSlotId, visualTheme, onClose }
   }
 
   const handleDownload = async () => {
-    if (!issue || !exportRef.current || !canExport) {
+    if (!issue || !canExport) {
       return;
     }
-    setIsExporting(true);
-    setExportError(null);
+    flushSync(() => {
+      setIsExporting(true);
+      setExportError(null);
+    });
     try {
+      if (!exportRef.current) {
+        throw new Error("Share card export root is unavailable");
+      }
       await downloadShareCardPng(exportRef.current, createShareCardFileName(issue, versionId, theme, language));
     } catch (err) {
       setExportError(err instanceof Error ? err.message : String(err));
@@ -356,7 +362,7 @@ export function ShareCardDialog({ open, issue, nowSlotId, visualTheme, onClose }
         </div>
 
         {issue && slots.length ? (
-          <div className="share-card-export-root" aria-hidden="true">
+          <div className={`share-card-export-root ${isExporting ? "is-exporting" : ""}`} aria-hidden="true">
             <div ref={exportRef}>
               <ShareCardCanvas
                 issue={issue}
