@@ -259,6 +259,7 @@ def cmd_dry_run(
 # ----------------------------
 
 MAX_TAG_TRIES_PER_SLOT = 8
+ARCHIVE_FORCE_REWRITE_TOKEN = "I_UNDERSTAND_THIS_REWRITES_PUBLISHED_ARCHIVE"
 
 _DEFAULT_TAG_POOL = [
     "ambient",
@@ -345,6 +346,18 @@ def _get_build_logger(repo_root: Path) -> logging.Logger:
     logger.setLevel(logging.INFO)
     logger.propagate = False
     return logger
+
+
+def _force_archive_rewrite_from_env() -> bool:
+    raw = os.getenv("DAILY3ALBUMS_FORCE_ARCHIVE_REWRITE", "").strip()
+    if not raw:
+        return False
+    if raw != ARCHIVE_FORCE_REWRITE_TOKEN:
+        raise ValueError(
+            "DAILY3ALBUMS_FORCE_ARCHIVE_REWRITE must exactly equal "
+            f"{ARCHIVE_FORCE_REWRITE_TOKEN!r}"
+        )
+    return True
 
 
 def _select_tag(tag_arg: str | None, cfg: Any, beijing_now: datetime, log_line: callable) -> tuple[str, int, str, list[str]]:
@@ -1443,6 +1456,113 @@ def _finalize_recommendation_observability(payload: dict[str, Any]) -> None:
         )
 
 
+def _archive_lock_final_pick(pick: dict[str, Any]) -> dict[str, Any]:
+    cover = pick.get("cover") if isinstance(pick.get("cover"), dict) else {}
+    return {
+        "slot": pick.get("slot"),
+        "title": pick.get("title"),
+        "artist_credit": pick.get("artist_credit"),
+        "rg_mbid": pick.get("rg_mbid"),
+        "year": pick.get("first_release_year"),
+        "metadata": {
+            "musicbrainz_rg_mbid": pick.get("rg_mbid"),
+            "artist_mbids": pick.get("artist_mbids") or [],
+            "rating": pick.get("rating"),
+            "tags": pick.get("tags") or [],
+            "wikipedia_overview": pick.get("wikipedia_overview"),
+            "cover": cover,
+            "cover_source": cover.get("source") or "unknown",
+            "musicbrainz_url": pick.get("musicbrainz_url"),
+            "youtube_search_url": pick.get("youtube_search_url"),
+        },
+    }
+
+
+def _archive_lock_observability(
+    *,
+    repo_root: Path,
+    issue: dict[str, Any],
+    generated_run_id: str,
+) -> dict[str, Any]:
+    slots_payload: list[dict[str, Any]] = []
+    for slot in issue.get("slots") or []:
+        if not isinstance(slot, dict):
+            continue
+        picks = [pick for pick in slot.get("picks") or [] if isinstance(pick, dict)]
+        slots_payload.append(
+            {
+                "slot_id": slot.get("slot_id"),
+                "window": _slot_window_start(int(slot.get("slot_id", 0) or 0)),
+                "window_label": slot.get("window_label"),
+                "theme": slot.get("theme"),
+                "attempted_tags": [],
+                "candidate_counts": {
+                    "raw": 0,
+                    "merged": 0,
+                    "normalization_attempted": 0,
+                    "normalized": 0,
+                    "eligible": 0,
+                    "final_picks": len(picks),
+                },
+                "source_share": _empty_source_counts(),
+                "final_picks_by_source": _empty_source_counts(),
+                "rejection_reasons": {
+                    "various_artists": 0,
+                    "unsupported_primary_type": 0,
+                    "duplicate_album_same_day": 0,
+                    "duplicate_artist_same_day": 0,
+                    "artist_cooldown": 0,
+                    "theme_cooldown": 0,
+                    "musicbrainz_normalization_failed": 0,
+                    "missing_required_metadata": 0,
+                    "other": 0,
+                },
+                "source_diagnostics": {
+                    "discogs_enabled": False,
+                    "discogs_attempted": False,
+                    "discogs_pages_fetched": 0,
+                    "discogs_failed_status": None,
+                    "discogs_cached_negative_used": False,
+                    "listenbrainz_attempted": False,
+                    "listenbrainz_failed": False,
+                    "listenbrainz_candidates": 0,
+                },
+                "final_picks": [_archive_lock_final_pick(pick) for pick in picks],
+            }
+        )
+
+    payload = {
+        "schema_version": 1,
+        "date": issue.get("date"),
+        "run_id": issue.get("run_id"),
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "commit_sha": _head_commit_sha(repo_root),
+        "archive_lock": {
+            "reused_published_date": True,
+            "discarded_generated_run_id": generated_run_id,
+        },
+        "slots": slots_payload,
+        "final_pick_coverage": {},
+        "final_pick_metadata_coverage": {},
+        "enrichment": {
+            "musicbrainz_normalization_attempted": 0,
+            "musicbrainz_normalization_success": 0,
+            "musicbrainz_detail_attempted": 0,
+            "musicbrainz_detail_success": 0,
+            "wikipedia_overview_attempted": 0,
+            "wikipedia_overview_success": 0,
+            "cover_attempted": 0,
+            "cover_success": 0,
+            "discogs_candidate_source_attempted": False,
+            "discogs_candidate_source_failed": False,
+            "listenbrainz_candidate_source_attempted": False,
+            "listenbrainz_candidate_source_failed": False,
+        },
+    }
+    _finalize_recommendation_observability(payload)
+    return payload
+
+
 def cmd_build(
     repo_root: Path,
     tag: str,
@@ -1464,10 +1584,23 @@ def cmd_build(
     env = load_env(repo_root)
     cfg = load_config(repo_root)
     build_logger = _get_build_logger(repo_root)
+    try:
+        force_archive_rewrite = _force_archive_rewrite_from_env()
+    except ValueError as exc:
+        print(f"BUILD ERROR: {exc}")
+        return 2
 
     if getattr(cfg, "ignored_legacy_decade_keys", []):
         ignored_keys = ", ".join(sorted(set(cfg.ignored_legacy_decade_keys)))
         msg = f"decade_* settings ignored: decade_mode={cfg.decade_mode} ({ignored_keys})"
+        print(f"BUILD WARN: {msg}")
+        build_logger.warning(msg)
+    if force_archive_rewrite:
+        msg = (
+            "archive_immutability force_rewrite=true "
+            "reason=DAILY3ALBUMS_FORCE_ARCHIVE_REWRITE confirmed; "
+            "published same-day archive may be replaced"
+        )
         print(f"BUILD WARN: {msg}")
         build_logger.warning(msg)
 
@@ -1509,6 +1642,7 @@ def cmd_build(
         date_key = bjt_date_key
         now_slot_id = _beijing_slot(beijing_now)
         run_id = f"{date_key}_slots_{uuid.uuid4().hex[:6]}"
+        generated_run_id = run_id
 
         recent_ids = _load_recent_stable_ids(out_public_dir, max_runs=9)
         recent_set = set(recent_ids)
@@ -1955,13 +2089,38 @@ def cmd_build(
         _reset_generated_data_dir(out_public_dir)
         _restore_history_seed(out_public_dir, repo_root, log_line)
 
-        from daily3albums.artifact_writer import atomic_write_json, write_daily_artifacts
-        paths = write_daily_artifacts(
-            issue=issue,
-            out_public_dir=out_public_dir,
-            quarantine_rows=quarantine_rows or None,
-            archive_retention_days=int(getattr(cfg, "archive_retention_days", 7)),
+        from daily3albums.artifact_writer import (
+            OutputValidationError,
+            atomic_write_json,
+            write_daily_artifacts,
         )
+        try:
+            paths = write_daily_artifacts(
+                issue=issue,
+                out_public_dir=out_public_dir,
+                quarantine_rows=quarantine_rows or None,
+                archive_retention_days=int(getattr(cfg, "archive_retention_days", 7)),
+                force_archive_rewrite=force_archive_rewrite,
+            )
+        except OutputValidationError as exc:
+            print(f"BUILD ERROR: archive artifact validation failed: {exc}")
+            return 2
+        if issue.get("run_id") != generated_run_id:
+            print(
+                "ARCHIVE IMMUTABILITY: reused published archive "
+                f"date={issue.get('date')} published_run_id={issue.get('run_id')} "
+                f"discarded_generated_run_id={generated_run_id}"
+            )
+            log_line(
+                "archive_immutability status=reused_published_date "
+                f"date={issue.get('date')} published_run_id={issue.get('run_id')} "
+                f"discarded_generated_run_id={generated_run_id}"
+            )
+            observability_payload = _archive_lock_observability(
+                repo_root=repo_root,
+                issue=issue,
+                generated_run_id=generated_run_id,
+            )
         observability_path = out_public_dir / "data" / "recommendation-observability.json"
         atomic_write_json(observability_path, observability_payload)
         paths["recommendation_observability"] = observability_path
