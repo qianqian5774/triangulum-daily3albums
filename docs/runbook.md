@@ -1,5 +1,9 @@
 # Daily3Albums Runbook
 
+## Custom domain cutover
+
+Use [custom-domain-cutover.md](runbooks/custom-domain-cutover.md) for the `triangulumdaily.space` GitHub Pages and Porkbun handoff.
+
 ## Where to find logs
 
 - GitHub Actions runs: **Actions → Build and Deploy Pages**

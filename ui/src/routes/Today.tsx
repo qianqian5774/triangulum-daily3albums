@@ -17,6 +17,7 @@ import {
   getBjtNowParts,
   loadDebugTime,
   readDebugFlagParam,
+  readDebugTimeParam,
   resolveVisualTheme,
   resolveNowState,
   saveDebugTime
@@ -93,6 +94,18 @@ function getStoredLastGood(): TodayIssue | null {
   }
 }
 
+function loadDebugTimeFromLocation() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const urlDebugTime = readDebugTimeParam(window.location.search, window.location.hash);
+  if (urlDebugTime) {
+    saveDebugTime(urlDebugTime);
+    return urlDebugTime;
+  }
+  return loadDebugTime();
+}
+
 export function TodayRoute() {
   const tx = useT();
   const hudContext = useContext(HudContext);
@@ -125,8 +138,8 @@ export function TodayRoute() {
   const [archivedError, setArchivedError] = useState<string | null>(null);
   const [transitionActive, setTransitionActive] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [debugTime, setDebugTime] = useState<string | null>(() => loadDebugTime());
-  const [bjtNow, setBjtNow] = useState(() => getBjtNowParts(loadDebugTime()));
+  const [debugTime, setDebugTime] = useState<string | null>(() => loadDebugTimeFromLocation());
+  const [bjtNow, setBjtNow] = useState(() => getBjtNowParts(loadDebugTimeFromLocation()));
   const [lastGoodIssue, setLastGoodIssue] = useState<TodayIssue | null>(() => getStoredLastGood());
   const [lockedFeedback, setLockedFeedback] = useState(false);
 
@@ -152,6 +165,20 @@ export function TodayRoute() {
     const timer = window.setInterval(tick, 500);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const urlDebugTime = readDebugTimeParam(
+      location.search,
+      typeof window === "undefined" ? "" : window.location.search,
+      typeof window === "undefined" ? "" : window.location.hash
+    );
+    if (!urlDebugTime) {
+      return;
+    }
+    saveDebugTime(urlDebugTime);
+    setDebugTime(urlDebugTime);
+    setBjtNow(getBjtNowParts(urlDebugTime));
+  }, [location.hash, location.search]);
 
   const nowStateInfo = useMemo(() => resolveNowState(bjtNow.secondsSinceMidnight), [bjtNow.secondsSinceMidnight]);
   const nowState = nowStateInfo.state;
