@@ -194,6 +194,29 @@ def _scan_for_absolute_assets(paths: Iterable[Path]) -> list[str]:
     return problems
 
 
+def _scan_for_legacy_project_site_paths(paths: Iterable[Path]) -> list[str]:
+    problems: list[str] = []
+    legacy_patterns = [
+        re.compile(
+            r"https?://qianqian5774\.github\.io/triangulum-daily3albums(?:/|$)",
+            re.IGNORECASE,
+        ),
+        re.compile(r"(?<![A-Za-z0-9_.-])/triangulum-daily3albums/", re.IGNORECASE),
+    ]
+
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except Exception as exc:
+            problems.append(f"Failed to read {path}: {exc}")
+            continue
+
+        if any(pattern.search(text) for pattern in legacy_patterns):
+            problems.append(f"Legacy GitHub Pages project-site path detected in {path}")
+
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Self-check build outputs in _build/public")
     parser.add_argument("--path", default="_build/public", help="Output public directory to validate")
@@ -226,8 +249,15 @@ def main() -> int:
     if observability_path.exists():
         _validate_recommendation_observability(_read_json(observability_path), observability_path)
 
-    scan_paths = list(out_dir.rglob("*.html")) + list(out_dir.rglob("*.js"))
+    scan_paths = (
+        list(out_dir.rglob("*.html"))
+        + list(out_dir.rglob("*.js"))
+        + list(out_dir.rglob("*.css"))
+        + list(out_dir.rglob("*.json"))
+        + list(out_dir.rglob("*.webmanifest"))
+    )
     problems = _scan_for_absolute_assets(scan_paths)
+    problems.extend(_scan_for_legacy_project_site_paths(scan_paths))
     if problems:
         raise SelfCheckError("; ".join(problems))
 

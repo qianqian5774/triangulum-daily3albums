@@ -1,8 +1,8 @@
 # UI Implementation Notes
 
 ## GitHub Pages Base Path
-- The site is deployed under a project sub-path, so every asset and fetch URL must be built from a `BASE_URL`/`import.meta.env.BASE_URL` (Vite) value.
-- Avoid leading `/` in URLs; instead, use relative paths that join `BASE_URL` + `data/...` or `BASE_URL` + `assets/...` to keep the app portable between local dev and Pages.
+- The site must stay portable between custom-domain root deployment (`https://triangulumdaily.space/`) and local/static previews. Every asset and fetch URL must be built from a `BASE_URL`/`import.meta.env.BASE_URL` (Vite) value.
+- Avoid leading `/` in URLs; instead, use relative paths that join `BASE_URL` + `data/...` or `BASE_URL` + `assets/...` to keep the app portable between local dev, custom-domain root, and GitHub Pages previews.
 
 ## Routing Strategy
 - Prefer `HashRouter` for the initial UI rewrite since it avoids Pages 404 issues and does not require extra SPA fallback setup.

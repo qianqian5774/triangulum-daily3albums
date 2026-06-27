@@ -36,6 +36,10 @@ jobs:
     env:
       TZ: Asia/Shanghai
       DAILY3ALBUMS_TZ: Asia/Shanghai
+      # Published static archive seed source. Leave the repository variable empty
+      # until the custom domain is live; the restore script will keep using the
+      # existing GitHub Pages project URL fallback.
+      DAILY3ALBUMS_PAGES_BASE_URL: ${{ vars.DAILY3ALBUMS_PAGES_BASE_URL }}
 
       # Last.fm
       LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}

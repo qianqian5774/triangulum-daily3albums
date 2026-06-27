@@ -129,7 +129,7 @@ Wikipedia 当前只在 build-time metadata enrichment 中使用。MusicBrainz re
 | `DAILY3ALBUMS_TZ` | 用于对齐 local/CI 环境时区；产品行为仍固定为 Asia/Shanghai/BJT。 |
 | `DAILY3ALBUMS_HISTORY_SEED_DIR` | build-time 归档 seed 目录。 |
 | `DAILY3ALBUMS_FIXTURES_DIR` / `DAILY3ALBUMS_FIXTURES_STRICT` | 测试和 fixture 控制。 |
-| `DAILY3ALBUMS_PAGES_BASE_URL` | 已发布 Pages base URL 的 seed restore override。 |
+| `DAILY3ALBUMS_PAGES_BASE_URL` | 已发布 Pages base URL 的 seed restore override；custom domain 稳定后可设为 `https://triangulumdaily.space/`。 |
 
 更新文档时不要读取或暴露真实 `.env` 内容。
 

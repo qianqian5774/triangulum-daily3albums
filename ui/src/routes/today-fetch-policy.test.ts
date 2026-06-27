@@ -23,4 +23,13 @@ describe("TodayRoute fetch policy", () => {
     expect(loadIssue).toContain('setSignalState((prev) => (prev !== "NORMAL" ? "RESTORED" : "NORMAL"))');
     expect(loadIssue).toMatch(/},\s*\[storeLastGood\]\s*\);/);
   });
+
+  it("hydrates debug_time from hash router URLs into the shared debug clock path", () => {
+    expect(source).toContain("readDebugTimeParam");
+    expect(source).toContain("function loadDebugTimeFromLocation()");
+    expect(source).toContain("readDebugTimeParam(window.location.search, window.location.hash)");
+    expect(source).toContain("saveDebugTime(urlDebugTime)");
+    expect(source).toContain("setBjtNow(getBjtNowParts(urlDebugTime))");
+    expect(source).toContain("}, [location.hash, location.search]);");
+  });
 });
