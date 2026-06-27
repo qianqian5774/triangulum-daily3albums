@@ -144,6 +144,7 @@ def test_writer_reuses_existing_archive_date_on_normal_rerun(tmp_path: Path):
     index_path = data_dir / "index.json"
     index_path.parent.mkdir(parents=True)
 
+    archive_bytes_by_date: dict[str, bytes] = {}
     published_issue = _issue(
         "2026-06-25",
         "published-run",
@@ -155,6 +156,39 @@ def test_writer_reuses_existing_archive_date_on_normal_rerun(tmp_path: Path):
     (archive_dir / "2026-06-25").mkdir(parents=True)
     (archive_dir / "2026-06-25" / "published-run.json").write_bytes(published_bytes)
     (archive_dir / "2026-06-25.json").write_bytes(published_bytes)
+    archive_bytes_by_date["2026-06-25"] = published_bytes
+
+    retained_items = [
+        {
+            "date": "2026-06-24",
+            "run_id": "previous-day-1",
+            "theme_of_day": "Previous 1",
+            "run_at": "2026-06-24T06:00:00+08:00",
+        },
+        {
+            "date": "2026-06-23",
+            "run_id": "previous-day-2",
+            "theme_of_day": "Previous 2",
+            "run_at": "2026-06-23T06:00:00+08:00",
+        },
+        {
+            "date": "2026-06-22",
+            "run_id": "previous-day-3",
+            "theme_of_day": "Previous 3",
+            "run_at": "2026-06-22T06:00:00+08:00",
+        },
+    ]
+    for item in retained_items:
+        retained_issue = _issue(item["date"], item["run_id"], item["run_at"])
+        retained_issue["theme_of_day"] = item["theme_of_day"]
+        retained_bytes = (
+            json.dumps(retained_issue, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+        )
+        (archive_dir / item["date"]).mkdir(parents=True)
+        (archive_dir / item["date"] / f"{item['run_id']}.json").write_bytes(retained_bytes)
+        (archive_dir / f"{item['date']}.json").write_bytes(retained_bytes)
+        archive_bytes_by_date[item["date"]] = retained_bytes
+
     index_path.write_text(
         json.dumps(
             {
@@ -166,12 +200,7 @@ def test_writer_reuses_existing_archive_date_on_normal_rerun(tmp_path: Path):
                         "theme_of_day": "Theme",
                         "run_at": "2026-06-25T06:00:00+08:00",
                     },
-                    {
-                        "date": "2026-06-24",
-                        "run_id": "previous-day",
-                        "theme_of_day": "Previous",
-                        "run_at": "2026-06-24T06:00:00+08:00",
-                    },
+                    *retained_items,
                 ],
             }
         ),
@@ -196,8 +225,17 @@ def test_writer_reuses_existing_archive_date_on_normal_rerun(tmp_path: Path):
     index = json.loads(index_path.read_text(encoding="utf-8"))
     assert [(item["date"], item["run_id"]) for item in index["items"]] == [
         ("2026-06-25", "published-run"),
-        ("2026-06-24", "previous-day"),
+        ("2026-06-24", "previous-day-1"),
+        ("2026-06-23", "previous-day-2"),
+        ("2026-06-22", "previous-day-3"),
     ]
+    for item in retained_items:
+        assert (archive_dir / item["date"] / f"{item['run_id']}.json").read_bytes() == (
+            archive_bytes_by_date[item["date"]]
+        )
+        assert (archive_dir / f"{item['date']}.json").read_bytes() == archive_bytes_by_date[
+            item["date"]
+        ]
 
 
 def test_writer_fails_if_kept_historical_archive_json_changes(tmp_path: Path, monkeypatch):
