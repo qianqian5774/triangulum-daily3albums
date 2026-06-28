@@ -40,6 +40,12 @@ def _sample_payload() -> dict:
         )
     return {
         "schema_version": 1,
+        "generation_mode": "generated",
+        "candidate_funnel_rerun": True,
+        "reused_archive_seed": False,
+        "reused_archive_date": None,
+        "reused_archive_run_id": None,
+        "final_picks_source": "candidate_funnel",
         "date": "2026-06-27",
         "run_id": "run-1",
         "slots": slots,
@@ -82,13 +88,78 @@ def test_render_markdown_includes_required_sections():
     text = render_markdown(_sample_payload())
 
     assert "## Recommendation Observability" in text
+    assert "### Generation mode" in text
+    assert "| Generation mode | generated |" in text
+    assert "| Candidate funnel rerun | yes |" in text
     assert "### Candidate counts" in text
+    assert "| 0 | 06:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
     assert "### Source share" in text
     assert "### Rejection reasons" in text
     assert "### Final 9 picks metadata coverage" in text
     assert "### Enrichment success rate" in text
     assert "unavailable_in_current_pick_schema" in text
     assert "MusicBrainz normalization" in text
+
+
+def test_render_markdown_explains_reused_archive_mode():
+    payload = _sample_payload()
+    payload.update(
+        {
+            "generation_mode": "reused_published_archive",
+            "candidate_funnel_rerun": False,
+            "reused_archive_seed": True,
+            "reused_archive_date": "2026-06-27",
+            "reused_archive_run_id": "published-run",
+            "final_picks_source": "published_archive_seed",
+            "run_id": "published-run",
+            "archive_lock": {
+                "reused_published_date": True,
+                "published_date": "2026-06-27",
+                "published_run_id": "published-run",
+                "discarded_generated_run_id": "generated-rerun",
+            },
+        }
+    )
+    for slot in payload["slots"]:
+        slot["candidate_counts"].update(
+            {
+                "raw": 0,
+                "merged": 0,
+                "normalization_attempted": 0,
+                "normalized": 0,
+                "eligible": 0,
+                "final_picks": 3,
+            }
+        )
+
+    text = render_markdown(payload)
+
+    assert "| Generation mode | reused_published_archive |" in text
+    assert "| Candidate funnel rerun | no |" in text
+    assert "| Final picks source | published_archive_seed |" in text
+    assert "| Reused archive date | 2026-06-27 |" in text
+    assert "| Reused archive run | published-run |" in text
+    assert "Candidate funnel: not rerun; final picks were restored from the published archive seed." in text
+    assert "| 0 | 06:00 | tag-0 | 0 | 0 | 0 | 0 | 0 | 3 |" in text
+
+
+def test_render_markdown_handles_legacy_payload_without_generation_fields():
+    payload = _sample_payload()
+    for key in (
+        "generation_mode",
+        "candidate_funnel_rerun",
+        "reused_archive_seed",
+        "reused_archive_date",
+        "reused_archive_run_id",
+        "final_picks_source",
+    ):
+        payload.pop(key, None)
+
+    text = render_markdown(payload)
+
+    assert "### Generation mode" not in text
+    assert "### Candidate counts" in text
+    assert "| 0 | 06:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
 
 
 def test_main_writes_github_summary_file(tmp_path: Path):
