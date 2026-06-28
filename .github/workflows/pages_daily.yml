@@ -120,6 +120,9 @@ jobs:
             state-${{ runner.os }}-${{ github.ref_name }}-
             state-${{ runner.os }}-
 
+      - name: Drop cached build metrics state
+        run: rm -rf .state/build-metrics
+
       - name: Prune old state files
         run: |
           if [ -d .state ]; then
@@ -190,7 +193,7 @@ jobs:
       - name: Summarize build metrics
         if: always()
         continue-on-error: true
-        run: python scripts/build_metrics.py summarize --public _build/public --out .state/build-metrics/build-metrics.json
+        run: python scripts/build_metrics.py summarize --public _build/public
 
       - name: Summarize recommendation observability
         if: always()
