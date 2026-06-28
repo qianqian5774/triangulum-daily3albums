@@ -74,7 +74,8 @@ export function Hud({
   return (
     <header
       ref={headerRef}
-      className="hud-shell hud-border fixed z-[60] rounded-card bg-panel-900/94 backdrop-blur-lg"
+      data-testid="hud"
+      className="hud-shell hud-border z-[60] rounded-card bg-panel-900/94 backdrop-blur-lg"
     >
       <div className="hud-grid px-3 py-3 md:px-4">
         <div className="hud-time">

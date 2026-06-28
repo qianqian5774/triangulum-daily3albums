@@ -199,7 +199,7 @@ export function TreatmentViewerOverlay({
         aria-hidden="true"
       />
       <motion.div
-        className="fixed inset-0 z-[80] flex items-center justify-center px-3 py-4 sm:px-5 sm:py-6"
+        className="viewer-shell fixed inset-0 z-[80] flex items-center justify-center px-3 py-4 sm:px-5 sm:py-6"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}

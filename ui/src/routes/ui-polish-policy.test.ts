@@ -50,8 +50,24 @@ describe("public UI polish policies", () => {
     expect(ambientSource).toContain("onClick={onExit}");
   });
 
-  it("keeps the HUD fixed and measures it for content offset", () => {
-    expect(hudSource).toContain("className=\"hud-shell hud-border fixed");
+  it("keeps the HUD fixed on desktop, flowing on mobile, and measures it for content offset", () => {
+    const hudShellStart = stylesSource.indexOf(".hud-shell {");
+    const hudShellEnd = stylesSource.indexOf(".hud-shell::before", hudShellStart);
+    expect(hudShellStart).toBeGreaterThanOrEqual(0);
+    expect(hudShellEnd).toBeGreaterThan(hudShellStart);
+    const hudShell = stylesSource.slice(hudShellStart, hudShellEnd);
+    expect(hudShell).toContain("position: fixed");
+
+    const mobileStart = stylesSource.indexOf("@media (max-width: 767px)");
+    const mobileHudStart = stylesSource.indexOf(".hud-shell {", mobileStart);
+    const mobileHudEnd = stylesSource.indexOf(".hud-grid {", mobileHudStart);
+    expect(mobileStart).toBeGreaterThanOrEqual(0);
+    expect(mobileHudStart).toBeGreaterThan(mobileStart);
+    expect(mobileHudEnd).toBeGreaterThan(mobileHudStart);
+    const mobileHudShell = stylesSource.slice(mobileHudStart, mobileHudEnd);
+    expect(mobileHudShell).toContain("position: relative");
+
+    expect(hudSource).toContain("className=\"hud-shell hud-border");
     expect(hudSource).toContain("--hud-height");
     expect(hudSource).toContain("ResizeObserver");
   });
@@ -59,7 +75,7 @@ describe("public UI polish policies", () => {
   it("shows all unlocked albums in the HUD marquee and removes old timeline art", () => {
     expect(todaySource).toContain(".filter((slot) => slot.slot_id <= nowSlotId)");
     expect(todaySource).toContain(".flatMap((slot) => slot.picks)");
-    expect(stylesSource).toContain("animation: marquee 18s linear infinite");
+    expect(stylesSource).toContain("animation: marquee 22.5s linear infinite");
     const timelineArtStart = stylesSource.indexOf(".today-layout > aside::before");
     const timelineArtEnd = stylesSource.indexOf(".today-layout > aside > *", timelineArtStart);
     expect(timelineArtStart).toBeGreaterThanOrEqual(0);
