@@ -1,6 +1,57 @@
-# Triangulum – Daily3Albums: End-to-End Doctor (Authoritative)
+# Triangulum – Daily3Albums: Project Codex Guidance
 
+## Codex operating rules
 
+These rules apply to Codex work in this repository unless a task gives narrower instructions.
+
+### Project root and local toolchain
+
+- Default project root:
+  - Prefer `CODEX_WORKTREE_PATH` when it is set.
+  - Otherwise use `D:\projects\triangulum-daily3albums`.
+- On this Windows machine, use the fixed local Node/npm paths:
+  - `C:\Users\11836\AppData\Local\nvm\v22.13.0\node.exe`
+  - `C:\Users\11836\AppData\Local\nvm\v22.13.0\npm.cmd`
+- Use the repository `.venv` Python/CLI paths when running project Python commands:
+  - `.venv\Scripts\python.exe`
+  - `.venv\Scripts\daily3albums.exe`
+- Do not rely on global `npm`, `python`, or `daily3albums` when repository-specific paths are available.
+- Do not use `C:\nvm4w\nodejs\npm.cmd`, change the Node install location, or swap toolchains as a workaround.
+
+### Git hygiene and generated artifacts
+
+- Do not use `git add .`.
+- Before any commit workflow, run status/diff checks such as `git status -sb`, `git diff --stat`, and an appropriate content diff.
+- Stage only explicit files that belong to the requested change.
+- Do not commit generated/build artifacts, local environment files, caches, logs, or secrets, including:
+  - `_build/`
+  - `ui/dist/`
+  - `.state/`
+  - `.venv/`
+  - `doctor/runs/`
+  - `.codex/`
+  - cache directories, logs, credentials, API keys, or token files.
+- Doctor reports such as `doctor/REPORT.md`, `doctor/REPORT.json`, and `doctor/runs/<run_id>/...` are generated evidence artifacts. They are not default commit content unless a task explicitly asks for them.
+
+### Local foundation docs memory layer
+
+- `docs/foundation/` is an ignored local long-term project memory layer, not normal PR content.
+- At the start of substantial tasks, inspect `docs/foundation/` when available and use it as durable project context.
+- After major tasks, decide explicitly whether `docs/foundation/` needs updating.
+- Major tasks include changes or durable clarifications to:
+  - archive/data write behavior
+  - build, release, GitHub Actions, GitHub Pages, custom domain, or deployment behavior
+  - public JSON schema or generated static data
+  - recommendation generation, filtering, scoring, sampling, observability, or metadata enrichment
+  - external data/API boundaries
+  - UI structure, routing, layout system, mobile behavior, terminology, or debug behavior
+  - validated operational baselines, such as a successful workflow run or production verification
+- Before editing `docs/foundation/`, create a local snapshot under `docs/foundation/_snapshots/` so the change can be rolled back outside Git.
+- Write only verified durable facts. Do not write wishes, temporary debugging notes, or unverified assumptions as implemented behavior.
+- Do not commit, open PRs for, or `git add -f` `docs/foundation/` unless the user explicitly asks.
+- If `docs/foundation/` appears in `git status`, do not treat it as source-code dirt. Stash it only when necessary for branch switching, pulling, merging, or keeping a code PR clean.
+
+## End-to-End Doctor (Authoritative)
 
 ## Scope and intent
 
@@ -52,7 +103,9 @@ If specific entrypoints differ (module names, CLI commands), doctor must discove
 
 From repo root:
 
-- Primary:
+- Primary on this Windows machine:
+  - `.venv\Scripts\python.exe -m doctor.run_doctor`
+- Portable module form, only when already inside the configured project virtual environment:
   - `python -m doctor.run_doctor`
 
 Doctor must:
@@ -160,26 +213,24 @@ doctor_plan:
       required: true
 ```
 
-## Required repository deliverables (doctor/)
+## Required Doctor source and generated deliverables (`doctor/`)
 
-Create a `doctor/` package containing, at minimum:
+Doctor-related implementation work should create or maintain source files under a `doctor/` package containing, at minimum:
 
-- `doctor/run_doctor.py` (runnable via `python -m doctor.run_doctor`)
+- `doctor/run_doctor.py` (runnable via `.venv\Scripts\python.exe -m doctor.run_doctor`)
   - Reads/loads the doctor-plan YAML from `AGENTS.md`
   - Executes steps sequentially (no parallelism)
   - For each step, records:
     - stdout, stderr, exit_code, duration_ms, log_path, produced_artifacts
-  - Produces:
-    - `doctor/REPORT.md`
-    - `doctor/REPORT.json`
-  - Optionally archives under:
-    - `doctor/runs/<run_id>/...`
-    - and copies “latest” to fixed paths
 
+Doctor runtime must produce generated evidence artifacts even when `overall_status=fail`:
 
-- `doctor/runs/<run_id>/` (recommended)
-  - logs/json evidence for that run
-  - “latest” copy for stable diffing
+- `doctor/REPORT.md`
+- `doctor/REPORT.json`
+- `doctor/runs/<run_id>/...` with logs/json evidence for that run
+- `doctor/runs/latest` or equivalent “latest” copies for stable diffing
+
+These generated Doctor artifacts are not default commit content unless a task explicitly asks to commit them.
 
 ## Render QA requirements (must implement)
 
@@ -211,15 +262,19 @@ Not hard gates by default, but MUST be recorded as Issues (with what/where/repro
 - Count all requests during page load (url, status, resource type, duration)
 - Identify 404/500/failed resources and judge whether they can cause blank page / missing styles / missing data
 - Detect any runtime requests to external domains (other than the local server)
-  - If present, explain:
+  - If present, classify and explain:
     - why it happens,
-    - whether it violates “static site should have zero external dependencies” expectations,
-    - how to fix
+    - whether it is a visitor-side application data/API request,
+    - whether it is a remote resource dependency from generated public JSON or static assets,
+    - how to fix or reduce the risk.
+  - Visitor-side calls to Last.fm, MusicBrainz, Discogs, ListenBrainz, Wikipedia, or Wikimedia APIs are architecture-boundary violations unless explicitly approved.
+  - Remote cover, image, or font resources can be resource dependency risks when they come from generated public JSON or static assets. Do not automatically classify them as external music/API data violations.
 
 3) Routing & internal link robustness
 
 - Extract key internal links (navigation, first archive item’s detail link, etc.)
 - Validate reachable and not 404 under the local server
+- If no standalone detail route exists, audit the Treatment Viewer overlay interaction from an Album Card as the detail target; do not treat the missing detail route alone as an automatic failure.
 - If SPA routing is used:
   - verify refresh/direct navigation to the detail link works
 
@@ -284,11 +339,12 @@ Keep short, but must cover:
   - `issues[]` (severity, what, where, repro, fix, risk, rollback, verify, evidence_paths[])
 - Prefer adding new fields rather than renaming existing ones.
 
-## Implementation rules for Codex changes
+## Implementation rules for Doctor changes
 
-- Prioritize minimal, surgical additions:
-  - Add `doctor/` package + supporting files only.
-  - Do not refactor core pipeline unless strictly required for correctness.
+- These rules apply to Doctor-related changes, not every Codex task in this repository.
+- Prioritize minimal, surgical Doctor additions:
+  - Add or update the `doctor/` package and directly supporting files only.
+  - Do not refactor the core pipeline unless strictly required for Doctor correctness.
 - Prefer standard library where possible; if adding dependencies (Playwright, axe-core):
   - keep them clearly scoped to doctor
   - vendor any required JS assets locally (no external fetch at runtime)
@@ -302,5 +358,7 @@ A successful implementation (even when `overall_status=fail`) produces:
 - `doctor/REPORT.md`
 - `doctor/REPORT.json`
 - `doctor/runs/<run_id>/` with logs and ui_audit JSON evidence
+
+These are generated evidence artifacts. Producing them is required for Doctor behavior; committing them is not required unless explicitly requested.
 
 End of AGENTS.md.
