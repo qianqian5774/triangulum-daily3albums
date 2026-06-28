@@ -1290,6 +1290,12 @@ def _new_recommendation_observability(
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
+        "generation_mode": "generated",
+        "candidate_funnel_rerun": True,
+        "reused_archive_seed": False,
+        "reused_archive_date": None,
+        "reused_archive_run_id": None,
+        "final_picks_source": "candidate_funnel",
         "date": issue.get("date"),
         "run_id": issue.get("run_id"),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -1533,12 +1539,20 @@ def _archive_lock_observability(
 
     payload = {
         "schema_version": 1,
+        "generation_mode": "reused_published_archive",
+        "candidate_funnel_rerun": False,
+        "reused_archive_seed": True,
+        "reused_archive_date": issue.get("date"),
+        "reused_archive_run_id": issue.get("run_id"),
+        "final_picks_source": "published_archive_seed",
         "date": issue.get("date"),
         "run_id": issue.get("run_id"),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "commit_sha": _head_commit_sha(repo_root),
         "archive_lock": {
             "reused_published_date": True,
+            "published_date": issue.get("date"),
+            "published_run_id": issue.get("run_id"),
             "discarded_generated_run_id": generated_run_id,
         },
         "slots": slots_payload,

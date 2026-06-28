@@ -30,6 +30,82 @@ def _ratio(success: Any, attempted: Any) -> str:
     return f"{success_i}/{attempted_i} ({pct:.0f}%)"
 
 
+def _yes_no(value: Any) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "n/a"
+
+
+def _generation_mode(payload: dict[str, Any]) -> str | None:
+    mode = payload.get("generation_mode")
+    if isinstance(mode, str) and mode.strip():
+        return mode.strip()
+    archive_lock = payload.get("archive_lock") if isinstance(payload.get("archive_lock"), dict) else {}
+    if archive_lock.get("reused_published_date") is True:
+        return "reused_published_archive"
+    return None
+
+
+def _render_generation_mode(payload: dict[str, Any]) -> list[str]:
+    has_generation_metadata = any(
+        key in payload
+        for key in (
+            "generation_mode",
+            "candidate_funnel_rerun",
+            "reused_archive_seed",
+            "reused_archive_date",
+            "reused_archive_run_id",
+            "final_picks_source",
+            "archive_lock",
+        )
+    )
+    if not has_generation_metadata:
+        return []
+
+    mode = _generation_mode(payload)
+    archive_lock = payload.get("archive_lock") if isinstance(payload.get("archive_lock"), dict) else {}
+    candidate_funnel_rerun = payload.get("candidate_funnel_rerun")
+    if not isinstance(candidate_funnel_rerun, bool) and mode == "reused_published_archive":
+        candidate_funnel_rerun = False
+
+    reused_archive_seed = payload.get("reused_archive_seed")
+    if not isinstance(reused_archive_seed, bool) and mode == "reused_published_archive":
+        reused_archive_seed = True
+
+    final_picks_source = payload.get("final_picks_source")
+    if not isinstance(final_picks_source, str) and mode == "reused_published_archive":
+        final_picks_source = "published_archive_seed"
+
+    reused_archive_date = payload.get("reused_archive_date") or archive_lock.get("published_date") or payload.get("date")
+    reused_archive_run_id = (
+        payload.get("reused_archive_run_id")
+        or archive_lock.get("published_run_id")
+        or payload.get("run_id")
+    )
+
+    lines = [
+        "",
+        "### Generation mode",
+        "",
+        "| Field | Value |",
+        "|---|---|",
+        f"| Generation mode | {_cell(mode or 'unknown')} |",
+        f"| Candidate funnel rerun | {_yes_no(candidate_funnel_rerun)} |",
+        f"| Final picks source | {_cell(final_picks_source or 'n/a')} |",
+    ]
+    if mode == "reused_published_archive" or reused_archive_seed is True:
+        lines.extend([
+            f"| Reused archive seed | {_yes_no(reused_archive_seed)} |",
+            f"| Reused archive date | {_cell(reused_archive_date)} |",
+            f"| Reused archive run | {_cell(reused_archive_run_id)} |",
+            "",
+            "Candidate funnel: not rerun; final picks were restored from the published archive seed.",
+        ])
+    return lines
+
+
 def _aggregate_rejections(slots: list[dict[str, Any]]) -> dict[str, int]:
     out: dict[str, int] = {}
     for slot in slots:
@@ -60,12 +136,15 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- Date: `{_cell(payload.get('date'))}`",
         f"- Run: `{_cell(payload.get('run_id'))}`",
         "- These metrics are observability only; recommendation weights and final-pick selection logic are not changed by them.",
+    ]
+    lines.extend(_render_generation_mode(payload))
+    lines.extend([
         "",
         "### Candidate counts",
         "",
         "| Slot | Window | Theme | Raw | Merged | MB attempted | MB normalized | Eligible | Final picks |",
         "|---:|---|---|---:|---:|---:|---:|---:|---:|",
-    ]
+    ])
     for slot in slots:
         counts = slot.get("candidate_counts") if isinstance(slot.get("candidate_counts"), dict) else {}
         lines.append(
