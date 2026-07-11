@@ -480,6 +480,16 @@ def main() -> int:
     parser.add_argument("--max-days", type=int, default=DEFAULT_ARCHIVE_RETENTION_DAYS)
     parser.add_argument("--provider-url", action="append", default=[])
     parser.add_argument("--local-dir", action="append", default=[])
+    parser.add_argument(
+        "--prefer-local",
+        action="store_true",
+        help="Try local providers before HTTP providers for explicit recovery runs",
+    )
+    parser.add_argument(
+        "--local-only",
+        action="store_true",
+        help="Use only local providers; intended for recovery inspection and fixtures",
+    )
     parser.add_argument("--baseline", default=".state/pages-history-baseline.json")
     parser.add_argument("--summary", default=".state/pages-history-seed-summary.json")
     parser.add_argument("--allow-empty-history", action="store_true")
@@ -490,15 +500,22 @@ def main() -> int:
         print("archive_seed status=skip max_days=0")
         return 0
 
-    providers = [
+    http_providers = [
         Provider(f"http-{index + 1}", "http", url.rstrip("/") + "/")
         for index, url in enumerate(args.provider_url)
     ]
-    if not providers:
-        providers.extend(_default_providers())
-    providers.extend(
+    if not http_providers and not args.local_only:
+        http_providers.extend(_default_providers())
+    local_providers = [
         Provider(f"local-{index + 1}", "local", location)
         for index, location in enumerate(args.local_dir)
+    ]
+    providers = (
+        local_providers
+        if args.local_only
+        else local_providers + http_providers
+        if args.prefer_local
+        else http_providers + local_providers
     )
     if not providers:
         print("archive_seed status=fail reason=no_providers", file=sys.stderr)

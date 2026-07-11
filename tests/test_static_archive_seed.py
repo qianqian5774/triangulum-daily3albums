@@ -282,3 +282,28 @@ def test_http_read_sets_descriptive_user_agent(monkeypatch):
         "accept": "application/json",
         "timeout": restore.DEFAULT_TIMEOUT_SECONDS,
     }
+
+
+def test_cli_local_only_does_not_call_http(tmp_path, monkeypatch):
+    source = _write_seed(tmp_path / "source", [_issue("2026-06-25", "published")])
+
+    def fail_if_called(_url: str):
+        raise AssertionError("HTTP provider should not run in local-only mode")
+
+    monkeypatch.setattr(restore, "_http_read", fail_if_called)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "restore_static_archive_seed.py",
+            "--local-dir",
+            str(source),
+            "--local-only",
+            "--out",
+            str(tmp_path / "out" / "data"),
+            "--baseline",
+            "",
+            "--summary",
+            "",
+        ],
+    )
+    assert restore.main() == 0
