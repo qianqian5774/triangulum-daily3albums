@@ -21,7 +21,8 @@ on:
         required: false
         default: ""
   schedule:
-    # UTC 21:17 = Asia/Shanghai (+08:00) 05:17 next day
+    # UTC 21:17 = Asia/Shanghai (+08:00) 05:17 next day.
+    # Keep this lead time for the 08:00 product unlock; measure actual margin below.
     - cron: "17 21 * * *"
 
 permissions:
@@ -37,6 +38,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      release_sla_started_at: ${{ steps.release_sla_start.outputs.started_at }}
     env:
       TZ: Asia/Shanghai
       DAILY3ALBUMS_TZ: Asia/Shanghai
@@ -76,6 +79,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Record release SLA start
+        id: release_sla_start
+        shell: bash
+        run: echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Jitter (0-120s)
         run: |
@@ -334,7 +342,31 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
       - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }} 
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summarize release SLA
+        if: always()
+        env:
+          RELEASE_SLA_STARTED_AT: ${{ needs.build.outputs.release_sla_started_at }}
+          DEPLOY_OUTCOME: ${{ steps.deployment.outcome }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: >-
+          python scripts/release_sla_summary.py
+          --started-at "$RELEASE_SLA_STARTED_AT"
+          --deploy-outcome "$DEPLOY_OUTCOME"
+          --event-name "$EVENT_NAME"
+          --timezone Asia/Shanghai
+          --target-time 08:00
+          --github-summary
