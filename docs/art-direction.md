@@ -355,7 +355,7 @@ Ambient 是方向正确的视觉资产。它应像无人操作时的低频屏保
 
 原则：
 
-- STANDBY、时间、TRIANGULUM DAILY 3 ALBUMS 是核心元素。
+- STANDBY、时间、TRIANGULUM DAILY 是核心元素。
 - 可以比常态页面更强地使用扫描线、错位网格、信号带、低清纹理。
 - 动作要慢，不要像游戏加载页。
 - 退出按钮必须清楚，尤其移动端 safe area（安全区）。

@@ -16,7 +16,7 @@ export function AmbientOverlay({ onExit }: AmbientOverlayProps) {
       <div className="ambient-ghost" aria-hidden="true">
         <span className="ambient-standby">STANDBY</span>
         <span className="ambient-time">{new Date().toLocaleTimeString("en-GB", { hour12: false })}</span>
-        <span className="ambient-subline">TRIANGULUM DAILY 3 ALBUMS</span>
+        <span className="ambient-subline">TRIANGULUM DAILY</span>
       </div>
       <button
         type="button"
