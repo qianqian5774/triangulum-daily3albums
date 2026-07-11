@@ -36,9 +36,9 @@ export const copy = {
   },
   about: {
     title: "Project Info",
-    eyebrow: "Daily 3 Albums",
+    eyebrow: "Triangulum Daily",
     body:
-      "Triangulum Daily 3 Albums publishes nine album recommendations every day: three albums in each of three release windows. It was built as a way to step outside familiar recommendation loops and surface less obvious albums worth hearing.",
+      "Triangulum Daily publishes nine album recommendations every day: three albums in each of three release windows. It was built as a way to step outside familiar recommendation loops and surface less obvious albums worth hearing.",
     schedule: "The site unlocks three albums at 08:00, 12:30, and 16:00 Beijing time.",
     static:
       "The daily data is generated offline and published as static files. Visitor browsers do not call external music APIs at page view time.",
@@ -112,7 +112,7 @@ export const copy = {
   archive: {
     label: "Archive",
     selectDate: "Select a date",
-    intro: "Past Daily 3 Albums entries. Pick a date to replay that day's output.",
+    intro: "Past Triangulum Daily entries. Pick a date to replay that day's output.",
     recentTitle: "Recent archive",
     recentIntro: "The latest seven static archive days, served from GitHub Pages JSON when available.",
     partialHint: "Fewer than seven archive days are currently available.",
@@ -223,9 +223,9 @@ const zhCopy = {
   },
   about: {
     title: "项目说明",
-    eyebrow: "Daily 3 Albums",
+    eyebrow: "Triangulum Daily",
     body:
-      "Triangulum Daily 3 Albums 每天发布九张专辑推荐：三个时段，每个时段三张。它最初是为了帮我跳出熟悉的推荐循环，看到一些不那么明显、但值得一听的专辑。",
+      "Triangulum Daily 每天发布九张专辑推荐：三个时段，每个时段三张。它最初是为了帮我跳出熟悉的推荐循环，看到一些不那么明显、但值得一听的专辑。",
     schedule: "站点按北京时间 08:00、12:30、16:00 三个时段发布，每个时段解锁三张专辑。",
     static: "每日数据离线生成并发布为静态文件。访客打开页面时不会调用外部音乐 API。",
     archive: "历史页面会保留过去每天的推荐，方便回看。",
@@ -298,7 +298,7 @@ const zhCopy = {
   archive: {
     label: "历史",
     selectDate: "选择日期",
-    intro: "过去的 Daily 3 Albums 记录。选择日期查看当天推荐。",
+    intro: "过去的 Triangulum Daily 记录。选择日期查看当天推荐。",
     recentTitle: "最近历史",
     recentIntro: "最近七个静态归档日期；可用数据少于七天时显示实际数量。",
     partialHint: "当前可用的历史日期少于七天。",

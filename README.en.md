@@ -1,116 +1,92 @@
-# Triangulum Daily 3 Albums
+# Triangulum Daily
 
 English | [中文](https://github.com/qianqian5774/triangulum-daily3albums/tree/main)
 
-Three albums a day.
-No endless feed, no chart-chasing, no rush to hear everything.
-Just three small doors into music, opening throughout the day. 🎧
+Nine albums a day.
+Three release windows, three albums at a time.
+No endless feed or chart-chasing—just a few daily openings into somewhere less familiar. 🎧
 
 ## 🌗 What is this?
 
-**Triangulum Daily 3 Albums** is a daily music discovery project that recommends three albums every day.
+**Triangulum Daily** is a music discovery project that recommends nine albums every day.
 
-It began as a personal listening ritual. I wanted a place that could gently pull me away from streaming feeds, social media loops, and recommendation systems that often keep pointing back to the same familiar corners.
+It began as a personal listening ritual: a place where albums could sit slightly outside streaming feeds and systems that keep pointing back to the same familiar corners. There is no infinite scroll and no attempt to continuously predict what you already like. The nine daily albums arrive in three releases, giving the site the rhythm of a small music calendar.
 
-Instead of an infinite scroll, the site offers only three albums a day. They appear slowly, at fixed moments, and remain archived over time.
-
-You can open it in the morning, come back at noon, check again in the evening, or browse older days later. It is meant to feel less like a feed and more like a small music calendar.
+The site generates its content automatically, unlocks it progressively in Beijing time, and keeps previous recommendations as a static archive.
 
 ## ✨ What it does
 
-Every day, the site presents three album recommendations.
+Every day, the site presents nine album recommendations. Three albums unlock in each release window:
 
-They are unlocked according to Beijing time:
+| Time  | Release                      |
+| ----- | ---------------------------- |
+| 08:00 | First window, three albums   |
+| 12:30 | Second window, three albums  |
+| 16:00 | Third window, three albums   |
 
-| Time  | Album        |
-| ----- | ------------ |
-| 08:00 | First slot  |
-| 12:30 | Second slot |
-| 16:00 | Third slot  |
+Before 08:00, the Today Page remains in its normal Offline State. When the next window arrives, three more albums become available.
 
-Before the day begins, the page stays in a waiting state.
-When the next slot arrives, another album appears.
-
-This is not designed to be the most popular, the most authoritative, or the most personalized recommendation engine. It is closer to a daily listening prompt: sometimes familiar, sometimes unexpected, and ideally just far enough away from your usual path.
+This is not designed to be the most popular, authoritative, or personalized recommendation engine. It is closer to a daily listening prompt: sometimes familiar, sometimes unexpected, and ideally just far enough away from your usual path.
 
 ## 🧭 Why it exists
 
 Music is easier to access than ever, but discovery can still feel strangely narrow.
 
-You may keep returning to the same artists, the same moods, or the same recommendation patterns. Triangulum Daily 3 Albums is a small attempt to make that loop a little looser.
+You may keep returning to the same artists, moods, or recommendation patterns. Triangulum Daily is a small attempt to loosen that loop.
 
 It cares about:
 
-- Fewer recommendations, not more.
-- A slower rhythm instead of instant overload.
-- A slight distance from the obvious and overexposed.
-- A growing archive of past days.
-- Music discovery as a walk, not a feed.
+- Unlocking only three albums at a time instead of creating another wall of content.
+- Keeping some distance from the obvious and overexposed.
+- Building an archive that can be revisited over time.
+- Treating music discovery more like a walk than a feed.
 
 ## 🕰 Daily rhythm
 
-The site follows Beijing time.
+Triangulum Daily follows Beijing time.
 
 ```text
-00:00 - 07:59   Today’s albums are not open yet
-08:00 - 12:29   First slot
-12:30 - 15:59   Second slot
-16:00 - 23:59   Third slot
+00:00 - 07:59   Offline State
+08:00 - 12:29   First window
+12:30 - 15:59   Second window
+16:00 - 23:59   Third window
 ```
 
-The time slots are not meant to create artificial mystery.
-They are simply a way to slow the site down.
-
-You do not have to take in everything at once.
-There are three moments in the day to pause, listen, save, or ignore.
+The three windows are not meant to manufacture mystery. They give the site a clear, finite rhythm.
 
 ## 🗂 What you will find
 
-The site includes:
+- **Today Page** — nine albums unlocked across three release windows.
+- **Treatment Viewer** — an overlay opened from an Album Card, not a standalone detail route.
+- **Archive Page** — previous daily recommendations stored as static data.
+- **Share Card** — a downloadable card based on the windows unlocked so far.
+- **Ambient Overlay** — an immersive or standby view.
 
-- **Today’s albums** — three recommendations unlocked throughout the day.
-- **Album details** — artist, title, cover image, and related metadata.
-- **Archive** — previous daily recommendations.
-- **Detail pages** — individual pages for albums that have appeared before.
+## ⚙️ How it works
 
-Once the final domains are ready, the project will live as an independent daily music site.
-
-## ⚙️ How it works behind the scenes
-
-Triangulum Daily 3 Albums is generated automatically.
-
-Each morning, a generator collects and filters music data, selects the day’s albums, writes the site data, and publishes everything as static files. The public site does not depend on a live backend service while visitors are browsing.
-
-In short:
+Each morning, the Python generator reads configuration and external music data, produces nine recommendations and static JSON, and combines them with the React/Vite UI for deployment on GitHub Pages.
 
 ```text
-music data → daily selection → static site → daily listening
+external music data → Python generator → static JSON → React/Vite UI → GitHub Pages
 ```
 
-This keeps the project lightweight, stable, and suitable for long-term publishing.
+Visitors do not need a live backend, and their browsers do not call external music APIs to generate recommendations.
 
-## 🌐 Publishing plan
+## 🌐 Live site
 
-The project is intended to be published on my own domains and made accessible to listeners in and outside China.
+[triangulumdaily.space](https://triangulumdaily.space/)
 
-This repository contains the system behind the site: the generator, publishing flow, front-end interface, and maintenance records. It is not primarily meant to be a general-purpose open-source template or something everyone is expected to clone and run locally.
+The repository name `triangulum-daily3albums` remains unchanged for now so the product-name migration does not expand into package, link, and deployment-path changes.
 
-The focus is the site itself:
-three albums a day, appearing steadily, building an archive over time.
+## 📌 Current priorities
 
-## 📌 Current status
+- Keeping daily generation, archive recovery, and publishing continuous.
+- Measuring deployment margin before the 08:00 unlock.
+- Establishing a baseline for lower-performance devices.
+- Clarifying which recommendation configuration is active at runtime.
 
-Triangulum Daily 3 Albums is still being refined.
-
-Current priorities include:
-
-- Keeping the daily generation and publishing flow stable.
-- Improving album selection and cover fallback behavior.
-- Making the archive easier to browse.
-- Preparing the site for custom domain publishing.
-- Letting it grow into a small, long-running music place on the web.
-
-------
+---
 
 Made for slower listening.
-One day, three albums.
+
+One day, nine albums. Three at a time.

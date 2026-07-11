@@ -40,7 +40,7 @@ interface ShareCardCopy {
 
 const shareCopy: Record<Language, ShareCardCopy> = {
   en: {
-    brand: "TRIANGULUM DAILY 3 ALBUMS",
+    brand: "TRIANGULUM DAILY",
     date: "DATE",
     bjt: "BJT",
     daily: "UNLOCKED ALBUMS",
@@ -50,7 +50,7 @@ const shareCopy: Record<Language, ShareCardCopy> = {
     versionSuffix: "ALBUMS UNLOCKED"
   },
   zh: {
-    brand: "TRIANGULUM\n每日专辑信号",
+    brand: "TRIANGULUM DAILY\n每日专辑信号",
     date: "日期",
     bjt: "北京时间",
     daily: "已解锁专辑",

@@ -1,7 +1,7 @@
 [project]
 name = "daily3albums"
 version = "0.1.0"
-description = "Triangulum: Daily 3 Albums (static site + scheduled generation)"
+description = "Triangulum Daily: nine daily album recommendations across three release windows"
 requires-python = ">=3.11"
 
 # 运行项目本体所需的“基础依赖”
