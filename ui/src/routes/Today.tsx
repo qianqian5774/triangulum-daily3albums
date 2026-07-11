@@ -15,6 +15,7 @@ import {
   addDays,
   formatDebugTime,
   getBjtNowParts,
+  getSlotWindowLabel,
   loadDebugTime,
   readDebugFlagParam,
   readDebugTimeParam,
@@ -200,7 +201,7 @@ export function TodayRoute() {
     return [
       {
         slot_id: displayIssue.now_slot_id ?? 0,
-        window_label: "06:00–11:59",
+        window_label: getSlotWindowLabel(0),
         theme: displayIssue.theme_of_day,
         picks: displayIssue.picks
       }
@@ -765,30 +766,30 @@ export function TodayRoute() {
         <button
           type="button"
           className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-          onClick={() => setDebugClock(5, 59)}
+          onClick={() => setDebugClock(7, 59)}
         >
           {tx("today.debug.offline")}
         </button>
         <button
           type="button"
           className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-          onClick={() => setDebugClock(6, 0)}
+          onClick={() => setDebugClock(8, 0)}
         >
-          {tx("today.debug.slot0600")}
+          {tx("today.debug.slot0800")}
         </button>
         <button
           type="button"
           className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-          onClick={() => setDebugClock(12, 0)}
+          onClick={() => setDebugClock(12, 30)}
         >
-          {tx("today.debug.slot1200")}
+          {tx("today.debug.slot1230")}
         </button>
         <button
           type="button"
           className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
-          onClick={() => setDebugClock(18, 0)}
+          onClick={() => setDebugClock(16, 0)}
         >
-          {tx("today.debug.slot1800")}
+          {tx("today.debug.slot1600")}
         </button>
         <button
           type="button"

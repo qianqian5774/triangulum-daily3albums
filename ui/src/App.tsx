@@ -11,6 +11,7 @@ import {
   formatDebugTime,
   getBjtNowParts,
   getNextUnlock,
+  getSlotWindowLabel,
   loadDebugTime,
   parseDebugTime,
   readDebugTimeParam,
@@ -94,16 +95,11 @@ function App() {
     const tick = () => {
       const now = getBjtNowParts(loadDebugTime());
       const nextVisualTheme = resolveVisualTheme(now.secondsSinceMidnight);
-      const { state } = resolveNowState(now.secondsSinceMidnight);
-      const windowMap: Record<string, string> = {
-        SLOT0: "06:00–11:59",
-        SLOT1: "12:00–17:59",
-        SLOT2: "18:00–23:59"
-      };
+      const { state, slotId } = resolveNowState(now.secondsSinceMidnight);
       const windowLabel =
         state === "OFFLINE"
           ? tx("hud.window.offline")
-          : `${tx("hud.window.label")} ${windowMap[state]}`;
+          : `${tx("hud.window.label")} ${getSlotWindowLabel(slotId ?? 0)}`;
       const nextUnlock = getNextUnlock(now);
       const nextUnlockLabel =
         state === "OFFLINE"

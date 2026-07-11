@@ -8,7 +8,7 @@ from scripts.recommendation_observability_summary import main, render_markdown
 
 def _sample_payload() -> dict:
     slots = []
-    for slot_id, window in enumerate(["06:00", "12:00", "18:00"]):
+    for slot_id, window in enumerate(["08:00", "12:30", "16:00"]):
         slots.append(
             {
                 "slot_id": slot_id,
@@ -92,7 +92,7 @@ def test_render_markdown_includes_required_sections():
     assert "| Generation mode | generated |" in text
     assert "| Candidate funnel rerun | yes |" in text
     assert "### Candidate counts" in text
-    assert "| 0 | 06:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
+    assert "| 0 | 08:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
     assert "### Source share" in text
     assert "### Rejection reasons" in text
     assert "### Final 9 picks metadata coverage" in text
@@ -140,7 +140,7 @@ def test_render_markdown_explains_reused_archive_mode():
     assert "| Reused archive date | 2026-06-27 |" in text
     assert "| Reused archive run | published-run |" in text
     assert "Candidate funnel: not rerun; final picks were restored from the published archive seed." in text
-    assert "| 0 | 06:00 | tag-0 | 0 | 0 | 0 | 0 | 0 | 3 |" in text
+    assert "| 0 | 08:00 | tag-0 | 0 | 0 | 0 | 0 | 0 | 3 |" in text
 
 
 def test_render_markdown_handles_legacy_payload_without_generation_fields():
@@ -159,7 +159,7 @@ def test_render_markdown_handles_legacy_payload_without_generation_fields():
 
     assert "### Generation mode" not in text
     assert "### Candidate counts" in text
-    assert "| 0 | 06:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
+    assert "| 0 | 08:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
 
 
 def test_main_writes_github_summary_file(tmp_path: Path):

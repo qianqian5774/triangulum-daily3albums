@@ -299,20 +299,20 @@ def _beijing_now() -> datetime:
 
 
 def _beijing_slot(dt: datetime) -> int:
-    hour = dt.hour
-    if hour < 12:
+    minute_of_day = dt.hour * 60 + dt.minute
+    if minute_of_day < 12 * 60 + 30:
         return 0
-    if hour < 18:
+    if minute_of_day < 16 * 60:
         return 1
     return 2
 
 
 def _slot_label(slot_id: int) -> str:
     if slot_id == 0:
-        return "06:00-11:59"
+        return "08:00-12:29"
     if slot_id == 1:
-        return "12:00-17:59"
-    return "18:00-23:59"
+        return "12:30-15:59"
+    return "16:00-23:59"
 
 
 def _hash_index(seed: str, size: int) -> int:
@@ -1141,10 +1141,10 @@ def _top_rejection_reasons(reject_counts: dict[str, int], limit: int = 3) -> lis
 
 def _slot_window_start(slot_id: int) -> str:
     if slot_id == 0:
-        return "06:00"
+        return "08:00"
     if slot_id == 1:
-        return "12:00"
-    return "18:00"
+        return "12:30"
+    return "16:00"
 
 
 def _empty_source_counts() -> dict[str, int]:

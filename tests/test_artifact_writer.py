@@ -31,7 +31,7 @@ def _issue(date: str, run_id: str, run_at: str) -> dict:
             "theme": f"Theme {slot_id}",
             "picks": [_pick(f"{date}-{slot_id}-{idx}", pick_slots[idx]) for idx in range(3)],
         }
-        for slot_id, label in enumerate(["06:00-11:59", "12:00-17:59", "18:00-23:59"])
+        for slot_id, label in enumerate(["08:00-12:29", "12:30-15:59", "16:00-23:59"])
     ]
     return {
         "output_schema_version": "1",

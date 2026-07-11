@@ -2,7 +2,7 @@ import type { Language } from "../strings/copy";
 import type { PickItem, TodayIssue, TodaySlot } from "./types";
 
 export type ShareCardTheme = "day" | "night";
-export type ShareCardVersionId = "0600" | "1200" | "1800";
+export type ShareCardVersionId = "0800" | "1230" | "1600";
 
 export interface ShareCardVersion {
   id: ShareCardVersionId;
@@ -19,9 +19,9 @@ export interface ShareCardSlot {
 }
 
 export const SHARE_CARD_VERSIONS: ShareCardVersion[] = [
-  { id: "0600", maxSlotId: 0, albumCount: 3, windowLabel: "06:00" },
-  { id: "1200", maxSlotId: 1, albumCount: 6, windowLabel: "12:00" },
-  { id: "1800", maxSlotId: 2, albumCount: 9, windowLabel: "18:00" }
+  { id: "0800", maxSlotId: 0, albumCount: 3, windowLabel: "08:00" },
+  { id: "1230", maxSlotId: 1, albumCount: 6, windowLabel: "12:30" },
+  { id: "1600", maxSlotId: 2, albumCount: 9, windowLabel: "16:00" }
 ];
 
 function normalizeSlots(issue: TodayIssue): TodaySlot[] {
@@ -31,7 +31,7 @@ function normalizeSlots(issue: TodayIssue): TodaySlot[] {
   return [
     {
       slot_id: issue.now_slot_id ?? 0,
-      window_label: "06:00-11:59",
+      window_label: "08:00-12:29",
       theme: issue.theme_of_day,
       picks: issue.picks
     }
@@ -47,7 +47,7 @@ export function getAvailableShareVersions(nowSlotId: number | null | undefined) 
 
 export function getDefaultShareVersionId(nowSlotId: number | null | undefined): ShareCardVersionId {
   const versions = getAvailableShareVersions(nowSlotId);
-  return versions[versions.length - 1]?.id ?? "0600";
+  return versions[versions.length - 1]?.id ?? "0800";
 }
 
 export function getShareCardVersion(id: ShareCardVersionId) {

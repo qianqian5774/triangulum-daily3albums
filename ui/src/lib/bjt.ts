@@ -3,6 +3,20 @@ const BJT_TIMEZONE = "Asia/Shanghai";
 export type NowState = "OFFLINE" | "SLOT0" | "SLOT1" | "SLOT2";
 export type VisualTheme = "day" | "night";
 
+export const PRODUCT_SCHEDULE = [
+  { slotId: 0, startHour: 8, startMinute: 0, label: "08:00", windowLabel: "08:00–12:29" },
+  { slotId: 1, startHour: 12, startMinute: 30, label: "12:30", windowLabel: "12:30–15:59" },
+  { slotId: 2, startHour: 16, startMinute: 0, label: "16:00", windowLabel: "16:00–23:59" }
+] as const;
+
+const scheduleStartSeconds = (slotId: number) => {
+  const entry = PRODUCT_SCHEDULE[slotId];
+  return entry.startHour * 3600 + entry.startMinute * 60;
+};
+
+export const getSlotWindowLabel = (slotId: number) =>
+  PRODUCT_SCHEDULE[slotId]?.windowLabel ?? PRODUCT_SCHEDULE[0].windowLabel;
+
 export interface BjtParts {
   year: number;
   month: number;
@@ -214,14 +228,14 @@ export const getBjtNowParts = (debugTime: string | null): BjtNow => {
 export const resolveNowState = (
   secondsSinceMidnight: number
 ): { state: NowState; slotId: number | null } => {
-  if (secondsSinceMidnight < 6 * 3600) return { state: "OFFLINE", slotId: null };
-  if (secondsSinceMidnight < 12 * 3600) return { state: "SLOT0", slotId: 0 };
-  if (secondsSinceMidnight < 18 * 3600) return { state: "SLOT1", slotId: 1 };
+  if (secondsSinceMidnight < scheduleStartSeconds(0)) return { state: "OFFLINE", slotId: null };
+  if (secondsSinceMidnight < scheduleStartSeconds(1)) return { state: "SLOT0", slotId: 0 };
+  if (secondsSinceMidnight < scheduleStartSeconds(2)) return { state: "SLOT1", slotId: 1 };
   return { state: "SLOT2", slotId: 2 };
 };
 
 export const resolveVisualTheme = (secondsSinceMidnight: number): VisualTheme => {
-  if (secondsSinceMidnight >= 20 * 3600 || secondsSinceMidnight < 6 * 3600) {
+  if (secondsSinceMidnight >= 20 * 3600 || secondsSinceMidnight < scheduleStartSeconds(0)) {
     return "night";
   }
   return "day";
@@ -238,24 +252,50 @@ export const getNextUnlock = (now: BjtNow) => {
   const { state } = resolveNowState(now.secondsSinceMidnight);
 
   if (state === "OFFLINE") {
-    const parts: BjtParts = { ...now.parts, hour: 6, minute: 0, second: 0 };
-    return { label: "06:00", targetMs: bjtPartsToUtcMs(parts) };
+    const next = PRODUCT_SCHEDULE[0];
+    const parts: BjtParts = {
+      ...now.parts,
+      hour: next.startHour,
+      minute: next.startMinute,
+      second: 0
+    };
+    return { label: next.label, targetMs: bjtPartsToUtcMs(parts) };
   }
 
   if (state === "SLOT0") {
-    const parts: BjtParts = { ...now.parts, hour: 12, minute: 0, second: 0 };
-    return { label: "12:00", targetMs: bjtPartsToUtcMs(parts) };
+    const next = PRODUCT_SCHEDULE[1];
+    const parts: BjtParts = {
+      ...now.parts,
+      hour: next.startHour,
+      minute: next.startMinute,
+      second: 0
+    };
+    return { label: next.label, targetMs: bjtPartsToUtcMs(parts) };
   }
 
   if (state === "SLOT1") {
-    const parts: BjtParts = { ...now.parts, hour: 18, minute: 0, second: 0 };
-    return { label: "18:00", targetMs: bjtPartsToUtcMs(parts) };
+    const next = PRODUCT_SCHEDULE[2];
+    const parts: BjtParts = {
+      ...now.parts,
+      hour: next.startHour,
+      minute: next.startMinute,
+      second: 0
+    };
+    return { label: next.label, targetMs: bjtPartsToUtcMs(parts) };
   }
 
   const nextDateKey = addDays(now.bjtDateKey, 1);
   const [year, month, day] = nextDateKey.split("-").map(Number);
-  const parts: BjtParts = { year, month, day, hour: 6, minute: 0, second: 0 };
-  return { label: "06:00", targetMs: bjtPartsToUtcMs(parts) };
+  const next = PRODUCT_SCHEDULE[0];
+  const parts: BjtParts = {
+    year,
+    month,
+    day,
+    hour: next.startHour,
+    minute: next.startMinute,
+    second: 0
+  };
+  return { label: next.label, targetMs: bjtPartsToUtcMs(parts) };
 };
 
 export const formatCountdown = (diffMs: number) => {
