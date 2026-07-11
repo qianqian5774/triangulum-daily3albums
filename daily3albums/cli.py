@@ -997,7 +997,7 @@ def _builtin_min_index_html() -> str:
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Daily 3 Albums</title>
+  <title>Triangulum Daily</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
     header { margin-bottom: 18px; }
@@ -1015,7 +1015,7 @@ def _builtin_min_index_html() -> str:
 </head>
 <body>
   <header>
-    <h1 style="margin:0;">Daily 3 Albums</h1>
+    <h1 style="margin:0;">Triangulum Daily</h1>
     <div class="meta" id="meta">loading...</div>
   </header>
 

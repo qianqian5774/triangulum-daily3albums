@@ -21,5 +21,8 @@ describe("localized UI copy", () => {
     expect(t("treatment.overview.licenseName", "en")).toBe("Creative Commons BY-SA license");
     expect(t("about.body", "en")).toContain("nine album recommendations");
     expect(t("about.body", "zh")).toContain("每天发布九张专辑推荐");
+    expect(t("about.eyebrow", "en")).toBe("Triangulum Daily");
+    expect(t("about.body", "en")).not.toContain("Daily 3 Albums");
+    expect(t("archive.intro", "zh")).toContain("Triangulum Daily");
   });
 });
