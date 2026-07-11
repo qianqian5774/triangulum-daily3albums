@@ -16,6 +16,10 @@ on:
         description: "TopK"
         required: true
         default: "10"
+      archive_recovery_cache_key:
+        description: "Optional exact state cache key for one-time archive history recovery"
+        required: false
+        default: ""
   schedule:
     # UTC 21:17 = Asia/Shanghai (+08:00) 05:17 next day
     - cron: "17 21 * * *"
@@ -36,9 +40,8 @@ jobs:
     env:
       TZ: Asia/Shanghai
       DAILY3ALBUMS_TZ: Asia/Shanghai
-      # Published static archive seed source. Leave the repository variable empty
-      # until the custom domain is live; the restore script will keep using the
-      # existing GitHub Pages project URL fallback.
+      # Published static archive seed source. The restore script validates this
+      # provider, then falls back to the project Pages URL and cached local seed.
       DAILY3ALBUMS_PAGES_BASE_URL: ${{ vars.DAILY3ALBUMS_PAGES_BASE_URL }}
 
       # Last.fm
@@ -115,7 +118,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .state
-          key: state-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ inputs.archive_recovery_cache_key || format('state-{0}-{1}-{2}', runner.os, github.ref_name, github.run_id) }}
+          fail-on-cache-miss: ${{ inputs.archive_recovery_cache_key != '' }}
           restore-keys: |
             state-${{ runner.os }}-${{ github.ref_name }}-
             state-${{ runner.os }}-
@@ -132,8 +136,23 @@ jobs:
       - name: Build UI
         run: python scripts/build_metrics.py run --name "UI build" -- npm --prefix ui run build
 
-      - name: Restore published archive seed
-        run: python scripts/build_metrics.py run --name "Restore archive seed" -- python scripts/restore_static_archive_seed.py --out .state/pages-history-seed/data --max-days 7
+      - name: Restore and validate published archive seed
+        env:
+          ARCHIVE_RECOVERY_CACHE_KEY: ${{ inputs.archive_recovery_cache_key }}
+        run: |
+          args=(
+            --out .state/pages-history-seed/data
+            --max-days 7
+            --local-dir .state/pages-history-seed/data
+            --baseline .state/pages-history-baseline.json
+            --summary .state/pages-history-seed-summary.json
+          )
+          if [ -n "${ARCHIVE_RECOVERY_CACHE_KEY:-}" ]; then
+            args+=(--prefer-local)
+            echo "archive_seed recovery_cache_key=${ARCHIVE_RECOVERY_CACHE_KEY} provider_order=local_first"
+          fi
+          python scripts/build_metrics.py run --name "Restore archive seed" -- \
+            python scripts/restore_static_archive_seed.py "${args[@]}"
 
       # ✅ 方案A核心：每次都“真正重新生成”
       # 同时把 workflow_dispatch 的 n/topk/tag 接进 build 参数，避免你以为填了其实没生效
