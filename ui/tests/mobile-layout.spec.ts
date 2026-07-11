@@ -14,7 +14,7 @@ async function visitTodayAt(page: Page, width: number, height: number) {
     window.localStorage.setItem("tri_ui_font_scale", "1.56");
   });
   const date = await buildDate(page);
-  await page.goto(`/#/?debug=1&debug_time=${date}T18:00:00`);
+  await page.goto(`/#/?debug=1&debug_time=${date}T16:00:00`);
   await page.waitForSelector('[data-testid="album-card-0"]', { state: "visible" });
 }
 

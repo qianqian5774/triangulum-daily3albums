@@ -13,6 +13,7 @@ import {
   getShareCardAlbumCount,
   getShareCardSlots,
   getShareCardVersion,
+  SHARE_CARD_VERSIONS,
   type ShareCardSlot,
   type ShareCardTheme,
   type ShareCardVersionId
@@ -60,7 +61,7 @@ const shareCopy: Record<Language, ShareCardCopy> = {
   }
 };
 
-const slotTimes = ["06:00", "12:00", "18:00"];
+const slotTimes = SHARE_CARD_VERSIONS.map((version) => version.windowLabel);
 
 function truncateMeta(value: string, fallback: string) {
   const trimmed = value.trim();
@@ -273,7 +274,7 @@ export function ShareCardDialog({ open, issue, nowSlotId, visualTheme, onClose }
             <div>
               <p>{tx("share.version")}</p>
               <div className="share-control-row">
-                {(["0600", "1200", "1800"] as ShareCardVersionId[]).map((id) => {
+                {SHARE_CARD_VERSIONS.map(({ id }) => {
                   const version = getShareCardVersion(id);
                   const enabled = availableVersionIds.has(id);
                   return (

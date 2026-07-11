@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   addDays,
   getBjtNowParts,
+  getNextUnlock,
   parseDebugTime,
   readDebugFlagParam,
   readDebugTimeParam,
@@ -16,23 +17,23 @@ const seconds = (hour: number, minute: number, second: number) =>
 
 describe("resolveNowState", () => {
   it("handles boundaries with left-closed/right-open windows", () => {
-    expect(resolveNowState(seconds(5, 59, 59)).state).toBe("OFFLINE");
-    expect(resolveNowState(seconds(6, 0, 0)).state).toBe("SLOT0");
-    expect(resolveNowState(seconds(11, 59, 59)).state).toBe("SLOT0");
-    expect(resolveNowState(seconds(12, 0, 0)).state).toBe("SLOT1");
-    expect(resolveNowState(seconds(17, 59, 59)).state).toBe("SLOT1");
-    expect(resolveNowState(seconds(18, 0, 0)).state).toBe("SLOT2");
+    expect(resolveNowState(seconds(7, 59, 59)).state).toBe("OFFLINE");
+    expect(resolveNowState(seconds(8, 0, 0)).state).toBe("SLOT0");
+    expect(resolveNowState(seconds(12, 29, 59)).state).toBe("SLOT0");
+    expect(resolveNowState(seconds(12, 30, 0)).state).toBe("SLOT1");
+    expect(resolveNowState(seconds(15, 59, 59)).state).toBe("SLOT1");
+    expect(resolveNowState(seconds(16, 0, 0)).state).toBe("SLOT2");
     expect(resolveNowState(seconds(23, 59, 59)).state).toBe("SLOT2");
     expect(resolveNowState(seconds(0, 0, 0)).state).toBe("OFFLINE");
   });
 });
 
 describe("resolveVisualTheme", () => {
-  it("switches to night exactly at 20:00 BJT and back to day at 06:00 BJT", () => {
+  it("switches to night exactly at 20:00 BJT and back to day at 08:00 BJT", () => {
     expect(resolveVisualTheme(seconds(19, 59, 59))).toBe("day");
     expect(resolveVisualTheme(seconds(20, 0, 0))).toBe("night");
-    expect(resolveVisualTheme(seconds(5, 59, 59))).toBe("night");
-    expect(resolveVisualTheme(seconds(6, 0, 0))).toBe("day");
+    expect(resolveVisualTheme(seconds(7, 59, 59))).toBe("night");
+    expect(resolveVisualTheme(seconds(8, 0, 0))).toBe("day");
   });
 
   it("is driven by debug_time through the normal BJT clock path", () => {
@@ -43,6 +44,15 @@ describe("resolveVisualTheme", () => {
     expect(nightNow.source).toBe("debug");
     expect(resolveVisualTheme(dayNow.secondsSinceMidnight)).toBe("day");
     expect(resolveVisualTheme(nightNow.secondsSinceMidnight)).toBe("night");
+  });
+});
+
+describe("getNextUnlock", () => {
+  it("uses the 08:00, 12:30, and 16:00 product boundaries", () => {
+    expect(getNextUnlock(getBjtNowParts("2026-07-11T07:59:59")).label).toBe("08:00");
+    expect(getNextUnlock(getBjtNowParts("2026-07-11T08:00:00")).label).toBe("12:30");
+    expect(getNextUnlock(getBjtNowParts("2026-07-11T12:30:00")).label).toBe("16:00");
+    expect(getNextUnlock(getBjtNowParts("2026-07-11T16:00:00")).label).toBe("08:00");
   });
 });
 
@@ -73,12 +83,12 @@ describe("debug time parsing", () => {
   });
 
   it("reads debug_time from router search or window search", () => {
-    expect(readDebugTimeParam("?debug_time=2024-03-20T06:00:00", "")).toBe("2024-03-20T06:00:00");
-    expect(readDebugTimeParam("", "?debug_time=2024-03-20T06:00:00")).toBe("2024-03-20T06:00:00");
+    expect(readDebugTimeParam("?debug_time=2024-03-20T08:00:00", "")).toBe("2024-03-20T08:00:00");
+    expect(readDebugTimeParam("", "?debug_time=2024-03-20T08:00:00")).toBe("2024-03-20T08:00:00");
   });
 
   it("reads debug_time and debug flag from hash router URLs", () => {
-    expect(readDebugTimeParam("#/archive?debug_time=2024-03-20T12:00:00")).toBe("2024-03-20T12:00:00");
+    expect(readDebugTimeParam("#/archive?debug_time=2024-03-20T12:30:00")).toBe("2024-03-20T12:30:00");
     expect(readDebugFlagParam("#/?debug=1")).toBe(true);
     expect(readDebugFlagParam("?debug=true")).toBe(true);
     expect(readDebugFlagParam("#/?debug=0")).toBe(false);
@@ -86,10 +96,10 @@ describe("debug time parsing", () => {
 
   it("drives frontend slot state from simulated BJT debug times", () => {
     const cases = [
-      ["2024-03-20T05:59:00", "OFFLINE", null],
-      ["2024-03-20T06:00:00", "SLOT0", 0],
-      ["2024-03-20T12:00:00", "SLOT1", 1],
-      ["2024-03-20T18:00:00", "SLOT2", 2]
+      ["2024-03-20T07:59:00", "OFFLINE", null],
+      ["2024-03-20T08:00:00", "SLOT0", 0],
+      ["2024-03-20T12:30:00", "SLOT1", 1],
+      ["2024-03-20T16:00:00", "SLOT2", 2]
     ] as const;
 
     for (const [debugTime, state, slotId] of cases) {

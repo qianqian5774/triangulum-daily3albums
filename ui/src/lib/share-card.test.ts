@@ -41,19 +41,19 @@ const issue: TodayIssue = {
   slots: [
     {
       slot_id: 0,
-      window_label: "06:00-11:59",
+      window_label: "08:00-12:29",
       theme: "Morning",
       picks: [pick("a1"), pick("a2"), pick("a3")]
     },
     {
       slot_id: 1,
-      window_label: "12:00-17:59",
+      window_label: "12:30-15:59",
       theme: "Noon",
       picks: [pick("b1"), pick("b2"), pick("b3")]
     },
     {
       slot_id: 2,
-      window_label: "18:00-23:59",
+      window_label: "16:00-23:59",
       theme: "Evening",
       picks: [pick("c1"), pick("c2"), pick("c3")]
     }
@@ -62,23 +62,23 @@ const issue: TodayIssue = {
 
 describe("share card versions", () => {
   it("only exposes versions that are unlocked by the current slot", () => {
-    expect(getAvailableShareVersions(0).map((version) => version.id)).toEqual(["0600"]);
-    expect(getAvailableShareVersions(1).map((version) => version.id)).toEqual(["0600", "1200"]);
-    expect(getAvailableShareVersions(2).map((version) => version.id)).toEqual(["0600", "1200", "1800"]);
+    expect(getAvailableShareVersions(0).map((version) => version.id)).toEqual(["0800"]);
+    expect(getAvailableShareVersions(1).map((version) => version.id)).toEqual(["0800", "1230"]);
+    expect(getAvailableShareVersions(2).map((version) => version.id)).toEqual(["0800", "1230", "1600"]);
     expect(getAvailableShareVersions(null)).toEqual([]);
   });
 
   it("defaults to the fullest currently unlocked version", () => {
-    expect(getDefaultShareVersionId(0)).toBe("0600");
-    expect(getDefaultShareVersionId(1)).toBe("1200");
-    expect(getDefaultShareVersionId(2)).toBe("1800");
+    expect(getDefaultShareVersionId(0)).toBe("0800");
+    expect(getDefaultShareVersionId(1)).toBe("1230");
+    expect(getDefaultShareVersionId(2)).toBe("1600");
   });
 
   it("builds the selected share card from unlocked slots only", () => {
-    expect(getShareCardSlots(issue, "0600").map((slot) => slot.slotId)).toEqual([0]);
-    expect(getShareCardSlots(issue, "1200").map((slot) => slot.slotId)).toEqual([0, 1]);
-    expect(getShareCardSlots(issue, "1800").map((slot) => slot.slotId)).toEqual([0, 1, 2]);
-    expect(getShareCardAlbumCount(issue, "1200")).toBe(6);
+    expect(getShareCardSlots(issue, "0800").map((slot) => slot.slotId)).toEqual([0]);
+    expect(getShareCardSlots(issue, "1230").map((slot) => slot.slotId)).toEqual([0, 1]);
+    expect(getShareCardSlots(issue, "1600").map((slot) => slot.slotId)).toEqual([0, 1, 2]);
+    expect(getShareCardAlbumCount(issue, "1230")).toBe(6);
   });
 
   it("keeps risky long-title, CJK, no-cover, and broken-cover samples in stable slot groups", () => {
@@ -87,7 +87,7 @@ describe("share card versions", () => {
       slots: [
         {
           slot_id: 0,
-          window_label: "06:00-11:59",
+          window_label: "08:00-12:29",
           theme: "Long text",
           picks: [
             riskyPick(
@@ -102,7 +102,7 @@ describe("share card versions", () => {
         },
         {
           slot_id: 1,
-          window_label: "12:00-17:59",
+          window_label: "12:30-15:59",
           theme: "Broken cover",
           picks: [
             riskyPick("Broken remote cover", "CORS Failure Ensemble", true, "https://example.invalid/broken.jpg"),
@@ -114,7 +114,7 @@ describe("share card versions", () => {
       ]
     };
 
-    const slots = getShareCardSlots(riskyIssue, "1200");
+    const slots = getShareCardSlots(riskyIssue, "1230");
 
     expect(slots).toHaveLength(2);
     expect(slots.every((slot) => slot.picks.length <= 3)).toBe(true);

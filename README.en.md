@@ -24,9 +24,9 @@ They are unlocked according to Beijing time:
 
 | Time  | Album        |
 | ----- | ------------ |
-| 06:00 | First album  |
-| 12:00 | Second album |
-| 18:00 | Third album  |
+| 08:00 | First slot  |
+| 12:30 | Second slot |
+| 16:00 | Third slot  |
 
 Before the day begins, the page stays in a waiting state.
 When the next slot arrives, another album appears.
@@ -52,10 +52,10 @@ It cares about:
 The site follows Beijing time.
 
 ```text
-00:00 - 05:59   Today’s albums are not open yet
-06:00 - 11:59   First album
-12:00 - 17:59   Second album
-18:00 - 23:59   Third album
+00:00 - 07:59   Today’s albums are not open yet
+08:00 - 12:29   First slot
+12:30 - 15:59   Second slot
+16:00 - 23:59   Third slot
 ```
 
 The time slots are not meant to create artificial mystery.

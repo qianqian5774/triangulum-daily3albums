@@ -27,7 +27,7 @@ def _pick(slot: str, index: int) -> dict:
 
 def _issue(date: str, run_id: str) -> dict:
     slots = []
-    labels = ["06:00-11:59", "12:00-17:59", "18:00-23:59"]
+    labels = ["08:00-12:29", "12:30-15:59", "16:00-23:59"]
     roles = ["Headliner", "Lineage", "DeepCut"]
     for slot_id, label in enumerate(labels):
         slots.append(
