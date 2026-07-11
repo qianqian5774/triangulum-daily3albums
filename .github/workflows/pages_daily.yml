@@ -36,9 +36,8 @@ jobs:
     env:
       TZ: Asia/Shanghai
       DAILY3ALBUMS_TZ: Asia/Shanghai
-      # Published static archive seed source. Leave the repository variable empty
-      # until the custom domain is live; the restore script will keep using the
-      # existing GitHub Pages project URL fallback.
+      # Published static archive seed source. The restore script validates this
+      # provider, then falls back to the project Pages URL and cached local seed.
       DAILY3ALBUMS_PAGES_BASE_URL: ${{ vars.DAILY3ALBUMS_PAGES_BASE_URL }}
 
       # Last.fm
@@ -132,8 +131,15 @@ jobs:
       - name: Build UI
         run: python scripts/build_metrics.py run --name "UI build" -- npm --prefix ui run build
 
-      - name: Restore published archive seed
-        run: python scripts/build_metrics.py run --name "Restore archive seed" -- python scripts/restore_static_archive_seed.py --out .state/pages-history-seed/data --max-days 7
+      - name: Restore and validate published archive seed
+        run: >-
+          python scripts/build_metrics.py run --name "Restore archive seed" --
+          python scripts/restore_static_archive_seed.py
+          --out .state/pages-history-seed/data
+          --max-days 7
+          --local-dir .state/pages-history-seed/data
+          --baseline .state/pages-history-baseline.json
+          --summary .state/pages-history-seed-summary.json
 
       # ✅ 方案A核心：每次都“真正重新生成”
       # 同时把 workflow_dispatch 的 n/topk/tag 接进 build 参数，避免你以为填了其实没生效
