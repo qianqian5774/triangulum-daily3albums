@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run -c vitest.config.ts",
     "browser:smoke": "playwright test tests/mobile-layout.spec.ts",
+    "browser:viewer-cover": "playwright test tests/viewer-cover-resilience.spec.ts",
     "screenshots": "playwright test tests/screenshots.spec.ts",
     "performance:audit": "node scripts/performance-audit.mjs"
   },

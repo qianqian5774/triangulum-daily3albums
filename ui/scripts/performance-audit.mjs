@@ -11,6 +11,16 @@ const cpuRate = Number(process.env.PERF_CPU_RATE || "4");
 const settleMs = Number(process.env.PERF_SETTLE_MS || "1800");
 const fpsSampleMs = Number(process.env.PERF_FPS_SAMPLE_MS || "2400");
 const browserChannel = process.env.PERF_BROWSER_CHANNEL || "chrome";
+const requestedScenarios = new Set(
+  (process.env.PERF_SCENARIOS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
+
+function shouldRun(name) {
+  return requestedScenarios.size === 0 || requestedScenarios.has(name);
+}
 
 function bjtDate() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -333,6 +343,12 @@ async function measurePage({ browser, name, url, viewport, reducedMotion = "no-p
   const context = await browser.newContext({ viewport, reducedMotion });
   await context.addInitScript(instrumentation);
   const page = await context.newPage();
+  const browserSignals = { consoleErrors: [], consoleWarnings: [], pageErrors: [] };
+  page.on("console", (message) => {
+    if (message.type() === "error") browserSignals.consoleErrors.push(message.text());
+    if (message.type() === "warning") browserSignals.consoleWarnings.push(message.text());
+  });
+  page.on("pageerror", (error) => browserSignals.pageErrors.push(error.message));
   const cdp = await context.newCDPSession(page);
   await cdp.send("Network.enable");
   await cdp.send("Performance.enable");
@@ -381,6 +397,7 @@ async function measurePage({ browser, name, url, viewport, reducedMotion = "no-p
         jsHeapTotalBytes: after.JSHeapTotalSize || 0
       },
       network: network.snapshot(),
+      browserSignals,
       page: snapshot
     };
   };
@@ -396,24 +413,28 @@ async function main() {
   const browser = await chromium.launch({ headless: true, channel: browserChannel });
   const scenarios = [];
   try {
-    scenarios.push(
-      ...(await measurePage({
-        browser,
-        name: "today-desktop",
-        url: todayUrl,
-        viewport: { width: 1280, height: 720 },
-        warm: true
-      }))
-    );
-    scenarios.push(
-      ...(await measurePage({
-        browser,
-        name: "today-mobile",
-        url: todayUrl,
-        viewport: { width: 375, height: 812 },
-        warm: true
-      }))
-    );
+    if (shouldRun("today-desktop")) {
+      scenarios.push(
+        ...(await measurePage({
+          browser,
+          name: "today-desktop",
+          url: todayUrl,
+          viewport: { width: 1280, height: 720 },
+          warm: true
+        }))
+      );
+    }
+    if (shouldRun("today-mobile")) {
+      scenarios.push(
+        ...(await measurePage({
+          browser,
+          name: "today-mobile",
+          url: todayUrl,
+          viewport: { width: 375, height: 812 },
+          warm: true
+        }))
+      );
+    }
     for (const scenario of [
       { name: "today-reduced-motion", url: todayUrl, reducedMotion: "reduce" },
       { name: "archive-desktop", url: archiveUrl },
@@ -421,6 +442,7 @@ async function main() {
       { name: "ambient-desktop", url: todayUrl, action: "ambient" },
       { name: "share-desktop", url: todayUrl, action: "share" }
     ]) {
+      if (!shouldRun(scenario.name)) continue;
       scenarios.push(
         ...(await measurePage({
           browser,
@@ -433,22 +455,24 @@ async function main() {
     await browser.close();
   }
 
-  const gpuOffBrowser = await chromium.launch({
-    headless: true,
-    channel: browserChannel,
-    args: ["--disable-gpu"]
-  });
-  try {
-    scenarios.push(
-      ...(await measurePage({
-        browser: gpuOffBrowser,
-        name: "today-disable-gpu",
-        url: todayUrl,
-        viewport: { width: 1280, height: 720 }
-      }))
-    );
-  } finally {
-    await gpuOffBrowser.close();
+  if (shouldRun("today-disable-gpu")) {
+    const gpuOffBrowser = await chromium.launch({
+      headless: true,
+      channel: browserChannel,
+      args: ["--disable-gpu"]
+    });
+    try {
+      scenarios.push(
+        ...(await measurePage({
+          browser: gpuOffBrowser,
+          name: "today-disable-gpu",
+          url: todayUrl,
+          viewport: { width: 1280, height: 720 }
+        }))
+      );
+    } finally {
+      await gpuOffBrowser.close();
+    }
   }
 
   const payload = {
@@ -461,6 +485,7 @@ async function main() {
       fpsSampleMs,
       browserChannel,
       chromium: chromium.name(),
+      requestedScenarios: [...requestedScenarios],
       note: "Synthetic Playwright/CDP baseline; compare repeated runs on the same machine and browser."
     },
     scenarios
