@@ -163,6 +163,51 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
     lines.extend([
         "",
+        "### History and cooldown fallback",
+        "",
+        "| Slot | History source | Dates | Archives | History picks | Stage | Scope expanded | Expansion before / after | Additional requests | Album days | Artist days | Theme days | Stage 3 pick |",
+        "|---:|---|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---|",
+    ])
+    for slot in slots:
+        history = slot.get("history_context") if isinstance(slot.get("history_context"), dict) else {}
+        fallback = slot.get("fallback") if isinstance(slot.get("fallback"), dict) else {}
+        dates = history.get("dates_loaded")
+        date_text = ", ".join(str(value) for value in dates) if isinstance(dates, list) and dates else "n/a"
+        lines.append(
+            "| {slot} | {source} | {dates} | {archives} | {picks} | {stage} | {expanded} | {before} / {after} | {requests} | {album_days} | {artist_days} | {theme_days} | {stage3} |".format(
+                slot=_cell(slot.get("slot_id")),
+                source=_cell(history.get("source")),
+                dates=_cell(date_text),
+                archives=_cell(history.get("archive_count")),
+                picks=_cell(history.get("picks_loaded")),
+                stage=_cell(fallback.get("stage")),
+                expanded=_yes_no(fallback.get("candidate_scope_expanded")),
+                before=_cell(fallback.get("expansion_before")),
+                after=_cell(fallback.get("expansion_after")),
+                requests=_cell(fallback.get("additional_requests")),
+                album_days=_cell(fallback.get("album_cooldown_days")),
+                artist_days=_cell(fallback.get("artist_cooldown_days")),
+                theme_days=_cell(fallback.get("theme_cooldown_days")),
+                stage3=_yes_no(fallback.get("stage3_used")),
+            )
+        )
+        stage3_pick = fallback.get("stage3_pick")
+        if isinstance(stage3_pick, dict):
+            lines.append(
+                "|  | Stage 3 detail | {detail} |  |  |  |  |  |  |  |  |  |  |".format(
+                    detail=_cell(
+                        "slot={slot} rg={rg} identity={identity} history_date={history_date}".format(
+                            slot=stage3_pick.get("slot_id"),
+                            rg=stage3_pick.get("release_group_mbid") or "n/a",
+                            identity=stage3_pick.get("identity_kind") or "n/a",
+                            history_date=stage3_pick.get("history_date") or "n/a",
+                        )
+                    )
+                )
+            )
+
+    lines.extend([
+        "",
         "### Source share",
         "",
         "| Slot | Last.fm candidates | Discogs candidates | ListenBrainz candidates | Multi-source candidates | Final Last.fm | Final Discogs | Final ListenBrainz |",
