@@ -18,22 +18,21 @@ dependencies = [
 [project.scripts]
 daily3albums = "daily3albums.cli:main"
 
-# 可选依赖：按“用途套餐”分组
+# 可选依赖：按用途分组
 # 用法：
-#   pip install -e ".[doctor]"  # 安装体检/截图相关依赖
-#   pip install -e ".[dev]"     # 安装开发者常用（含 doctor）
+#   pip install -e ".[test]"  # 安装 Python tests 所需依赖
+#   pip install -e ".[dev]"   # 安装开发者常用依赖
 [project.optional-dependencies]
 
-# 体检（doctor）所需：截图 + 基础静态检查 + 测试运行
-doctor = [
-  "playwright>=1.46.0",
+# Python tests。浏览器检查由 ui/ 的 Playwright 依赖独立负责。
+test = [
   "pytest>=8.0.0",
-  "ruff>=0.6.0",
 ]
 
-# 开发（dev）套餐：在 doctor 基础上再加类型检查等（可按你需要删减）
+# 开发套餐：tests + lint/type-check 工具。
 dev = [
-  "daily3albums[doctor]",
+  "daily3albums[test]",
+  "ruff>=0.6.0",
   "mypy>=1.10.0",
 ]
 
@@ -47,7 +46,7 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 # -----------------------
-# 工具配置（让“体检”更可复现）
+# 工具配置
 # -----------------------
 
 # Ruff：最低限度的代码健康检查（你可以后续再收紧规则）

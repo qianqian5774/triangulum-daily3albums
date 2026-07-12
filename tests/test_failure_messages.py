@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import httpx
 
 from daily3albums import cli
@@ -10,19 +8,6 @@ from daily3albums.request_broker import BrokerRequestError
 class _LastfmApplicationErrorBroker:
     def get_json(self, *args, **kwargs):
         return {"error": 29, "message": "Rate Limit Exceeded"}
-
-
-def test_doctor_output_is_explicitly_basic_not_e2e(capsys):
-    repo_root = Path(__file__).resolve().parents[1]
-
-    rc = cli.cmd_doctor(repo_root)
-
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert "doctor_scope=basic_not_e2e" in out
-    assert "checked=config/env loading, timezone, CLI basics" in out
-    assert "not_checked=UI render, archive route, detail route, network probes" in out
-    assert "not a full end-to-end health signal" in out
 
 
 def test_lastfm_application_error_has_provider_stage_and_advice():

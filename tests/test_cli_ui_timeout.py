@@ -64,9 +64,16 @@ def test_cmd_build_ui_timeout_returns_nonzero(monkeypatch, tmp_path: Path):
     cfg.ui_build_timeout_s = 1
     monkeypatch.setattr(cli, "load_config", lambda _root: cfg)
 
-    monkeypatch.setattr(cli, "run_dry_run", lambda *args, **kwargs: _fake_dry_run_result())
+    calls = {"count": 0}
+
+    def fake_run_dry_run(*args, **kwargs):
+        calls["count"] += 1
+        return _fake_dry_run_result(calls["count"] * 10)
+
+    monkeypatch.setattr(cli, "run_dry_run", fake_run_dry_run)
 
     monkeypatch.setattr(cli, "validate_today_constraints", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cli.CoverArtArchiveAdapter, "fetch_cover", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cli, "musicbrainz_get_release_group_details", lambda *args, **kwargs: None)
     monkeypatch.setattr(cli, "_wikipedia_overview_from_url", lambda *args, **kwargs: None)
 
@@ -125,6 +132,7 @@ def test_cmd_build_skip_ui_build_reuses_existing_dist(monkeypatch, tmp_path: Pat
 
     monkeypatch.setattr(cli, "run_dry_run", fake_run_dry_run)
     monkeypatch.setattr(cli, "validate_today_constraints", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cli.CoverArtArchiveAdapter, "fetch_cover", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cli, "musicbrainz_get_release_group_details", lambda *args, **kwargs: None)
     monkeypatch.setattr(cli, "_wikipedia_overview_from_url", lambda *args, **kwargs: None)
 
