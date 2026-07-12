@@ -42,7 +42,6 @@ jobs:
       release_sla_started_at: ${{ steps.release_sla_start.outputs.started_at }}
     env:
       TZ: Asia/Shanghai
-      DAILY3ALBUMS_TZ: Asia/Shanghai
       # Published static archive seed source. The restore script validates this
       # provider, then falls back to the project Pages URL and cached local seed.
       DAILY3ALBUMS_PAGES_BASE_URL: ${{ vars.DAILY3ALBUMS_PAGES_BASE_URL }}

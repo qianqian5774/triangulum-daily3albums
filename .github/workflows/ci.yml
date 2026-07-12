@@ -12,9 +12,8 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     env:
-      # 这里建议跟 Pages 对齐用 Asia/Shanghai，避免“本地/CI/线上时区不一致”引出诡异差异
+      # 产品和 Pages 固定使用 Asia/Shanghai。
       TZ: Asia/Shanghai
-      DAILY3ALBUMS_TZ: Asia/Shanghai
 
       DAILY3ALBUMS_FIXTURES_DIR: tests/fixtures/http
       DAILY3ALBUMS_FIXTURES_STRICT: "1"

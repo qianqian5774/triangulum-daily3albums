@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -51,6 +52,36 @@ def _scored(rg_mbid: str, artist_key: str, *, score: float = 100.0) -> Any:
         ),
         score=score,
         reason="fixture",
+        debug={
+            "normalization_shadow": {
+                "path": "musicbrainz_text_search",
+                "query_strategy": "strict",
+                "best_confidence": 0.9,
+                "second_best_confidence": 0.7,
+                "has_second_best": True,
+                "ambiguity_gap": 0.2,
+                "references": {
+                    "cli_reference": {
+                        "min_confidence": 0.8,
+                        "ambiguity_gap": 0.06,
+                        "status": "evaluated",
+                        "rejected": False,
+                        "reason": "accepted",
+                        "low_confidence": False,
+                        "ambiguous": False,
+                    },
+                    "config_reference": {
+                        "min_confidence": 0.72,
+                        "ambiguity_gap": 0.08,
+                        "status": "evaluated",
+                        "rejected": False,
+                        "reason": "accepted",
+                        "low_confidence": False,
+                        "ambiguous": False,
+                    },
+                },
+            }
+        },
     )
 
 
@@ -109,9 +140,10 @@ def _configure_build(
     seed_dir: Path,
     tags: list[str],
     factory: Callable[[dict[str, Any]], list[Any]],
+    config: Any | None = None,
 ) -> tuple[FakeBroker, list[dict[str, Any]]]:
     source_root = Path(__file__).resolve().parents[1]
-    cfg = cli.load_config(source_root)
+    cfg = config or cli.load_config(source_root)
     cfg.raw["tag_pool"] = list(tags)
     cfg.max_tag_tries_per_slot = len(tags)
     cfg.dedupe_same_rg_days = 7
@@ -148,6 +180,14 @@ def _configure_build(
     monkeypatch.setattr(cli, "musicbrainz_get_release_group_details", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cli, "_wikipedia_overview_from_url", lambda *_args, **_kwargs: None)
     return broker, calls
+
+
+def _output_tree(root: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
 
 
 def _run_build(repo_root: Path, out_dir: Path) -> int:
@@ -275,6 +315,124 @@ def test_invalid_external_seed_fails_before_candidate_generation(monkeypatch, tm
 
     assert _run_build(repo_root, tmp_path / "public") == 2
     assert calls == []
+
+
+def test_r2_removed_config_surfaces_leave_requests_picks_shadow_and_public_artifacts_identical(
+    monkeypatch,
+    tmp_path: Path,
+):
+    repo_root = _prepare_repo(tmp_path)
+    seed_dir = tmp_path / "seed" / "data"
+    _write_history(seed_dir, [])
+    source_root = Path(__file__).resolve().parents[1]
+    truthful_config = cli.load_config(source_root)
+    pre_r2_config = deepcopy(truthful_config)
+    pre_r2_config.raw.update(
+        {
+            "schema_version": "1.0",
+            "output_schema_version": "1.0",
+            "timezone": "Asia/Shanghai",
+            "random_seed_strategy": "date",
+            "decade_mode": "off",
+            "global_exclusions": {
+                "allow_primary_types": ["Album", "EP"],
+                "exclude_secondary_types": ["Compilation", "Live"],
+            },
+            "slots": {
+                "Headliner": {"require_cover": True, "weights": {"Q": 0.4}},
+                "Lineage": {"require_cover": True, "weights": {"T": 0.35}},
+                "DeepCut": {"require_cover": True, "weights": {"D": 0.35}},
+            },
+            "themes": {
+                "rotation": "daily",
+                "items": [{"name": "Unused", "seed_tags": ["unused"], "adjacent_tags": ["unused-2"]}],
+            },
+        }
+    )
+    pre_r2_config.raw["normalizer"].update(
+        {"top_k": 5, "weights": {"title": 0.3, "artist": 0.3}}
+    )
+    pre_r2_config.raw["candidates"]["lastfm"].update(
+        {"per_page": 50, "pages_per_call": 2, "deepcut_min_page": 3}
+    )
+    pre_r2_config.raw["candidates"]["discogs"].update(
+        {"per_page": 100, "deepcut_min_page": 3}
+    )
+    pre_r2_config.raw["candidates"]["listenbrainz"] = {
+        "count": 200,
+        "deepcut_min_offset": 200,
+    }
+    pre_r2_config.raw["scoring"].update(
+        {
+            "multi_source_bonus": 6.0,
+            "head_keep_max_rank": 18,
+            "tail_boost_start_rank": 60,
+            "deepcut_head_penalty_rank": 25,
+            "temperature_by_slot": {"0": 9.0, "1": 10.0, "2": 14.0},
+            "mb_normalize_budget_cap": 140,
+            "mb_prefilter_topn": 120,
+        }
+    )
+    pre_r2_config.raw["build"]["lastfm_max_pages"] = 6
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            value = cls.fromisoformat("2026-07-12T06:00:00+08:00")
+            return value if tz is None else value.astimezone(tz)
+
+    monkeypatch.setattr(cli, "datetime", FixedDateTime)
+    monkeypatch.setattr(cli.uuid, "uuid4", lambda: SimpleNamespace(hex="abcdef123456"))
+    tags = ["tag-a", "tag-b", "tag-c"]
+
+    def factory(kwargs: dict[str, Any]) -> list[Any]:
+        tag = str(kwargs["tag"])
+        return [
+            _scored(f"rg-{tag}-{index}", f"artist-{tag}-{index}", score=110 - index)
+            for index in range(1, 5)
+        ]
+
+    before_broker, before_calls = _configure_build(
+        monkeypatch,
+        repo_root,
+        seed_dir,
+        tags,
+        factory,
+        config=pre_r2_config,
+    )
+    before_out = tmp_path / "before"
+    assert _run_build(repo_root, before_out) == 0
+    before_ledger = deepcopy(before_calls)
+    before_requests = before_broker.requests
+
+    after_broker, after_calls = _configure_build(
+        monkeypatch,
+        repo_root,
+        seed_dir,
+        tags,
+        factory,
+        config=truthful_config,
+    )
+    after_out = tmp_path / "after"
+    assert _run_build(repo_root, after_out) == 0
+
+    assert after_calls == before_ledger
+    assert after_broker.requests == before_requests
+    assert _output_tree(after_out) == _output_tree(before_out)
+
+    observability = json.loads(
+        (after_out / "data" / "recommendation-observability.json").read_text(encoding="utf-8")
+    )
+    assert all(slot["attempted_tags"] for slot in observability["slots"])
+    assert all(slot["candidate_counts"]["final_picks"] == 3 for slot in observability["slots"])
+    assert all(slot["fallback"]["stage"] == 0 for slot in observability["slots"])
+    assert all(slot["normalization_shadow"]["candidates"] for slot in observability["slots"])
+    assert all(
+        row["references"]["cli_reference"]["reason"] == "accepted"
+        and row["references"]["config_reference"]["reason"] == "accepted"
+        for slot in observability["slots"]
+        for row in slot["normalization_shadow"]["candidates"]
+    )
 
 
 def test_stage1_adds_exactly_one_lastfm_page_per_unfilled_slot(monkeypatch, tmp_path: Path):

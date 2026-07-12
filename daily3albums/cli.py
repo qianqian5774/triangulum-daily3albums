@@ -264,19 +264,9 @@ _DEFAULT_TAG_POOL = [
 ]
 
 
-def _now_date_in_tz(tz_name: str) -> str:
-    try:
-        from zoneinfo import ZoneInfo
-        dt = datetime.now(ZoneInfo(tz_name))
-    except Exception:
-        dt = datetime.now()
-    return dt.date().isoformat()
-
-
 def _beijing_now() -> datetime:
-    # Product time is intentionally fixed to Beijing Time. Config/env timezone
-    # values exist to keep CI and local environments aligned, not to introduce
-    # multi-timezone product behavior.
+    # Product time is intentionally fixed to Beijing Time. Workflow TZ keeps
+    # CI/Pages aligned; config.yaml does not switch product timezone behavior.
     try:
         from zoneinfo import ZoneInfo
 
@@ -608,24 +598,6 @@ def _weighted_sample(
         item, _weight = candidates.pop(chosen_idx)
         picks.append(item)
     return picks, cooling_hits
-
-
-def _threshold_steps(min_confidence: float, ambiguity_gap: float) -> list[tuple[float, float]]:
-    steps: list[tuple[float, float]] = []
-    min_steps = [0.0, -0.05, -0.10, -0.15]
-    gap_steps = [0.0, -0.02, -0.04, -0.06]
-    for d_conf, d_gap in zip(min_steps, gap_steps):
-        new_conf = max(0.50, min_confidence + d_conf)
-        new_gap = max(0.0, ambiguity_gap + d_gap)
-        steps.append((round(new_conf, 3), round(new_gap, 3)))
-    seen = set()
-    unique_steps = []
-    for conf, gap in steps:
-        if (conf, gap) in seen:
-            continue
-        seen.add((conf, gap))
-        unique_steps.append((conf, gap))
-    return unique_steps
 
 
 def _normalize_artist_credit(value: str) -> str:

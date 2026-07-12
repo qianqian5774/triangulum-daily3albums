@@ -1,14 +1,10 @@
-﻿schema_version: "1.0"
-output_schema_version: "1.0"
+﻿# Public schema versions are owned by writer/validator/parser code, not YAML.
 
 # -----------------------------------------------------------------------------
-# 基础环境设置
+# 产品行为说明
 # -----------------------------------------------------------------------------
-# 产品时钟固定为北京时间；这个值用于让本地/CI 环境显式对齐，
-# 不表示 Triangulum 支持切换成多时区产品行为。
-timezone: "Asia/Shanghai"
-random_seed_strategy: "date"
-decade_mode: "off"
+# 产品时钟与 release SLA 固定为 Asia/Shanghai，authority 位于 Python/UI
+# 时间实现和 GitHub workflow，不由本文件切换。
 
 # -----------------------------------------------------------------------------
 # 历史与去重策略 (优化版)
@@ -26,46 +22,16 @@ history:
 # 数据清洗与匹配器
 # -----------------------------------------------------------------------------
 normalizer:
-  # 最低置信度：Last.fm与MusicBrainz匹配的相似度门槛
+  # Shadow reference only：用于观测假设影响，不执行候选拒绝或 eligible filtering。
   min_confidence: 0.72
-  # 歧义间隙：第一名与第二名分差小于此值时视为歧义
+  # Shadow reference only：用于观测 best/runner-up gap，不执行歧义拒绝。
   ambiguity_gap: 0.08
-  # 歧义处理策略：quarantine (隔离人工审查) / drop (直接丢弃)
+  # Reserved for TD-02B；当前没有生产 consumer，不执行 quarantine/drop。
   hard_ambiguity_policy: "quarantine"
-  top_k: 5
+  # 以下三项是当前 MusicBrainz 归一化预算的生产 authority。
   mb_max_queries_per_candidate: 3
   mb_max_candidates_per_slot: 100
   mb_time_budget_s_per_slot: 60
-  weights:
-    title: 0.30
-    artist: 0.30
-    year: 0.15
-    type: 0.15
-    evidence: 0.10
-
-# -----------------------------------------------------------------------------
-# 全局排除规则
-# -----------------------------------------------------------------------------
-global_exclusions:
-  allow_primary_types: ["Album", "EP"]
-  exclude_secondary_types: ["Compilation", "Live", "Remix", "Soundtrack", "Demo", "Interview"]
-
-# -----------------------------------------------------------------------------
-# 时段权重策略 (Slots)
-# Q=Quality(排名), N=Newness(新度), D=Date(年代), T=Type, eps=Random
-# require_cover: true 当前是软偏好：优先选择有封面的候选，但允许
-# Cover Art Archive 缺失时退回 Last.fm 图片，最终可使用 assets/placeholder.svg。
-# -----------------------------------------------------------------------------
-slots:
-  Headliner:
-    require_cover: true
-    weights: {Q:0.40, N:0.15, D:0.20, T:0.05, eps:0.20}
-  Lineage:
-    require_cover: true
-    weights: {Q:0.25, N:0.10, D:0.20, T:0.35, eps:0.10}
-  DeepCut:
-    require_cover: true
-    weights: {Q:0.20, N:0.20, D:0.35, T:0.05, eps:0.20}
 
 # -----------------------------------------------------------------------------
 # 类型允许开关 (CLI直接读取)
@@ -76,34 +42,6 @@ allow_types:
   live: false
   ep: true
   single: false
-
-# -----------------------------------------------------------------------------
-# 主题预设 (用于 themes: rotation 模式)
-# -----------------------------------------------------------------------------
-themes:
-  rotation: "daily"
-  items:
-    - name: "Cerebral Electronic"
-      seed_tags: ["idm", "glitch", "braindance"]
-      adjacent_tags: ["experimental", "drill and bass", "ambient techno"]
-    - name: "Wall of Sound"
-      seed_tags: ["shoegaze", "post-rock", "noise rock"]
-      adjacent_tags: ["dream pop", "space rock", "neo-psychedelia"]
-    - name: "Jazz Cafe"
-      seed_tags: ["cool jazz", "hard bop", "modal jazz"]
-      adjacent_tags: ["jazz fusion", "spiritual jazz", "nu jazz"]
-    - name: "Club Sweat"
-      seed_tags: ["techno", "deep house", "tech house"]
-      adjacent_tags: ["minimal techno", "detroit techno", "dub techno"]
-    - name: "Raw Energy"
-      seed_tags: ["post-punk", "art punk", "no wave"]
-      adjacent_tags: ["garage rock", "noise pop", "industrial"]
-    - name: "Synth Dreams"
-      seed_tags: ["synthpop", "dark wave", "minimal wave"]
-      adjacent_tags: ["electropop", "coldwave", "ebm"]
-    - name: "Abstract Beats"
-      seed_tags: ["trip-hop", "downtempo", "instrumental hip-hop"]
-      adjacent_tags: ["abstract hip-hop", "nu-jazz", "plunderphonics"]
 
 # -----------------------------------------------------------------------------
 # 标签池 (Tag Pool) - 全面扩展版
@@ -322,37 +260,21 @@ tag_pool:
   - pbr&b
 candidates:
   lastfm:
-    per_page: 50
-    pages_per_call: 2
-    deepcut_min_page: 3
+    # Canonical production paging keys.
     lastfm_page_start: 1
     lastfm_max_pages: 6
   discogs:
     enabled: true
+    # Canonical production paging keys.
     discogs_page_start: 1
     discogs_max_pages: 3
     discogs_per_page: 100
-    per_page: 100
-    deepcut_min_page: 3
-  listenbrainz:
-    count: 200
-    deepcut_min_offset: 200
 
 scoring:
-  multi_source_bonus: 6.0
-  head_keep_max_rank: 18
-  tail_boost_start_rank: 60
-  deepcut_head_penalty_rank: 25
-  temperature_by_slot:
-    "0": 9.0
-    "1": 10.0
-    "2": 14.0
-  mb_normalize_budget_cap: 140
-  mb_prefilter_topn: 120
+  # 当前轻量预筛选唯一 canonical 配置；score/temperature 数值仍由代码控制。
   coarse_top_n_per_slot: 100
 
 
 build:
   max_tag_tries_per_slot: 8
-  lastfm_max_pages: 6
   ui_build_timeout_s: 300
