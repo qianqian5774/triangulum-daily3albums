@@ -89,6 +89,8 @@ class AppConfig:
     ignored_legacy_decade_keys: list[str]
     ui_build_timeout_s: int
     archive_retention_days: int
+    dedupe_same_rg_days: int
+    dedupe_same_artist_days: int
 
 
 def load_config(repo_root: Path) -> AppConfig:
@@ -117,6 +119,8 @@ def load_config(repo_root: Path) -> AppConfig:
     decade_mode = "on" if raw_decade_mode == "on" else "off"
     ui_build_timeout_s = int((cfg.get("build", {}) or {}).get("ui_build_timeout_s", 300))
     archive_retention_days = max(1, int(history_cfg.get("archive_retention_days", 7)))
+    dedupe_same_rg_days = max(1, int(history_cfg.get("dedupe_same_rg_days", 7)))
+    dedupe_same_artist_days = max(1, int(history_cfg.get("dedupe_same_artist_days", 7)))
     legacy_decade_keys = [
         key for key in ("decade_theme", "min_in_decade", "max_unknown_year", "decade_axis", "day_decade")
         if key in build_cfg or key in cfg
@@ -140,4 +144,6 @@ def load_config(repo_root: Path) -> AppConfig:
         ignored_legacy_decade_keys=legacy_decade_keys,
         ui_build_timeout_s=max(1, int(ui_build_timeout_s)),
         archive_retention_days=archive_retention_days,
+        dedupe_same_rg_days=dedupe_same_rg_days,
+        dedupe_same_artist_days=dedupe_same_artist_days,
     )

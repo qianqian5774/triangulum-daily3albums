@@ -29,11 +29,29 @@ def _sample_payload() -> dict:
                     "unsupported_primary_type": 1,
                     "duplicate_album_same_day": 0,
                     "duplicate_artist_same_day": 0,
+                    "album_cooldown": 2,
                     "artist_cooldown": 0,
                     "theme_cooldown": 0,
                     "musicbrainz_normalization_failed": 1,
                     "missing_required_metadata": 0,
                     "other": 0,
+                },
+                "history_context": {
+                    "source": "external_seed",
+                    "dates_loaded": ["2026-06-26"],
+                    "archive_count": 1,
+                    "picks_loaded": 9,
+                },
+                "fallback": {
+                    "stage": 0,
+                    "candidate_scope_expanded": False,
+                    "expansion_before": 0,
+                    "expansion_after": 0,
+                    "additional_requests": 0,
+                    "album_cooldown_days": 7,
+                    "artist_cooldown_days": 7,
+                    "theme_cooldown_days": 3,
+                    "stage3_used": False,
                 },
                 "final_picks": [],
             }
@@ -94,6 +112,8 @@ def test_render_markdown_includes_required_sections():
     assert "### Candidate counts" in text
     assert "| 0 | 08:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
     assert "### Source share" in text
+    assert "### History and cooldown fallback" in text
+    assert "| 0 | external_seed | 2026-06-26 | 1 | 9 | 0 | no | 0 / 0 | 0 | 7 | 7 | 3 | no |" in text
     assert "### Rejection reasons" in text
     assert "### Final 9 picks metadata coverage" in text
     assert "### Enrichment success rate" in text
@@ -160,6 +180,18 @@ def test_render_markdown_handles_legacy_payload_without_generation_fields():
     assert "### Generation mode" not in text
     assert "### Candidate counts" in text
     assert "| 0 | 08:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
+
+
+def test_render_markdown_handles_old_slots_without_history_or_fallback_fields():
+    payload = _sample_payload()
+    for slot in payload["slots"]:
+        slot.pop("history_context", None)
+        slot.pop("fallback", None)
+
+    text = render_markdown(payload)
+
+    assert "### History and cooldown fallback" in text
+    assert "| 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a / n/a | n/a | n/a | n/a | n/a | n/a |" in text
 
 
 def test_main_writes_github_summary_file(tmp_path: Path):
