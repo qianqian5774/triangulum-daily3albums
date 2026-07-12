@@ -24,3 +24,6 @@ dist/
 logs/*.log
 !logs/.gitkeep
 run_ambient_debug.txt
+
+# Machine-local Codex/toolchain instructions
+AGENTS.local.md

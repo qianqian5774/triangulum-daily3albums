@@ -40,28 +40,8 @@ from daily3albums.dry_run import run_dry_run
 
 
 # ----------------------------
-# doctor / probes / dry-run
+# probes / dry-run
 # ----------------------------
-
-def cmd_doctor(repo_root: Path) -> int:
-    _ = load_env(repo_root)
-    cfg = load_config(repo_root)
-    print("DOCTOR")
-    print("doctor_scope=basic_not_e2e")
-    print(f"timezone={cfg.timezone}")
-    print("checked=config/env loading, timezone, CLI basics")
-    print(
-        "not_checked=UI render, archive route, detail route, network probes, "
-        "external images, mobile layout, debug_time slot transitions"
-    )
-    print(
-        "interpretation=doctor OK means basic CLI/config loading works; "
-        "it is not a full end-to-end health signal"
-    )
-    print("config=OK")
-    print("env_load=OK")
-    print("cli=OK")
-    return 0
 
 
 def cmd_probe_lastfm(repo_root: Path, tag: str, limit: int, verbose: bool, raw: bool) -> int:
@@ -2181,8 +2161,6 @@ def main() -> None:
     p = argparse.ArgumentParser(prog="daily3albums")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("doctor", help="Check local env/config")
-
     p_lastfm = sub.add_parser("probe-lastfm", help="Probe Last.fm API (and cache)")
     p_lastfm.add_argument("--tag", required=True)
     p_lastfm.add_argument("--limit", type=int, default=5)
@@ -2282,8 +2260,6 @@ def main() -> None:
     args = p.parse_args()
     repo_root = Path(__file__).resolve().parents[1]
 
-    if args.cmd == "doctor":
-        raise SystemExit(cmd_doctor(repo_root))
     if args.cmd == "probe-lastfm":
         raise SystemExit(cmd_probe_lastfm(repo_root, tag=args.tag, limit=args.limit, verbose=args.verbose, raw=args.raw))
     if args.cmd == "probe-mb":

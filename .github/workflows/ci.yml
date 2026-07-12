@@ -35,7 +35,10 @@ jobs:
       - name: Install (Python package)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .
+          python -m pip install -e ".[test]"
+
+      - name: Run Python tests
+        run: python -m pytest
 
       - name: Dry-run (fixtures)
         run: daily3albums dry-run --tag fixture --n 3 --topk 3
@@ -43,7 +46,6 @@ jobs:
       - name: Golden check
         run: python scripts/golden_check.py
 
-      # ✅ 把你这次修复固化进 CI：跑 UI 单测
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
