@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run -c vitest.config.ts",
-    "screenshots": "playwright test tests/screenshots.spec.ts"
+    "screenshots": "playwright test tests/screenshots.spec.ts",
+    "performance:audit": "node scripts/performance-audit.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
