@@ -10,7 +10,7 @@ From the repository root on the configured Windows machine:
 C:\Users\11836\AppData\Local\nvm\v22.13.0\npm.cmd --prefix ui run performance:audit
 ```
 
-The command writes timestamped and `latest.json` evidence under the ignored local directory `ui/artifacts/performance/`. The harness uses the installed Chrome channel, production `https://triangulumdaily.space`, 4x CPU throttling, a 1.8 second settle period, and a 2.4 second animation sample. Environment variables can override `PERF_BASE_URL`, `PERF_DATE`, `PERF_CPU_RATE`, `PERF_SETTLE_MS`, `PERF_FPS_SAMPLE_MS`, and `PERF_BROWSER_CHANNEL`.
+The command writes timestamped and `latest.json` evidence under the ignored local directory `ui/artifacts/performance/`. The harness uses the installed Chrome channel, production `https://triangulumdaily.space`, 4x CPU throttling, a 1.8 second settle period, and a 2.4 second animation sample. Environment variables can override `PERF_BASE_URL`, `PERF_DATE`, `PERF_CPU_RATE`, `PERF_SETTLE_MS`, `PERF_FPS_SAMPLE_MS`, and `PERF_BROWSER_CHANNEL`. `PERF_SCENARIOS=viewer-desktop` limits a follow-up run to the named scenario without changing the full-audit default.
 
 Baseline date: 2026-07-12. Production commit: `b85f844`. Browser: headless system Chrome. Two complete runs were used to check repeatability; the table below is the final run.
 
@@ -33,15 +33,34 @@ Transfer values are encoded bytes observed by Chrome. `rAF/s` is headless reques
 
 The production main application payload was approximately 124.4 KiB encoded JavaScript and 14.5 KiB encoded CSS. The cold Today transfer also included a 66.4 KiB noise texture and an 11.6 KiB Cloudflare beacon. Warm-load transfer fell to about 9 KiB, although aborted Cloudflare RUM pings appeared during page teardown and are not application-resource failures.
 
+## Viewer cover follow-up
+
+The first P1 performance fix was measured on 2026-07-12 against the locally built candidate, using the same machine, system Chrome, production dataset, 4x CPU throttle, settle period, and frame sample as the baseline. Two targeted runs were retained because remote image availability and cold-start scheduling varied between runs.
+
+| Metric | Before fix | After fix, run 1 | After fix, run 2 |
+| --- | ---: | ---: | ---: |
+| Viewer interaction | failed after 15,252 ms | visible in 566 ms | visible in 726 ms |
+| Long tasks, whole scenario | 6 / 665 ms | 25 / 2,392 ms | 18 / 1,656 ms |
+| CLS, whole scenario | 0.646 | 0.646 | 0.646 |
+| React commit-hook events | 79 | 33 | 35 |
+| Page errors | not captured | 0 | 0 |
+| Console resource diagnostics | not captured | 1 | 2 |
+| Network failures / HTTP failures | 0 | 1 | 2 |
+| Horizontal overflow | 0 px | 0 px | 0 px |
+
+The Viewer now meets the 2,500 ms shell budget in both targeted runs and no longer waits for the cover request. The unchanged total CLS shows that this change did not add a page-level shift; the dedicated browser regression measured at most 0.02 CLS after the click and a stable square cover frame while the request was pending and after timeout. The higher long-task totals are whole-page cold-run values and varied substantially between the two candidate runs, so they are recorded as measured rather than attributed to the Viewer change. React commit-hook events fell because the audit no longer spends 15 seconds waiting for a cover before timing out.
+
+The first candidate run recorded only the local server's missing `favicon.ico` 404. The second also encountered a real remote cover HTTP 500. Chrome reported those resource failures in the console, while the application produced zero page errors and the Viewer remained usable. Forced blocked, indefinitely pending, HTTP 503, recovery, Escape, ArrowLeft/ArrowRight, stale-request isolation, no-overflow, and cover-frame stability cases passed in the dedicated Playwright regression.
+
 ## Evidence-backed bottlenecks
 
 | Priority | Finding and user impact | Evidence | Expected benefit | Change risk | Verification |
 | --- | --- | --- | --- | --- | --- |
-| P0 | Viewer opening is unbounded by a remote cover preload. On a stalled cover request the album click appears broken indefinitely. | Both full runs failed to show the Viewer after about 15.2 seconds. `Today.tsx` awaits `Image.onload`, `onerror`, or `decode()` before setting the focused album and has no timeout. | Reliable Viewer opening even when a cover CDN is slow or unreachable. | Medium: changing preload/open ordering can expose a placeholder flash or affect focus/transition behavior. | Block the cover host, click a card, require the Viewer shell to appear within the interaction budget, then verify late cover replacement, keyboard focus, close, and previous/next behavior. |
+| Resolved P0 | Viewer opening was unbounded by a remote cover preload. | Before the fix, both full runs failed after about 15.2 seconds. After the fix, two targeted runs opened in 566 ms and 726 ms. The cover now has a stable placeholder, a 5-second timeout, and per-album stale-request isolation. | Realized: shell and core content remain available when the cover CDN is slow, failed, or unreachable. | Covered by dedicated browser regression. | Blocked, pending, HTTP failure, recovery, Escape, ArrowLeft/ArrowRight, stale-request isolation, layout stability, overflow, and runtime-error assertions pass. |
 | P1 | Archive renders every retained day and card at once. Low-end users can see long main-thread stalls while opening or scrolling the page. | 1,692 DOM nodes, 54 images, 19 long tasks totaling 2.33 seconds, and a 164 ms maximum rAF gap. The preceding run showed the same pattern: 1,692 nodes, 1.96 seconds of long tasks, and a 103 ms gap. | Largest likely improvement to Archive responsiveness and image pressure. | Medium-high: pagination, progressive rendering, or virtualization can affect anchors, accessibility, search, and archive navigation. | Keep the six-date fixture, verify date anchors and keyboard navigation, and compare DOM, long tasks, image requests, and visual output at both viewports. |
 | P1 | Ambient is the strongest graphics/compositing hotspot. | 14 animated nodes, 4 filtered nodes, 3 fixed nodes, 45 layers, and rAF throughput around 53/s versus about 161/s on Today. The prior run measured 55/s. GPU-disabled Today fell to about 43/s. | Better experience on integrated graphics and battery-powered devices. | Medium: simplifying layers, filters, or animation can materially change the intended art direction. | Compare the same fixed-duration Ambient sample on GPU-on, GPU-disabled, and reduced-motion profiles; preserve screenshots and require no functional regressions. |
 | P1 | Initial HUD/data hydration causes a large layout shift. Content moves after it is already visible. | Desktop CLS 0.646 and mobile CLS about 0.53. The largest desktop shift was 0.608: the HUD changed height and the main section moved from y=212 to y=325 before settling. | Removes the most visible startup jump and improves perceived stability. | Medium: reserving HUD space across responsive states can create excess whitespace or clipping. | Capture layout-shift sources and screenshots at desktop/mobile cold load; require the main content and HUD bounds to remain stable. |
-| P2 | Remote covers dominate uncertainty and image pressure. | All 6 Today images and 53 of 54 Archive images were incomplete at measurement time in headless Chrome; Viewer then remained blocked on one cover. Share added remote image requests and increased DOM to 385 nodes. | Faster degraded-mode rendering and less dependence on third-party image latency. | Medium: proxying, local derivatives, placeholders, and cache policy affect build size and visual fidelity. | Test normal, slow, failed, and cached cover responses; record decoded dimensions and decode time whenever loading completes. |
+| P2 | Remote covers still dominate general image uncertainty and pressure outside the resolved Viewer-opening path. | All 6 Today images and 53 of 54 Archive images were incomplete at baseline measurement time. Share added remote image requests and increased DOM to 385 nodes. Viewer shell reliability is now covered independently. | Faster degraded-mode rendering and less dependence on third-party image latency across the remaining surfaces. | Medium: proxying, local derivatives, placeholders, and cache policy affect build size and visual fidelity. | Retain the Viewer regression; separately measure normal, slow, failed, and cached cover responses on Today, Archive, and Share before changing their image strategy. |
 | P2 | The 500 ms clocks/timers and animation work keep React and style work active. | Two intervals were created on Today. The stalled 15-second Viewer scenario accumulated 79 React commit-hook events. Today style recalculation was about 1.25–1.52 seconds over the audit window. | Lower background CPU use and fewer updates while overlays or tabs are inactive. | Low-medium: coarser clocks can visibly desynchronize the HUD or window transitions. | Profile commit reasons before changing code; then compare commit counts and timers with Today, Viewer, hidden-tab, and reduced-motion states. |
 
 The Viewer and Archive findings are implementation candidates, not permission to change UI structure during this audit. The React hook count is a rerender proxy; it does not by itself prove that every commit is unnecessary.
@@ -60,9 +79,20 @@ These thresholds are tied to this harness and should be revised only with a new 
 - Ambient and Share must become visible within 500 ms and 600 ms respectively under this synthetic profile.
 - Ambient should not regress below 45 rAF callbacks/s or above 50 layers in the same headless profile. This is a regression signal, not a 60 FPS claim.
 
+### Verified product target
+
+- Viewer shell visible within 2,500 ms even when the cover request never finishes: passed in the dedicated pending-request regression and in both targeted performance runs.
+
+### Remaining P1 backlog
+
+- Archive progressive rendering: current six-date production data remains at 1,692 DOM nodes, 19 long tasks totaling 2,333 ms, and a 164 ms maximum rAF gap.
+- Ambient compositing: the baseline remains at 45 layers and about 53 rAF callbacks/s under the synthetic profile.
+- Startup layout stability: desktop CLS remains 0.646 and mobile CLS remains about 0.53.
+
+These items were not changed during the Viewer cover fix.
+
 ### Failing product targets
 
-- Viewer shell visible within 2,500 ms even when the cover request never finishes.
 - Initial-load CLS at or below 0.10 on desktop and mobile.
 - No interaction-related event or long task above 200 ms when opening Viewer or switching albums on the low-performance profile.
 - Archive maximum rAF gap below 100 ms and long-task total below 1,000 ms for the current six-date production dataset.

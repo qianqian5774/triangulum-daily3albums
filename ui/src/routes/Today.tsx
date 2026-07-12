@@ -25,7 +25,6 @@ import {
 } from "../lib/bjt";
 import { parseTodayIssue, type TodayIssue, type TodaySlot } from "../lib/types";
 import { useT } from "../lib/ui-settings";
-import type { TreatmentPick } from "../components/TreatmentViewerOverlay";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -148,7 +147,6 @@ export function TodayRoute() {
   const glitchTimeoutRef = useRef<number | null>(null);
   const idleTimeoutRef = useRef<number | null>(null);
   const lastFocusedRef = useRef<string | null>(null);
-  const openingRef = useRef<string | null>(null);
   const transitionTimerRef = useRef<number | null>(null);
   const transitionSwapRef = useRef<number | null>(null);
   const lockedFeedbackTimeoutRef = useRef<number | null>(null);
@@ -587,46 +585,14 @@ export function TodayRoute() {
     };
   }, [resetIdleTimer]);
 
-  const preloadCover = useCallback(
-    async (pick: TreatmentPick | undefined) => {
-      if (!pick) {
-        return;
-      }
-      const coverVersionKey = pick.cover.cover_version ?? coverCacheKey;
-      const coverUrl = resolveCoverUrl(pick.cover.optimized_cover_url, coverVersionKey);
-      if (!coverUrl) {
-        return;
-      }
-      await new Promise<void>((resolve) => {
-        const image = new Image();
-        let done = false;
-        const finish = () => {
-          if (done) return;
-          done = true;
-          resolve();
-        };
-        image.onload = finish;
-        image.onerror = finish;
-        image.src = coverUrl;
-        if (image.decode) {
-          image.decode().then(finish).catch(finish);
-        }
-      });
-    },
-    [coverCacheKey]
-  );
-
   const openPick = useCallback(
-    async (pickId: string) => {
-      const nextPick = picks.find((pick) => pick.stableId === pickId);
-      openingRef.current = pickId;
-      await preloadCover(nextPick);
-      if (openingRef.current !== pickId) {
+    (pickId: string) => {
+      if (!picks.some((pick) => pick.stableId === pickId)) {
         return;
       }
       setFocusedId(pickId);
     },
-    [picks, preloadCover]
+    [picks]
   );
 
   const handleOpen = (pickId: string, event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {

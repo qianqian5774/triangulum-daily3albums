@@ -9,6 +9,15 @@ export interface TreatmentPick extends PickItem {
   stableId: string;
 }
 
+export const VIEWER_COVER_TIMEOUT_MS = 5000;
+const ABORT_IMAGE_SRC = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+
+type ViewerCoverState = {
+  pickId: string;
+  status: "loading" | "ready" | "failed";
+  src: string | null;
+};
+
 function formatMbRating(pick: PickItem) {
   const rating = pick.musicbrainz?.rating;
   if (!rating || !Number.isFinite(rating.value)) {
@@ -42,14 +51,16 @@ export function TreatmentViewerOverlay({
   const tx = useT();
   const prefersReducedMotion = useReducedMotion();
   const touchStartXRef = useRef<number | null>(null);
-  const [retryToken, setRetryToken] = useState<string | null>(null);
-  const [coverFailed, setCoverFailed] = useState(false);
 
   const activePick = useMemo(
     () => picks.find((pick) => pick.stableId === activeId) ?? picks[0],
     [activeId, picks]
   );
-  const [coverReady, setCoverReady] = useState(false);
+  const [coverState, setCoverState] = useState<ViewerCoverState>(() => ({
+    pickId: activePick?.stableId ?? "",
+    status: "loading",
+    src: null
+  }));
   const debugEnabled = useMemo(() => {
     if (typeof window === "undefined") {
       return false;
@@ -89,9 +100,11 @@ export function TreatmentViewerOverlay({
   }
 
   const coverVersionKey = activePick.cover.cover_version ?? cacheKey;
-  const coverUrl = resolveCoverUrl(activePick.cover.optimized_cover_url, coverVersionKey, retryToken);
+  const coverUrl = resolveCoverUrl(activePick.cover.optimized_cover_url, coverVersionKey);
   const scrambledTitle = useScrambleText(activePick.title);
-  const displayCover = !coverFailed && coverUrl;
+  const activeCoverState = coverState.pickId === activePick.stableId ? coverState : null;
+  const coverStatus = activeCoverState?.status ?? (coverUrl ? "loading" : "failed");
+  const displayCover = coverStatus === "ready" ? activeCoverState?.src ?? null : null;
   const mbRating = formatMbRating(activePick);
   const mbTags = activePick.musicbrainz?.tags?.filter((tag) => tag.name).slice(0, 6) ?? [];
   const overview = activePick.musicbrainz?.overview?.text?.trim() ?? "";
@@ -124,42 +137,64 @@ export function TreatmentViewerOverlay({
   };
 
   useEffect(() => {
-    setRetryToken(null);
-    setCoverFailed(false);
-  }, [activePick.stableId, cacheKey]);
-
-  useEffect(() => {
-    let active = true;
-    setCoverReady(false);
-    if (!displayCover) {
-      setCoverReady(true);
-      return () => {
-        active = false;
-      };
+    const pickId = activePick.stableId;
+    if (!coverUrl) {
+      setCoverState({ pickId, status: "failed", src: null });
+      return;
     }
+
+    let settled = false;
     const image = new Image();
-    const finish = () => {
-      if (!active) return;
-      setCoverReady(true);
+    setCoverState({ pickId, status: "loading", src: null });
+
+    const detach = () => {
+      image.onload = null;
+      image.onerror = null;
     };
-    image.onload = finish;
-    image.onerror = () => {
-      if (!active) return;
-      if (retryToken === null) {
-        setRetryToken(Date.now().toString());
+
+    const abortRequest = () => {
+      detach();
+      try {
+        image.src = ABORT_IMAGE_SRC;
+      } catch {
+        // Some browsers may reject reassignment during teardown; the request is still detached.
+      }
+    };
+
+    const settle = (status: "ready" | "failed") => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      if (status === "failed") {
+        abortRequest();
+      } else {
+        detach();
+      }
+      setCoverState({ pickId, status, src: status === "ready" ? coverUrl : null });
+    };
+
+    const timeoutId = window.setTimeout(() => settle("failed"), VIEWER_COVER_TIMEOUT_MS);
+    image.onload = () => {
+      if (image.decode) {
+        try {
+          image.decode().then(() => settle("ready")).catch(() => settle("ready"));
+        } catch {
+          settle("ready");
+        }
         return;
       }
-      setCoverFailed(true);
-      setCoverReady(true);
+      settle("ready");
     };
-    image.src = displayCover;
-    if (image.decode) {
-      image.decode().then(finish).catch(finish);
-    }
+    image.onerror = () => settle("failed");
+    image.src = coverUrl;
+
     return () => {
-      active = false;
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      abortRequest();
     };
-  }, [displayCover, retryToken]);
+  }, [activePick.stableId, coverUrl]);
 
   const parentVariants = prefersReducedMotion
     ? {
@@ -228,24 +263,37 @@ export function TreatmentViewerOverlay({
               exit="exit"
             >
               <motion.div className="w-full" variants={childVariants}>
-                <div className="relative mx-auto aspect-square w-full max-w-[48rem] overflow-hidden rounded-card bg-panel-800">
+                <div
+                  className="relative mx-auto aspect-square w-full max-w-[48rem] overflow-hidden rounded-card bg-panel-800"
+                  data-testid="viewer-cover-frame"
+                  data-cover-status={coverStatus}
+                >
                   <div className="absolute inset-0 bg-gradient-to-br from-panel-900 via-panel-800 to-panel-900" />
+                  <div
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-br from-panel-900 via-panel-700 to-panel-900"
+                    data-testid="viewer-cover-placeholder"
+                    aria-hidden={coverStatus === "ready"}
+                  >
+                    <span className="font-mono text-xs uppercase tracking-[0.4em] text-clinical-white/40">
+                      {tx("treatment.cover.missing")}
+                    </span>
+                  </div>
                   {displayCover ? (
                     <motion.img
                       layoutId={`cover-${activePick.stableId}`}
                       src={displayCover}
                       alt={`${activePick.title} cover`}
-                      className={`relative z-10 h-full w-full object-cover transition-opacity duration-200 ${
-                        coverReady ? "opacity-100" : "opacity-0"
-                      }`}
+                      className="relative z-20 h-full w-full object-cover"
+                      data-testid="viewer-cover-image"
+                      onError={() => {
+                        setCoverState((current) =>
+                          current.pickId === activePick.stableId
+                            ? { pickId: activePick.stableId, status: "failed", src: null }
+                            : current
+                        );
+                      }}
                     />
-                  ) : (
-                    <div className="relative z-10 flex h-full w-full items-center justify-center bg-gradient-to-br from-panel-900 via-panel-700 to-panel-900">
-                      <span className="font-mono text-xs uppercase tracking-[0.4em] text-clinical-white/40">
-                        {tx("treatment.cover.missing")}
-                      </span>
-                    </div>
-                  )}
+                  ) : null}
                 </div>
               </motion.div>
               <motion.div className="viewer-detail-panel flex min-h-0 flex-col gap-6 md:col-start-2" variants={childVariants}>
