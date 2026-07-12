@@ -125,6 +125,9 @@ def cmd_dry_run(
     mb_max_queries_per_candidate = int(getattr(cfg, "mb_max_queries_per_candidate", 3))
     mb_max_candidates_per_slot = int(getattr(cfg, "mb_max_candidates_per_slot", 120))
     mb_time_budget_s_per_slot = float(getattr(cfg, "mb_time_budget_s_per_slot", 90.0))
+    normalizer_cfg = cfg.raw.get("normalizer", {}) or {}
+    config_reference_min_confidence = float(normalizer_cfg.get("min_confidence", 0.72))
+    config_reference_ambiguity_gap = float(normalizer_cfg.get("ambiguity_gap", 0.08))
     lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
     lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
     discogs_enabled = bool(getattr(cfg, "discogs_enabled", True))
@@ -143,6 +146,8 @@ def cmd_dry_run(
             mb_search_limit=mb_search_limit,
             min_confidence=min_confidence,
             ambiguity_gap=ambiguity_gap,
+            config_reference_min_confidence=config_reference_min_confidence,
+            config_reference_ambiguity_gap=config_reference_ambiguity_gap,
             mb_debug=mb_debug,
             quarantine_out=quarantine_out,
             prefilter_topn=prefilter_topn,
@@ -1303,6 +1308,130 @@ def _rejection_reasons_for_observability(
     }
 
 
+def _normalization_shadow_slot_payload(
+    *,
+    candidates: list[Any],
+    eligible: list[Any],
+    final_picks: list[Any],
+    cli_min_confidence: float,
+    cli_ambiguity_gap: float,
+    config_min_confidence: float,
+    config_ambiguity_gap: float,
+) -> dict[str, Any]:
+    eligible_keys = {_candidate_identity(item)[0] for item in eligible}
+    final_keys = {_candidate_identity(item)[0] for item in final_picks}
+    rows: list[dict[str, Any]] = []
+    for item in candidates:
+        debug = getattr(item, "debug", None)
+        shadow = debug.get("normalization_shadow") if isinstance(debug, dict) else None
+        if not isinstance(shadow, dict):
+            continue
+        candidate_key, _artist_keys = _candidate_identity(item)
+        nobj = getattr(item, "n", None)
+        references = shadow.get("references") if isinstance(shadow.get("references"), dict) else {}
+        rows.append(
+            {
+                "candidate_key": candidate_key,
+                "release_group_mbid": getattr(nobj, "mb_release_group_id", None) if nobj else None,
+                "path": shadow.get("path"),
+                "query_strategy": shadow.get("query_strategy"),
+                "best_confidence": shadow.get("best_confidence"),
+                "second_best_confidence": shadow.get("second_best_confidence"),
+                "has_second_best": bool(shadow.get("has_second_best", False)),
+                "ambiguity_gap": shadow.get("ambiguity_gap"),
+                "in_normalized_pool": True,
+                "in_eligible_pool": candidate_key in eligible_keys,
+                "in_final_picks": candidate_key in final_keys,
+                "references": {
+                    name: dict(value)
+                    for name, value in references.items()
+                    if name in {"cli_reference", "config_reference"} and isinstance(value, dict)
+                },
+            }
+        )
+    rows.sort(key=lambda row: (str(row.get("candidate_key") or ""), str(row.get("path") or "")))
+
+    path_counts: dict[str, int] = {}
+    strategy_counts: dict[str, int] = {}
+    for row in rows:
+        path = str(row.get("path") or "unknown")
+        path_counts[path] = path_counts.get(path, 0) + 1
+        strategy = row.get("query_strategy")
+        if strategy is not None:
+            key = str(strategy)
+            strategy_counts[key] = strategy_counts.get(key, 0) + 1
+
+    reference_specs = (
+        ("cli_reference", float(cli_min_confidence), float(cli_ambiguity_gap)),
+        ("config_reference", float(config_min_confidence), float(config_ambiguity_gap)),
+    )
+    impacts: dict[str, Any] = {}
+    for name, min_confidence, gap_threshold in reference_specs:
+        evaluated = 0
+        not_applicable = 0
+        rejected_rows: list[dict[str, Any]] = []
+        low_confidence = 0
+        ambiguous = 0
+        for row in rows:
+            result = (row.get("references") or {}).get(name)
+            if not isinstance(result, dict):
+                continue
+            if result.get("status") == "not_applicable":
+                not_applicable += 1
+            else:
+                evaluated += 1
+            if result.get("rejected") is True:
+                rejected_rows.append(row)
+                if result.get("reason") == "low_confidence":
+                    low_confidence += 1
+                elif result.get("reason") == "ambiguous":
+                    ambiguous += 1
+
+        rejected_keys = {str(row.get("candidate_key") or "") for row in rejected_rows}
+        eligible_before = sum(1 for row in rows if row.get("in_eligible_pool") is True)
+        final_before = sum(1 for row in rows if row.get("in_final_picks") is True)
+        eligible_impacted = sum(
+            1
+            for row in rows
+            if row.get("in_eligible_pool") is True and str(row.get("candidate_key") or "") in rejected_keys
+        )
+        final_impacted = sum(
+            1
+            for row in rows
+            if row.get("in_final_picks") is True and str(row.get("candidate_key") or "") in rejected_keys
+        )
+        eligible_remaining = max(0, eligible_before - eligible_impacted)
+        impacts[name] = {
+            "min_confidence": min_confidence,
+            "ambiguity_gap": gap_threshold,
+            "text_search_evaluated": evaluated,
+            "not_applicable_non_text_path": not_applicable,
+            "rejected_total": len(rejected_rows),
+            "rejected_low_confidence": low_confidence,
+            "rejected_ambiguous": ambiguous,
+            "normalized_before": len(rows),
+            "normalized_impacted": len(rejected_rows),
+            "normalized_remaining": max(0, len(rows) - len(rejected_rows)),
+            "eligible_before": eligible_before,
+            "eligible_impacted": eligible_impacted,
+            "eligible_remaining": eligible_remaining,
+            "final_picks_before": final_before,
+            "final_picks_impacted": final_impacted,
+            "candidate_shortage": eligible_remaining < 3,
+            "possible_higher_fallback": eligible_remaining < 3,
+        }
+
+    return {
+        "status": "observed_not_enforced",
+        "enforced": False,
+        "candidate_count": len(rows),
+        "path_counts": dict(sorted(path_counts.items())),
+        "query_strategy_counts": dict(sorted(strategy_counts.items())),
+        "references": impacts,
+        "candidates": rows,
+    }
+
+
 def _slot_observability_payload(
     *,
     slot_id: int,
@@ -1313,6 +1442,7 @@ def _slot_observability_payload(
     scored_items: list[Any],
     history_context: dict[str, Any],
     fallback: dict[str, Any],
+    normalization_shadow: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     selected_attempt = _selected_attempt_meta(attempts_meta, picked_theme_tag)
     attempted_tags = list(
@@ -1380,6 +1510,15 @@ def _slot_observability_payload(
             "listenbrainz_failed": bool(selected_attempt.get("listenbrainz_failed", False)),
             "listenbrainz_candidates": int(selected_attempt.get("listenbrainz_candidates", 0) or 0),
         },
+        "normalization_shadow": normalization_shadow or {
+            "status": "not_available",
+            "enforced": False,
+            "candidate_count": 0,
+            "path_counts": {},
+            "query_strategy_counts": {},
+            "references": {},
+            "candidates": [],
+        },
         "final_picks": [],
     }
 
@@ -1429,6 +1568,15 @@ def _new_recommendation_observability(
         "reused_archive_date": None,
         "reused_archive_run_id": None,
         "final_picks_source": "candidate_funnel",
+        "normalization_shadow": {
+            "status": "observed_not_enforced",
+            "enforced": False,
+            "production_sample_eligible": True,
+            "references": [
+                {"name": "cli_reference", "source": "CLI arguments"},
+                {"name": "config_reference", "source": "config.normalizer"},
+            ],
+        },
         "date": issue.get("date"),
         "run_id": issue.get("run_id"),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -1679,6 +1827,15 @@ def _archive_lock_observability(
         "reused_archive_date": issue.get("date"),
         "reused_archive_run_id": issue.get("run_id"),
         "final_picks_source": "published_archive_seed",
+        "normalization_shadow": {
+            "status": "not_available_reused_published_archive",
+            "enforced": False,
+            "production_sample_eligible": False,
+            "reason": (
+                "Final public observability was restored from the published archive seed; any internal candidate "
+                "funnel data was discarded and is not a production shadow sample."
+            ),
+        },
         "date": issue.get("date"),
         "run_id": issue.get("run_id"),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -1769,6 +1926,9 @@ def cmd_build(
     mb_max_queries_per_candidate = int(getattr(cfg, "mb_max_queries_per_candidate", 3))
     mb_max_candidates_per_slot = int(getattr(cfg, "mb_max_candidates_per_slot", 120))
     mb_time_budget_s_per_slot = float(getattr(cfg, "mb_time_budget_s_per_slot", 90.0))
+    normalizer_cfg = cfg.raw.get("normalizer", {}) or {}
+    config_reference_min_confidence = float(normalizer_cfg.get("min_confidence", 0.72))
+    config_reference_ambiguity_gap = float(normalizer_cfg.get("ambiguity_gap", 0.08))
     lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
     lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
     discogs_enabled = bool(getattr(cfg, "discogs_enabled", True))
@@ -1841,6 +2001,8 @@ def cmd_build(
             picked: list[Any] = []
             picked_theme_tag = ""
             picked_theme_key = ""
+            selected_candidates: list[Any] = []
+            selected_eligible: list[Any] = []
             fallback_stage = 0
             candidate_scope_expanded = False
             expansion_before = 0
@@ -1912,6 +2074,8 @@ def cmd_build(
                         mb_search_limit=mb_search_limit,
                         min_confidence=float(min_confidence),
                         ambiguity_gap=float(ambiguity_gap),
+                        config_reference_min_confidence=config_reference_min_confidence,
+                        config_reference_ambiguity_gap=config_reference_ambiguity_gap,
                         mb_debug=mb_debug,
                         quarantine_out=None,
                         prefilter_topn=prefilter_topn,
@@ -1999,6 +2163,8 @@ def cmd_build(
                         picked = sampled
                         picked_theme_tag = slot_tag
                         picked_theme_key = theme_key
+                        selected_candidates = candidates
+                        selected_eligible = eligible
                         attempt_meta["selected"] = True
                         break
 
@@ -2024,6 +2190,8 @@ def cmd_build(
                         mb_search_limit=mb_search_limit,
                         min_confidence=float(min_confidence),
                         ambiguity_gap=float(ambiguity_gap),
+                        config_reference_min_confidence=config_reference_min_confidence,
+                        config_reference_ambiguity_gap=config_reference_ambiguity_gap,
                         mb_debug=mb_debug,
                         quarantine_out=None,
                         prefilter_topn=prefilter_topn,
@@ -2110,6 +2278,8 @@ def cmd_build(
                             picked = sampled
                             picked_theme_tag = expansion_record["tag"]
                             picked_theme_key = expansion_record["theme_key"]
+                            selected_candidates = combined
+                            selected_eligible = eligible
                             fallback_stage = 1
                             stage1_meta["selected"] = True
                 except (ProviderApiError, BrokerRequestError, RequestFailed, RuntimeError) as exc:
@@ -2169,6 +2339,8 @@ def cmd_build(
                             picked = sampled
                             picked_theme_tag = record["tag"]
                             picked_theme_key = record["theme_key"]
+                            selected_candidates = record["candidates"]
+                            selected_eligible = eligible
                             fallback_stage = 2
                             stage2_meta["selected"] = True
                             break
@@ -2258,6 +2430,8 @@ def cmd_build(
                     picked = [*base_picks, relaxed_pick[0]]
                     picked_theme_tag = record["tag"]
                     picked_theme_key = record["theme_key"]
+                    selected_candidates = record["candidates"]
+                    selected_eligible = relaxed_eligible
                     fallback_stage = 3
                     stage3_daily_pick_count += 1
                     relaxed_key, _relaxed_artists = _candidate_identity(relaxed_pick[0])
@@ -2396,6 +2570,15 @@ def cmd_build(
                     "stage3_pick": stage3_pick_info,
                     "stage3_daily_pick_cap": cooldown_policy.stage3_daily_pick_cap,
                 },
+                normalization_shadow=_normalization_shadow_slot_payload(
+                    candidates=selected_candidates,
+                    eligible=selected_eligible,
+                    final_picks=scored_items,
+                    cli_min_confidence=float(min_confidence),
+                    cli_ambiguity_gap=float(ambiguity_gap),
+                    config_min_confidence=config_reference_min_confidence,
+                    config_ambiguity_gap=config_reference_ambiguity_gap,
+                ),
             )
             slots_payload.append(slot_payload)
             exhaustion.append({"slot_id": slot_id, "attempts": attempts_meta, "reject_counts": reject_counts, "fetched_count": fetched_count})

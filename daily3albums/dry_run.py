@@ -103,6 +103,101 @@ def _write_quarantine_line(path: str, payload: dict[str, Any]) -> None:
         f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+def _normalization_trace(
+    *,
+    source: str,
+    best_confidence: float,
+    second_best_confidence: float | None = None,
+) -> dict[str, Any]:
+    path_by_source = {
+        "mbid:release-group": "direct_release_group_mbid",
+        "mbid:release->rg": "release_mbid_to_release_group",
+        "hint:rg_mbid": "external_release_group_hint",
+    }
+    strategy_by_source = {
+        "search:strict": "strict",
+        "search:clean_strict": "cleaned_strict",
+        "search:clean_loose": "cleaned_loose",
+        "search:title_only": "title_only",
+    }
+    is_text_search = source.startswith("search:")
+    second = float(second_best_confidence) if second_best_confidence is not None else None
+    return {
+        "path": path_by_source.get(source, "musicbrainz_text_search" if is_text_search else "unknown"),
+        "query_strategy": strategy_by_source.get(source) if is_text_search else None,
+        "best_confidence": float(best_confidence),
+        "second_best_confidence": second,
+        "has_second_best": second is not None,
+        "ambiguity_gap": round(float(best_confidence) - second, 6) if second is not None else None,
+        "shadow_comparison_applicable": is_text_search,
+    }
+
+
+def _shadow_reference_result(
+    trace: dict[str, Any],
+    *,
+    min_confidence: float,
+    ambiguity_gap: float,
+) -> dict[str, Any]:
+    if not bool(trace.get("shadow_comparison_applicable")):
+        return {
+            "status": "not_applicable",
+            "rejected": False,
+            "reason": "not_applicable_non_text_path",
+            "low_confidence": False,
+            "ambiguous": False,
+        }
+
+    best = float(trace.get("best_confidence", 0.0) or 0.0)
+    gap = trace.get("ambiguity_gap")
+    low_confidence = best < float(min_confidence)
+    ambiguous = bool(trace.get("has_second_best")) and gap is not None and float(gap) < float(ambiguity_gap)
+    rejected = low_confidence or ambiguous
+    reason = "low_confidence" if low_confidence else ("ambiguous" if ambiguous else "accepted")
+    return {
+        "status": "evaluated",
+        "rejected": rejected,
+        "reason": reason,
+        "low_confidence": low_confidence,
+        "ambiguous": ambiguous,
+    }
+
+
+def _attach_shadow_results(
+    diagnostics: dict[str, Any],
+    *,
+    cli_min_confidence: float,
+    cli_ambiguity_gap: float,
+    config_min_confidence: float,
+    config_ambiguity_gap: float,
+) -> None:
+    trace = diagnostics.get("normalization_trace")
+    if not isinstance(trace, dict):
+        return
+    record = dict(trace)
+    record["references"] = {
+        "cli_reference": {
+            "min_confidence": float(cli_min_confidence),
+            "ambiguity_gap": float(cli_ambiguity_gap),
+            **_shadow_reference_result(
+                trace,
+                min_confidence=cli_min_confidence,
+                ambiguity_gap=cli_ambiguity_gap,
+            ),
+        },
+        "config_reference": {
+            "min_confidence": float(config_min_confidence),
+            "ambiguity_gap": float(config_ambiguity_gap),
+            **_shadow_reference_result(
+                trace,
+                min_confidence=config_min_confidence,
+                ambiguity_gap=config_ambiguity_gap,
+            ),
+        },
+    }
+    diagnostics["normalization_shadow"] = record
+
+
 def _normalize_candidate(
     broker,
     env,
@@ -113,6 +208,7 @@ def _normalize_candidate(
 ) -> tuple[Optional[NormalizedCandidate], dict[str, Any]]:
     dbg_lines: list[str] = []
     mb_search_queries_attempted = 0
+    normalization_trace: dict[str, Any] | None = None
 
     def _mb_http_calls_snapshot() -> int | None:
         if not hasattr(broker, "get_stats_snapshot"):
@@ -140,6 +236,7 @@ def _normalize_candidate(
             "mb_http_calls": int(mb_http_calls),
             # legacy key: kept for compatibility
             "mb_queries_attempted": int(mb_http_calls or mb_search_queries_attempted),
+            "normalization_trace": dict(normalization_trace) if normalization_trace is not None else None,
         }
 
     def _extract_mb_queries_attempted(lines: list[str]) -> int:
@@ -167,6 +264,7 @@ def _normalize_candidate(
                 mbid=c.lastfm_mbid,
             )
         if rg is not None:
+            normalization_trace = _normalization_trace(source=src, best_confidence=1.0)
             norm = NormalizedCandidate(
                 title=c.title,
                 artist=c.artist,
@@ -182,6 +280,7 @@ def _normalize_candidate(
     if c.rg_mbid_hint:
         rg = musicbrainz_get_release_group(broker, env.mb_user_agent, c.rg_mbid_hint)
         if rg is not None:
+            normalization_trace = _normalization_trace(source="hint:rg_mbid", best_confidence=1.0)
             norm = NormalizedCandidate(
                 title=c.title,
                 artist=c.artist,
@@ -195,7 +294,7 @@ def _normalize_candidate(
             return norm, _diag_payload()
         dbg_lines.append("hint:rg_mbid_unresolved")
 
-    match, _runner_up_conf, dbg2 = musicbrainz_best_release_group_match_debug(
+    match, runner_up_conf, dbg2 = musicbrainz_best_release_group_match_debug(
         broker,
         mb_user_agent=env.mb_user_agent,
         title=c.title,
@@ -211,6 +310,11 @@ def _normalize_candidate(
         return None, _diag_payload()
 
     rg = match.rg
+    normalization_trace = _normalization_trace(
+        source=match.method,
+        best_confidence=float(match.confidence),
+        second_best_confidence=runner_up_conf,
+    )
     norm = NormalizedCandidate(
         title=c.title,
         artist=c.artist,
@@ -328,6 +432,8 @@ def run_dry_run(
     mb_search_limit: int = 10,
     min_confidence: float = 0.80,
     ambiguity_gap: float = 0.06,
+    config_reference_min_confidence: float = 0.72,
+    config_reference_ambiguity_gap: float = 0.08,
     mb_debug: bool = False,
     quarantine_out: str | None = None,
     prefilter_topn: int = 120,
@@ -342,7 +448,6 @@ def run_dry_run(
     discogs_per_page: int = 100,
     lastfm_only: bool = False,
 ) -> dict:
-    del min_confidence, ambiguity_gap
     if not env.lastfm_api_key:
         raise RuntimeError("Missing env LASTFM_API_KEY")
     if not env.mb_user_agent:
@@ -521,6 +626,13 @@ def run_dry_run(
             debug=mb_debug,
             mb_search_limit=int(mb_search_limit),
             mb_max_queries_per_candidate=int(mb_max_queries_per_candidate),
+        )
+        _attach_shadow_results(
+            dbg,
+            cli_min_confidence=float(min_confidence),
+            cli_ambiguity_gap=float(ambiguity_gap),
+            config_min_confidence=float(config_reference_min_confidence),
+            config_ambiguity_gap=float(config_reference_ambiguity_gap),
         )
         mb_search_queries_attempted_total += int(dbg.get("mb_search_queries_attempted", 0))
         mb_http_calls_total += int(dbg.get("mb_http_calls", 0))
