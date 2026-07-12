@@ -340,6 +340,7 @@ def run_dry_run(
     discogs_page_start: int = 1,
     discogs_max_pages: int = 3,
     discogs_per_page: int = 100,
+    lastfm_only: bool = False,
 ) -> dict:
     del min_confidence, ambiguity_gap
     if not env.lastfm_api_key:
@@ -385,8 +386,8 @@ def run_dry_run(
             raw.append(c)
 
     discogs_diag = {
-        "discogs_enabled": bool(discogs_enabled),
-        "discogs_attempted": bool(env.discogs_token and discogs_enabled),
+        "discogs_enabled": bool(discogs_enabled and not lastfm_only),
+        "discogs_attempted": bool(env.discogs_token and discogs_enabled and not lastfm_only),
         "discogs_pages_fetched": 0,
         "discogs_page_cap_hit": bool(discogs_page_cap_hit),
         "discogs_failed": False,
@@ -394,7 +395,7 @@ def run_dry_run(
         "discogs_cached_negative_used": False,
     }
 
-    if env.discogs_token and discogs_enabled:
+    if env.discogs_token and discogs_enabled and not lastfm_only:
         try:
             ds = discogs_database_search(
                 broker,
@@ -424,49 +425,50 @@ def run_dry_run(
             discogs_diag["discogs_failed"] = True
 
     listenbrainz_diag = {
-        "listenbrainz_attempted": True,
+        "listenbrainz_attempted": not lastfm_only,
         "listenbrainz_failed": False,
         "listenbrainz_candidates": 0,
     }
-    try:
-        lbs = listenbrainz_sitewide_release_groups(broker, count=lb_count, offset=lb_offset, range_="all_time")
-        mbids = [x.release_group_mbid for x in lbs if x.release_group_mbid]
-        meta: dict[str, Any] = {}
-        for i in range(0, len(mbids), 25):
-            part = mbids[i : i + 25]
-            j = listenbrainz_metadata_release_groups(broker, part, inc="artist tag release")
-            meta.update(j.get("release_groups") or j.get("payload", {}).get("release_groups") or {})
+    if not lastfm_only:
+        try:
+            lbs = listenbrainz_sitewide_release_groups(broker, count=lb_count, offset=lb_offset, range_="all_time")
+            mbids = [x.release_group_mbid for x in lbs if x.release_group_mbid]
+            meta: dict[str, Any] = {}
+            for i in range(0, len(mbids), 25):
+                part = mbids[i : i + 25]
+                j = listenbrainz_metadata_release_groups(broker, part, inc="artist tag release")
+                meta.update(j.get("release_groups") or j.get("payload", {}).get("release_groups") or {})
 
-        tag_l = tag.lower().strip()
-        for st in lbs:
-            rgid = st.release_group_mbid
-            m = meta.get(rgid) if isinstance(meta, dict) else None
-            if not m:
-                continue
-            rg = m.get("release_group") or {}
-            tags = rg.get("tags") or []
-            tag_names = []
-            for t in tags:
-                if isinstance(t, dict) and t.get("tag"):
-                    tag_names.append(str(t["tag"]).lower())
-                elif isinstance(t, str):
-                    tag_names.append(t.lower())
-            if tag_l not in tag_names:
-                continue
-            c = Candidate(
-                title=str(rg.get("title") or rg.get("name") or st.release_group_name).strip(),
-                artist=str(st.artist_name).strip(),
-                image_url=None,
-            )
-            c.sources.add("listenbrainz")
-            c.source_ranks["listenbrainz"] = st.rank
-            c.rg_mbid_hint = rgid
-            if st.artist_mbid:
-                c.artist_mbid_hint = st.artist_mbid
-            raw.append(c)
-            listenbrainz_diag["listenbrainz_candidates"] += 1
-    except Exception:
-        listenbrainz_diag["listenbrainz_failed"] = True
+            tag_l = tag.lower().strip()
+            for st in lbs:
+                rgid = st.release_group_mbid
+                m = meta.get(rgid) if isinstance(meta, dict) else None
+                if not m:
+                    continue
+                rg = m.get("release_group") or {}
+                tags = rg.get("tags") or []
+                tag_names = []
+                for t in tags:
+                    if isinstance(t, dict) and t.get("tag"):
+                        tag_names.append(str(t["tag"]).lower())
+                    elif isinstance(t, str):
+                        tag_names.append(t.lower())
+                if tag_l not in tag_names:
+                    continue
+                c = Candidate(
+                    title=str(rg.get("title") or rg.get("name") or st.release_group_name).strip(),
+                    artist=str(st.artist_name).strip(),
+                    image_url=None,
+                )
+                c.sources.add("listenbrainz")
+                c.source_ranks["listenbrainz"] = st.rank
+                c.rg_mbid_hint = rgid
+                if st.artist_mbid:
+                    c.artist_mbid_hint = st.artist_mbid
+                raw.append(c)
+                listenbrainz_diag["listenbrainz_candidates"] += 1
+        except Exception:
+            listenbrainz_diag["listenbrainz_failed"] = True
 
     merged = _merge_candidates(raw)
     raw_count = len(raw)
@@ -549,6 +551,7 @@ def run_dry_run(
     normalization_success_count = sum(1 for x in scored if x.n is not None)
     normalization_failed_count = sum(1 for x in scored if x.n is None)
     return {
+        "requested_candidate_count": int(n),
         "lastfm_pages_fetched": pages_fetched,
         "lastfm_pages_planned": len(lastfm_pages),
         "raw_candidate_count": raw_count,

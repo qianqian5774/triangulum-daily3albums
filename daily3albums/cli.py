@@ -27,14 +27,16 @@ from daily3albums.adapters import (
     musicbrainz_search_release_group,
 )
 from daily3albums.constraints import (
-    ARTIST_COOLDOWN_DAYS,
-    THEME_COOLDOWN_DAYS,
+    CooldownPolicy,
+    HistoryIndex,
+    HistoryLoadError,
     album_key_from_parts,
     artist_keys_from_parts,
     load_history_index,
     style_key_from_parts,
     theme_key_from_tag,
     validate_today_constraints,
+    within_cooldown,
 )
 from daily3albums.dry_run import run_dry_run
 
@@ -372,57 +374,169 @@ def _select_tag_for_slot(tag_arg: str | None, cfg: Any, date_key: str, slot_id: 
     return selected
 
 
-def _load_recent_stable_ids(out_public_dir: Path, max_runs: int) -> list[str]:
-    index_path = out_public_dir / "data" / "index.json"
-    if not index_path.exists():
-        return []
-    try:
-        payload = json.loads(index_path.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    items = payload.get("items") if isinstance(payload, dict) else None
-    if not isinstance(items, list):
-        return []
+def _resolve_history_source(repo_root: Path, out_public_dir: Path) -> tuple[Path | None, str]:
+    raw_seed = os.getenv("DAILY3ALBUMS_HISTORY_SEED_DIR", "").strip()
+    if raw_seed:
+        seed_dir = Path(raw_seed)
+        if not seed_dir.is_absolute():
+            seed_dir = repo_root / seed_dir
+        return seed_dir.resolve(), "external_seed"
+    local_data = out_public_dir / "data"
+    if local_data.exists():
+        return local_data, "local_output"
+    return None, "empty"
 
-    def sort_key(item: dict[str, Any]) -> str:
-        run_at = item.get("run_at")
-        if isinstance(run_at, str):
-            return run_at
-        return f"{item.get('date','')}-{item.get('run_id','')}"
 
-    items_sorted = sorted(
-        [x for x in items if isinstance(x, dict)],
-        key=sort_key,
-        reverse=True,
+def _history_context_payload(history: HistoryIndex) -> dict[str, Any]:
+    return {
+        "source": history.source,
+        "dates_loaded": list(history.dates),
+        "archive_count": history.archive_count,
+        "picks_loaded": history.picks_loaded,
+        "album_identity_counts": history.album_identity_counts(),
+    }
+
+
+def _candidate_identity(item: Any) -> tuple[str, set[str]]:
+    nobj = getattr(item, "n", None)
+    cobj = getattr(item, "c", None)
+    rg_id = getattr(nobj, "mb_release_group_id", "") if nobj else ""
+    title = getattr(cobj, "title", "") if cobj else ""
+    artist = getattr(cobj, "artist", "") if cobj else ""
+    year = _safe_year(getattr(nobj, "first_release_date", None) if nobj else None)
+    artist_mbids = list(getattr(nobj, "artist_mbids", []) or []) if nobj else []
+    return album_key_from_parts(rg_id, title, artist, year), set(
+        artist_keys_from_parts(artist_mbids, artist)
     )
-    recent_ids: list[str] = []
-    runs_checked = 0
-    for item in items_sorted:
-        if runs_checked >= max_runs:
-            break
-        date = item.get("date")
-        run_id = item.get("run_id")
-        if not isinstance(date, str) or not date:
+
+
+def _filter_candidate_pool(
+    candidates: list[Any],
+    *,
+    date_key: str,
+    history: HistoryIndex,
+    policy: CooldownPolicy,
+    album_days: int,
+    artist_days: int,
+    type_flags: dict[str, bool],
+    used_album_keys: set[str],
+    used_artist_keys: set[str],
+) -> tuple[list[Any], dict[str, int]]:
+    eligible: list[Any] = []
+    rejected = {
+        "va": 0,
+        "type": 0,
+        "album_collision": 0,
+        "artist_same_day": 0,
+        "album_cooldown": 0,
+        "album_cooldown_rg_mbid": 0,
+        "album_cooldown_fallback": 0,
+        "artist_cooldown": 0,
+    }
+    for candidate in candidates:
+        nobj = getattr(candidate, "n", None)
+        cobj = getattr(candidate, "c", None)
+        artist = getattr(cobj, "artist", "") if cobj else ""
+        ptype = getattr(nobj, "primary_type", None) if nobj else None
+        album_key, artist_keys = _candidate_identity(candidate)
+        if _is_various_artists_name(artist):
+            rejected["va"] += 1
             continue
-        archive_path = (
-            out_public_dir / "data" / "archive" / date / f"{run_id}.json"
-            if isinstance(run_id, str) and run_id
-            else out_public_dir / "data" / "archive" / f"{date}.json"
-        )
-        if not archive_path.exists():
+        if not _primary_type_allowed(ptype, type_flags):
+            rejected["type"] += 1
             continue
-        try:
-            issue = json.loads(archive_path.read_text(encoding="utf-8"))
-        except Exception:
+        if album_key in used_album_keys:
+            rejected["album_collision"] += 1
             continue
-        picks = issue.get("picks") if isinstance(issue, dict) else None
-        if not isinstance(picks, list):
+        if artist_keys.intersection(used_artist_keys):
+            rejected["artist_same_day"] += 1
             continue
-        for pick in picks:
-            if isinstance(pick, dict) and isinstance(pick.get("rg_mbid"), str) and pick["rg_mbid"]:
-                recent_ids.append(pick["rg_mbid"])
-        runs_checked += 1
-    return recent_ids
+        if within_cooldown(date_key, history.album_last_seen.get(album_key), album_days):
+            rejected["album_cooldown"] += 1
+            identity_kind = history.album_identity_kind.get(album_key, "rg_mbid")
+            if identity_kind == "fallback":
+                rejected["album_cooldown_fallback"] += 1
+            else:
+                rejected["album_cooldown_rg_mbid"] += 1
+            continue
+        if any(
+            within_cooldown(date_key, history.artist_last_seen.get(key), artist_days)
+            for key in artist_keys
+        ):
+            rejected["artist_cooldown"] += 1
+            continue
+        eligible.append(candidate)
+    return eligible, rejected
+
+
+def _merge_scored_candidates(primary: list[Any], additional: list[Any]) -> list[Any]:
+    merged: dict[str, Any] = {}
+    order: list[str] = []
+    for item in [*primary, *additional]:
+        album_key, _artist_keys = _candidate_identity(item)
+        if not album_key:
+            continue
+        previous = merged.get(album_key)
+        if previous is None:
+            merged[album_key] = item
+            order.append(album_key)
+        elif float(getattr(item, "score", 0.0)) > float(getattr(previous, "score", 0.0)):
+            merged[album_key] = item
+    return [merged[key] for key in order]
+
+
+def _request_count(snapshot: dict[str, dict[str, int]]) -> int:
+    return sum(int(bucket.get("requests", 0)) for bucket in snapshot.values())
+
+
+def _attempt_meta_from_out(
+    *,
+    tag: str,
+    theme_key: str,
+    out: dict[str, Any],
+    eligible: list[Any],
+    reject_counts: dict[str, int],
+    fallback_stage: int,
+    candidate_scope: str,
+) -> dict[str, Any]:
+    prefetched = int(out.get("prefilter_total", len(out.get("candidates") or [])))
+    topn = int(out.get("prefilter_topn", len(out.get("scored") or [])))
+    return {
+        "tag": tag,
+        "theme_key": theme_key,
+        "fallback_stage": fallback_stage,
+        "candidate_scope": candidate_scope,
+        "fetch_limit": int(out.get("requested_candidate_count", 0) or 0),
+        "lastfm_pages_fetched": int(out.get("lastfm_pages_fetched", 0)),
+        "lastfm_pages_planned": int(out.get("lastfm_pages_planned", 0)),
+        "candidate_count": prefetched,
+        "candidate_count_after_light_prefilter": topn,
+        "candidate_count_after_hard_filters": len(eligible),
+        "reject_counts": dict(reject_counts),
+        "eligible": len(eligible),
+        "mb_candidates_considered": int(out.get("mb_candidates_considered", 0)),
+        "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
+        "raw_candidate_count": int(out.get("raw_candidate_count", prefetched)),
+        "merged_candidate_count": int(out.get("merged_candidate_count", prefetched)),
+        "normalization_success_count": int(out.get("normalization_success_count", 0)),
+        "normalization_failed_count": int(out.get("normalization_failed_count", 0)),
+        "source_counts": dict(out.get("source_counts") or {}),
+        "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
+        "mb_search_queries_attempted_total": int(out.get("mb_search_queries_attempted_total", 0)),
+        "mb_http_calls_total": int(out.get("mb_http_calls_total", 0)),
+        "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
+        "mb_cap_hit": bool(out.get("mb_cap_hit", False)),
+        "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
+        "discogs_enabled": bool(out.get("discogs_enabled", False)),
+        "discogs_attempted": bool(out.get("discogs_attempted", False)),
+        "discogs_pages_fetched": int(out.get("discogs_pages_fetched", 0)),
+        "discogs_page_cap_hit": bool(out.get("discogs_page_cap_hit", False)),
+        "discogs_failed_status": out.get("discogs_failed_status"),
+        "discogs_cached_negative_used": bool(out.get("discogs_cached_negative_used", False)),
+        "listenbrainz_attempted": bool(out.get("listenbrainz_attempted", False)),
+        "listenbrainz_failed": bool(out.get("listenbrainz_failed", False)),
+        "listenbrainz_candidates": int(out.get("listenbrainz_candidates", 0)),
+    }
 
 
 def _softmax_weights(scores: list[float], temperature: float = 10.0) -> list[float]:
@@ -1156,6 +1270,9 @@ def _source_counts_for_scored(items: list[Any]) -> dict[str, int]:
 
 def _selected_attempt_meta(attempts_meta: list[dict[str, Any]], picked_theme_tag: str) -> dict[str, Any]:
     for attempt in reversed(attempts_meta):
+        if isinstance(attempt, dict) and attempt.get("selected") is True:
+            return attempt
+    for attempt in reversed(attempts_meta):
         if not isinstance(attempt, dict):
             continue
         if attempt.get("tag") == picked_theme_tag and attempt.get("fetch_limit") is not None:
@@ -1175,6 +1292,9 @@ def _rejection_reasons_for_observability(
         "unsupported_primary_type": int(reject_counts.get("type", 0)),
         "duplicate_album_same_day": int(reject_counts.get("album_collision", 0)),
         "duplicate_artist_same_day": int(reject_counts.get("artist_same_day", 0)),
+        "album_cooldown": int(reject_counts.get("album_cooldown", 0)),
+        "album_cooldown_rg_mbid": int(reject_counts.get("album_cooldown_rg_mbid", 0)),
+        "album_cooldown_fallback": int(reject_counts.get("album_cooldown_fallback", 0)),
         "artist_cooldown": int(reject_counts.get("artist_cooldown", 0)),
         "theme_cooldown": int(reject_counts.get("theme_cooldown", 0)),
         "musicbrainz_normalization_failed": int(selected_attempt.get("normalization_failed_count", 0)),
@@ -1191,9 +1311,19 @@ def _slot_observability_payload(
     attempts_meta: list[dict[str, Any]],
     reject_counts: dict[str, int],
     scored_items: list[Any],
+    history_context: dict[str, Any],
+    fallback: dict[str, Any],
 ) -> dict[str, Any]:
     selected_attempt = _selected_attempt_meta(attempts_meta, picked_theme_tag)
-    attempted_tags = list(dict.fromkeys([str(tag) for tag in tag_attempts if str(tag).strip()]))
+    attempted_tags = list(
+        dict.fromkeys(
+            str(attempt.get("tag"))
+            for attempt in attempts_meta
+            if isinstance(attempt, dict) and str(attempt.get("tag") or "").strip()
+        )
+    )
+    if not attempted_tags:
+        attempted_tags = list(dict.fromkeys([str(tag) for tag in tag_attempts if str(tag).strip()]))
     source_counts = _empty_source_counts()
     raw_source_counts = selected_attempt.get("source_counts")
     if isinstance(raw_source_counts, dict):
@@ -1217,6 +1347,29 @@ def _slot_observability_payload(
         "source_share": source_counts,
         "final_picks_by_source": _source_counts_for_scored(scored_items),
         "rejection_reasons": _rejection_reasons_for_observability(reject_counts, selected_attempt),
+        "history_context": history_context,
+        "fallback": fallback,
+        "stage_attempts": [
+            {
+                key: attempt.get(key)
+                for key in (
+                    "fallback_stage",
+                    "tag",
+                    "candidate_scope",
+                    "eligible",
+                    "candidate_count",
+                    "reject_counts",
+                    "expansion_before",
+                    "expansion_after",
+                    "additional_requests",
+                    "stage3_relaxed_candidates",
+                    "blocked",
+                )
+                if key in attempt
+            }
+            for attempt in attempts_meta
+            if isinstance(attempt, dict) and "fallback_stage" in attempt
+        ],
         "source_diagnostics": {
             "discogs_enabled": bool(selected_attempt.get("discogs_enabled", False)),
             "discogs_attempted": bool(selected_attempt.get("discogs_attempted", False)),
@@ -1497,6 +1650,7 @@ def _archive_lock_observability(
                     "unsupported_primary_type": 0,
                     "duplicate_album_same_day": 0,
                     "duplicate_artist_same_day": 0,
+                    "album_cooldown": 0,
                     "artist_cooldown": 0,
                     "theme_cooldown": 0,
                     "musicbrainz_normalization_failed": 0,
@@ -1638,15 +1792,40 @@ def cmd_build(
         run_id = f"{date_key}_slots_{uuid.uuid4().hex[:6]}"
         generated_run_id = run_id
 
-        recent_ids = _load_recent_stable_ids(out_public_dir, max_runs=9)
-        recent_set = set(recent_ids)
-        history_index = load_history_index(out_public_dir / "data" / "archive", current_date_key=bjt_date_key, max_lookback_days=14)
+        cooldown_policy = CooldownPolicy(
+            album_days=int(getattr(cfg, "dedupe_same_rg_days", 7)),
+            artist_days=int(getattr(cfg, "dedupe_same_artist_days", 7)),
+        )
+        history_data_dir, history_source = _resolve_history_source(repo_root, out_public_dir)
+        try:
+            history_index = load_history_index(
+                history_data_dir,
+                current_date_key=bjt_date_key,
+                max_lookback_days=max(
+                    cooldown_policy.album_days,
+                    cooldown_policy.artist_days,
+                    cooldown_policy.theme_days,
+                ),
+                source=history_source,
+            )
+        except HistoryLoadError as exc:
+            print(f"BUILD ERROR: history source invalid: {exc}")
+            log_line(f"history_source status=invalid source={history_source} error={_single_line(exc)}")
+            return 2
+        history_context = _history_context_payload(history_index)
+        log_line(
+            "history_source status=loaded "
+            f"source={history_index.source} archives={history_index.archive_count} "
+            f"picks={history_index.picks_loaded} dates={','.join(history_index.dates) or 'none'}"
+        )
 
         slot_names = ["Headliner", "Lineage", "DeepCut"]
         slots_payload: list[dict[str, Any]] = []
         used_album_keys: set[str] = set()
         used_artist_keys: set[str] = set()
         used_theme_keys: set[str] = set()
+        slot_cooldown_windows: dict[int, tuple[int, int]] = {}
+        stage3_daily_pick_count = 0
         exhaustion: list[dict[str, Any]] = []
         diagnostics_summary = {"requests": {}, "timeouts": {}, "retries": {}, "slot_rejections": {}, "slot_progress": {}}
 
@@ -1662,9 +1841,18 @@ def cmd_build(
             picked: list[Any] = []
             picked_theme_tag = ""
             picked_theme_key = ""
+            fallback_stage = 0
+            candidate_scope_expanded = False
+            expansion_before = 0
+            expansion_after = 0
+            additional_requests = 0
+            stage3_pick_info: dict[str, Any] | None = None
             reject_counts = {
                 "va": 0,
                 "type": 0,
+                "album_cooldown": 0,
+                "album_cooldown_rg_mbid": 0,
+                "album_cooldown_fallback": 0,
                 "artist_cooldown": 0,
                 "artist_same_day": 0,
                 "album_collision": 0,
@@ -1672,221 +1860,428 @@ def cmd_build(
             }
             fetched_count = 0
             attempts_meta: list[dict[str, Any]] = []
+            tag_records: list[dict[str, Any]] = []
+            slot_temperature = 9.0 if slot_id == 0 else (10.0 if slot_id == 1 else 14.0)
+
+            def sample_three(items: list[Any], theme_key: str, *, seed_suffix: str = "") -> list[Any]:
+                seed = f"{date_key}:{slot_id}:{theme_key}{seed_suffix}"
+                sampled, _ = _weighted_sample_unique_artists(
+                    items,
+                    count=3,
+                    rng=random.Random(seed),
+                    recent_ids=set(),
+                    cooling_penalty=None,
+                    log_line=log_line,
+                    temperature=slot_temperature,
+                )
+                return sampled
 
             for slot_tag in tag_attempts:
                 theme_key = theme_key_from_tag(slot_tag)
                 last_theme_day = history_index.style_last_seen.get(theme_key)
-                if last_theme_day:
-                    delta = (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last_theme_day).date()).days
-                    if delta <= THEME_COOLDOWN_DAYS:
-                        reject_counts["theme_cooldown"] += 1
-                        attempts_meta.append({"tag": slot_tag, "theme_key": theme_key, "skipped": "theme_cooldown", "last_seen": last_theme_day})
-                        continue
-
-                for fetch_limit in (max(n, 200), 400):
-                    deepcut = (slot_id == 2)
-                    seed_key = f"{date_key}:{slot_id}:{slot_tag}"
-                    try:
-                        out = run_dry_run(
-                            broker,
-                            env,
-                            tag=slot_tag,
-                            n=fetch_limit,
-                            topk=max(fetch_limit, topk),
-                            deepcut=deepcut,
-                            seed_key=seed_key,
-                            split_slots=False,
-                            mb_search_limit=mb_search_limit,
-                            min_confidence=float(min_confidence),
-                            ambiguity_gap=float(ambiguity_gap),
-                            mb_debug=mb_debug,
-                            quarantine_out=None,
-                            prefilter_topn=prefilter_topn,
-                            lastfm_page_start=lastfm_page_start,
-                            lastfm_max_pages=lastfm_max_pages,
-                            mb_max_queries_per_candidate=mb_max_queries_per_candidate,
-                            mb_max_candidates_per_slot=mb_max_candidates_per_slot,
-                            mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
-                            discogs_enabled=discogs_enabled,
-                            discogs_page_start=discogs_page_start,
-                            discogs_max_pages=discogs_max_pages,
-                            discogs_per_page=discogs_per_page,
-                        )
-                    except (ProviderApiError, BrokerRequestError, RequestFailed, RuntimeError) as e:
-                        if not _is_known_external_failure(e):
-                            raise
-                        error_message = _format_external_api_failure(
-                            slot_id=slot_id,
-                            tag=slot_tag,
-                            stage="candidate_fetch",
-                            exc=e,
-                            fetch_limit=fetch_limit,
-                        )
-                        attempts_meta.append({
+                if theme_key in used_theme_keys or within_cooldown(
+                    bjt_date_key,
+                    last_theme_day,
+                    cooldown_policy.theme_days,
+                ):
+                    reject_counts["theme_cooldown"] += 1
+                    attempts_meta.append(
+                        {
                             "tag": slot_tag,
                             "theme_key": theme_key,
-                            "fetch_limit": fetch_limit,
+                            "fallback_stage": 0,
+                            "skipped": "theme_cooldown",
+                            "last_seen": last_theme_day,
+                        }
+                    )
+                    continue
+
+                fetch_limit = max(n, 200)
+                deepcut = slot_id == 2
+                seed_key = f"{date_key}:{slot_id}:{slot_tag}"
+                try:
+                    out = run_dry_run(
+                        broker,
+                        env,
+                        tag=slot_tag,
+                        n=fetch_limit,
+                        topk=max(fetch_limit, topk),
+                        deepcut=deepcut,
+                        seed_key=seed_key,
+                        split_slots=False,
+                        mb_search_limit=mb_search_limit,
+                        min_confidence=float(min_confidence),
+                        ambiguity_gap=float(ambiguity_gap),
+                        mb_debug=mb_debug,
+                        quarantine_out=None,
+                        prefilter_topn=prefilter_topn,
+                        lastfm_page_start=lastfm_page_start,
+                        lastfm_max_pages=lastfm_max_pages,
+                        mb_max_queries_per_candidate=mb_max_queries_per_candidate,
+                        mb_max_candidates_per_slot=mb_max_candidates_per_slot,
+                        mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
+                        discogs_enabled=discogs_enabled,
+                        discogs_page_start=discogs_page_start,
+                        discogs_max_pages=discogs_max_pages,
+                        discogs_per_page=discogs_per_page,
+                    )
+                except (ProviderApiError, BrokerRequestError, RequestFailed, RuntimeError) as exc:
+                    if not _is_known_external_failure(exc):
+                        raise
+                    error_message = _format_external_api_failure(
+                        slot_id=slot_id,
+                        tag=slot_tag,
+                        stage="candidate_fetch",
+                        exc=exc,
+                        fetch_limit=fetch_limit,
+                    )
+                    attempts_meta.append(
+                        {
+                            "tag": slot_tag,
+                            "theme_key": theme_key,
+                            "fallback_stage": 0,
+                            "candidate_scope": "strict",
                             "network_failed": True,
-                            "provider": _provider_from_external_error(e),
+                            "provider": _provider_from_external_error(exc),
                             "stage": _stage_from_external_error(
-                                e,
-                                _provider_from_external_error(e),
+                                exc,
+                                _provider_from_external_error(exc),
                                 "candidate_fetch",
                             ),
                             "error": error_message,
                             "candidate_count": 0,
                             "candidate_count_after_light_prefilter": 0,
                             "candidate_count_after_hard_filters": 0,
-                        })
-                        print(error_message)
-                        log_line(error_message)
-                        break
-
-                    prefetched = int(out.get("prefilter_total", len(out.get("candidates") or [])))
-                    tags_with_attempts = [a for a in attempts_meta if isinstance(a, dict) and a.get("tag")]
-                    unique_tags_tried = len({a.get("tag") for a in tags_with_attempts})
-                    tags_skipped_cooldown = sum(
-                        1 for a in attempts_meta
-                        if isinstance(a, dict) and a.get("skipped") == "theme_cooldown"
+                        }
                     )
-                    fetch_windows_attempted = len(
-                        [a for a in tags_with_attempts if a.get("fetch_limit") is not None]
-                    )
-                    lastfm_pages_planned_effective = sum(
-                        int(a.get("lastfm_pages_planned", 0))
-                        for a in tags_with_attempts
-                        if a.get("fetch_limit") is not None
-                    )
-                    diagnostics_summary["slot_progress"][str(slot_id)] = {
-                        "slot_id": slot_id,
-                        "current_tag": slot_tag,
-                        "tags_considered": len(tag_attempts),
-                        "tags_tried": unique_tags_tried,
-                        "tags_skipped_cooldown": tags_skipped_cooldown,
-                        "fetch_windows_attempted": fetch_windows_attempted,
-                        "pages_fetched": sum(int(a.get("lastfm_pages_fetched", 0)) for a in tags_with_attempts),
-                        "pages_planned": len(tag_attempts) * max(1, int(lastfm_max_pages)),
-                        "lastfm_pages_planned_effective": lastfm_pages_planned_effective,
-                        "top_rejection_reasons": _top_rejection_reasons(reject_counts),
-                        "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
-                        "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
-                        "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
-                        "raw_candidate_count": int(out.get("raw_candidate_count", prefetched)),
-                        "merged_candidate_count": int(out.get("merged_candidate_count", prefetched)),
-                        "normalization_success_count": int(out.get("normalization_success_count", 0)),
-                        "normalization_failed_count": int(out.get("normalization_failed_count", 0)),
-                        "source_counts": dict(out.get("source_counts") or {}),
-                        "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
-                        "mb_search_queries_attempted_total": int(out.get("mb_search_queries_attempted_total", 0)),
-                        "mb_http_calls_total": int(out.get("mb_http_calls_total", 0)),
-                        "discogs_enabled": bool(out.get("discogs_enabled", False)),
-                        "discogs_pages_fetched": int(out.get("discogs_pages_fetched", 0)),
-                        "discogs_page_cap_hit": bool(out.get("discogs_page_cap_hit", False)),
-                        "discogs_failed_status": out.get("discogs_failed_status"),
-                        "discogs_cached_negative_used": bool(out.get("discogs_cached_negative_used", False)),
-                    }
-                    topn = int(out.get("prefilter_topn", len(out.get("scored") or [])))
-                    normalized = int(out.get("normalized_count", len(out.get("scored") or [])))
-                    saved_calls = max(0, prefetched - normalized)
-                    log_line(
-                        f"prefilter slot={slot_id} tag={slot_tag} fetch_limit={fetch_limit} "
-                        f"fetched_candidates={prefetched} after_light_prefilter_topN={topn} "
-                        f"mb_normalized={normalized} saved_mb_calls={saved_calls}"
-                    )
+                    print(error_message)
+                    log_line(error_message)
+                    continue
 
-                    candidates = [s for s in (out.get("top") or []) if getattr(s, "n", None) is not None]
-                    fetched_count = max(fetched_count, len(candidates))
-                    eligible: list[Any] = []
-                    local_reject = {k: 0 for k in reject_counts}
-                    for candidate in candidates:
-                        nobj = getattr(candidate, "n", None)
-                        cobj = getattr(candidate, "c", None)
-                        rg_id = getattr(nobj, "mb_release_group_id", "") if nobj else ""
-                        title = getattr(cobj, "title", "") if cobj else ""
-                        artist = getattr(cobj, "artist", "") if cobj else ""
-                        year = _safe_year(getattr(nobj, "first_release_date", None) if nobj else None)
-                        ptype = getattr(nobj, "primary_type", None) if nobj else None
-                        artist_mbids = list(getattr(nobj, "artist_mbids", []) or []) if nobj else []
-
-                        album_key = album_key_from_parts(rg_id, title, artist, year)
-                        artist_keys = set(artist_keys_from_parts(artist_mbids, artist))
-                        if _is_various_artists_name(artist):
-                            local_reject["va"] += 1
-                            continue
-                        if not _primary_type_allowed(ptype, type_flags):
-                            local_reject["type"] += 1
-                            continue
-                        if album_key in used_album_keys:
-                            local_reject["album_collision"] += 1
-                            continue
-                        if artist_keys.intersection(used_artist_keys):
-                            local_reject["artist_same_day"] += 1
-                            continue
-                        violate_cooldown = False
-                        for key in artist_keys:
-                            last = history_index.artist_last_seen.get(key)
-                            if last and (datetime.fromisoformat(bjt_date_key).date() - datetime.fromisoformat(last).date()).days <= ARTIST_COOLDOWN_DAYS:
-                                violate_cooldown = True
-                                break
-                        if violate_cooldown:
-                            local_reject["artist_cooldown"] += 1
-                            continue
-                        eligible.append(candidate)
-
-                    for k, v in local_reject.items():
-                        reject_counts[k] += v
-                    attempts_meta.append({
+                candidates = [item for item in (out.get("top") or []) if getattr(item, "n", None) is not None]
+                fetched_count = max(fetched_count, len(candidates))
+                eligible, local_reject = _filter_candidate_pool(
+                    candidates,
+                    date_key=date_key,
+                    history=history_index,
+                    policy=cooldown_policy,
+                    album_days=cooldown_policy.album_days,
+                    artist_days=cooldown_policy.artist_days,
+                    type_flags=type_flags,
+                    used_album_keys=used_album_keys,
+                    used_artist_keys=used_artist_keys,
+                )
+                for key, value in local_reject.items():
+                    reject_counts[key] += value
+                attempt_meta = _attempt_meta_from_out(
+                    tag=slot_tag,
+                    theme_key=theme_key,
+                    out=out,
+                    eligible=eligible,
+                    reject_counts=local_reject,
+                    fallback_stage=0,
+                    candidate_scope="strict",
+                )
+                attempts_meta.append(attempt_meta)
+                tag_records.append(
+                    {
                         "tag": slot_tag,
                         "theme_key": theme_key,
-                        "fetch_limit": fetch_limit,
-                        "lastfm_pages_fetched": int(out.get("lastfm_pages_fetched", 0)),
-                        "lastfm_pages_planned": int(out.get("lastfm_pages_planned", 0)),
-                        "candidate_count": prefetched,
-                        "candidate_count_after_light_prefilter": topn,
-                        "candidate_count_after_hard_filters": len(eligible),
-                        "reject_counts": dict(local_reject),
-                        "eligible": len(eligible),
-                        "mb_candidates_considered": int(out.get("mb_candidates_considered", 0)),
-                        "mb_candidates_normalized": int(out.get("mb_candidates_normalized", 0)),
-                        "raw_candidate_count": int(out.get("raw_candidate_count", prefetched)),
-                        "merged_candidate_count": int(out.get("merged_candidate_count", prefetched)),
-                        "normalization_success_count": int(out.get("normalization_success_count", 0)),
-                        "normalization_failed_count": int(out.get("normalization_failed_count", 0)),
-                        "source_counts": dict(out.get("source_counts") or {}),
-                        "mb_queries_attempted_total": int(out.get("mb_queries_attempted_total", 0)),
-                        "mb_search_queries_attempted_total": int(out.get("mb_search_queries_attempted_total", 0)),
-                        "mb_http_calls_total": int(out.get("mb_http_calls_total", 0)),
-                        "mb_budget_exceeded": bool(out.get("mb_budget_exceeded", False)),
-                        "mb_cap_hit": bool(out.get("mb_cap_hit", False)),
-                        "mb_time_spent_s": float(out.get("mb_time_spent_s", 0.0)),
-                        "discogs_enabled": bool(out.get("discogs_enabled", False)),
-                        "discogs_attempted": bool(out.get("discogs_attempted", False)),
-                        "discogs_pages_fetched": int(out.get("discogs_pages_fetched", 0)),
-                        "discogs_page_cap_hit": bool(out.get("discogs_page_cap_hit", False)),
-                        "discogs_failed_status": out.get("discogs_failed_status"),
-                        "discogs_cached_negative_used": bool(out.get("discogs_cached_negative_used", False)),
-                        "listenbrainz_attempted": bool(out.get("listenbrainz_attempted", False)),
-                        "listenbrainz_failed": bool(out.get("listenbrainz_failed", False)),
-                        "listenbrainz_candidates": int(out.get("listenbrainz_candidates", 0)),
-                    })
+                        "out": out,
+                        "candidates": candidates,
+                        "strict_eligible": eligible,
+                        "attempt_meta": attempt_meta,
+                    }
+                )
+                if len(eligible) >= 3:
+                    sampled = sample_three(eligible, theme_key)
+                    if len(sampled) >= 3:
+                        picked = sampled
+                        picked_theme_tag = slot_tag
+                        picked_theme_key = theme_key
+                        attempt_meta["selected"] = True
+                        break
+
+            if len(picked) < 3 and tag_records:
+                candidate_scope_expanded = True
+                expansion_record = max(
+                    enumerate(tag_records),
+                    key=lambda item: (len(item[1]["strict_eligible"]), -item[0]),
+                )[1]
+                expansion_before = len(expansion_record["candidates"])
+                requests_before = _request_count(broker.get_stats_snapshot())
+                expansion_page = lastfm_page_start + lastfm_max_pages
+                try:
+                    expanded_out = run_dry_run(
+                        broker,
+                        env,
+                        tag=expansion_record["tag"],
+                        n=max(n, 200),
+                        topk=max(max(n, 200), topk),
+                        deepcut=slot_id == 2,
+                        seed_key=f"{date_key}:{slot_id}:{expansion_record['tag']}:stage1",
+                        split_slots=False,
+                        mb_search_limit=mb_search_limit,
+                        min_confidence=float(min_confidence),
+                        ambiguity_gap=float(ambiguity_gap),
+                        mb_debug=mb_debug,
+                        quarantine_out=None,
+                        prefilter_topn=prefilter_topn,
+                        lastfm_page_start=expansion_page,
+                        lastfm_max_pages=1,
+                        mb_max_queries_per_candidate=mb_max_queries_per_candidate,
+                        mb_max_candidates_per_slot=mb_max_candidates_per_slot,
+                        mb_time_budget_s_per_slot=mb_time_budget_s_per_slot,
+                        discogs_enabled=False,
+                        discogs_page_start=discogs_page_start,
+                        discogs_max_pages=discogs_max_pages,
+                        discogs_per_page=discogs_per_page,
+                        lastfm_only=True,
+                    )
+                    additional_requests = max(
+                        0,
+                        _request_count(broker.get_stats_snapshot()) - requests_before,
+                    )
+                    expanded_candidates = [
+                        item for item in (expanded_out.get("top") or []) if getattr(item, "n", None) is not None
+                    ]
+                    combined = _merge_scored_candidates(expansion_record["candidates"], expanded_candidates)
+                    expansion_after = len(combined)
+                    expansion_record["candidates"] = combined
+                    combined_out = dict(expansion_record["out"])
+                    combined_out.update(
+                        {
+                            "requested_candidate_count": max(n, 200),
+                            "raw_candidate_count": int(expansion_record["out"].get("raw_candidate_count", 0))
+                            + int(expanded_out.get("raw_candidate_count", 0)),
+                            "merged_candidate_count": len(combined),
+                            "prefilter_total": len(combined),
+                            "prefilter_topn": len(combined),
+                            "normalization_success_count": len(combined),
+                            "mb_candidates_normalized": int(
+                                expansion_record["out"].get("mb_candidates_normalized", 0)
+                            )
+                            + int(expanded_out.get("mb_candidates_normalized", 0)),
+                            "lastfm_pages_fetched": int(
+                                expansion_record["out"].get("lastfm_pages_fetched", 0)
+                            )
+                            + int(expanded_out.get("lastfm_pages_fetched", 0)),
+                            "lastfm_pages_planned": int(
+                                expansion_record["out"].get("lastfm_pages_planned", 0)
+                            )
+                            + int(expanded_out.get("lastfm_pages_planned", 0)),
+                        }
+                    )
+                    expansion_record["out"] = combined_out
+                    eligible, local_reject = _filter_candidate_pool(
+                        combined,
+                        date_key=date_key,
+                        history=history_index,
+                        policy=cooldown_policy,
+                        album_days=cooldown_policy.album_days,
+                        artist_days=cooldown_policy.artist_days,
+                        type_flags=type_flags,
+                        used_album_keys=used_album_keys,
+                        used_artist_keys=used_artist_keys,
+                    )
+                    expansion_record["strict_eligible"] = eligible
+                    for key, value in local_reject.items():
+                        reject_counts[key] += value
+                    stage1_meta = _attempt_meta_from_out(
+                        tag=expansion_record["tag"],
+                        theme_key=expansion_record["theme_key"],
+                        out=combined_out,
+                        eligible=eligible,
+                        reject_counts=local_reject,
+                        fallback_stage=1,
+                        candidate_scope="expanded_lastfm_one_page",
+                    )
+                    stage1_meta.update(
+                        {
+                            "expansion_before": expansion_before,
+                            "expansion_after": expansion_after,
+                            "additional_requests": additional_requests,
+                        }
+                    )
+                    attempts_meta.append(stage1_meta)
                     if len(eligible) >= 3:
-                        rng = random.Random(f"{date_key}:{slot_id}:{theme_key}")
-                        slot_temperature = 9.0 if slot_id == 0 else (10.0 if slot_id == 1 else 14.0)
-                        picked, _ = _weighted_sample_unique_artists(
-                            eligible,
-                            count=3,
-                            rng=rng,
-                            recent_ids=recent_set,
-                            cooling_penalty=None,
-                            log_line=log_line,
-                            temperature=slot_temperature,
-                        )
-                        if len(picked) >= 3:
-                            picked_theme_tag = slot_tag
-                            picked_theme_key = theme_key
+                        sampled = sample_three(eligible, expansion_record["theme_key"])
+                        if len(sampled) >= 3:
+                            picked = sampled
+                            picked_theme_tag = expansion_record["tag"]
+                            picked_theme_key = expansion_record["theme_key"]
+                            fallback_stage = 1
+                            stage1_meta["selected"] = True
+                except (ProviderApiError, BrokerRequestError, RequestFailed, RuntimeError) as exc:
+                    if not _is_known_external_failure(exc):
+                        raise
+                    additional_requests = max(
+                        0,
+                        _request_count(broker.get_stats_snapshot()) - requests_before,
+                    )
+                    attempts_meta.append(
+                        {
+                            "tag": expansion_record["tag"],
+                            "theme_key": expansion_record["theme_key"],
+                            "fallback_stage": 1,
+                            "candidate_scope": "expanded_lastfm_one_page",
+                            "network_failed": True,
+                            "additional_requests": additional_requests,
+                            "error": _format_external_api_failure(
+                                slot_id=slot_id,
+                                tag=expansion_record["tag"],
+                                stage="candidate_expansion",
+                                exc=exc,
+                                fetch_limit=max(n, 200),
+                            ),
+                        }
+                    )
+
+            if len(picked) < 3:
+                for record in tag_records:
+                    eligible, local_reject = _filter_candidate_pool(
+                        record["candidates"],
+                        date_key=date_key,
+                        history=history_index,
+                        policy=cooldown_policy,
+                        album_days=cooldown_policy.album_days,
+                        artist_days=cooldown_policy.fallback_days,
+                        type_flags=type_flags,
+                        used_album_keys=used_album_keys,
+                        used_artist_keys=used_artist_keys,
+                    )
+                    for key, value in local_reject.items():
+                        reject_counts[key] += value
+                    stage2_meta = dict(record["attempt_meta"])
+                    stage2_meta.update(
+                        {
+                            "fallback_stage": 2,
+                            "candidate_scope": "reuse_normalized",
+                            "eligible": len(eligible),
+                            "candidate_count_after_hard_filters": len(eligible),
+                            "reject_counts": dict(local_reject),
+                        }
+                    )
+                    attempts_meta.append(stage2_meta)
+                    if len(eligible) >= 3:
+                        sampled = sample_three(eligible, record["theme_key"])
+                        if len(sampled) >= 3:
+                            picked = sampled
+                            picked_theme_tag = record["tag"]
+                            picked_theme_key = record["theme_key"]
+                            fallback_stage = 2
+                            stage2_meta["selected"] = True
                             break
-                if len(picked) >= 3:
+
+            if len(picked) < 3 and stage3_daily_pick_count < cooldown_policy.stage3_daily_pick_cap:
+                for record in tag_records:
+                    base_eligible, _base_reject = _filter_candidate_pool(
+                        record["candidates"],
+                        date_key=date_key,
+                        history=history_index,
+                        policy=cooldown_policy,
+                        album_days=cooldown_policy.album_days,
+                        artist_days=cooldown_policy.fallback_days,
+                        type_flags=type_flags,
+                        used_album_keys=used_album_keys,
+                        used_artist_keys=used_artist_keys,
+                    )
+                    relaxed_eligible, local_reject = _filter_candidate_pool(
+                        record["candidates"],
+                        date_key=date_key,
+                        history=history_index,
+                        policy=cooldown_policy,
+                        album_days=cooldown_policy.fallback_days,
+                        artist_days=cooldown_policy.fallback_days,
+                        type_flags=type_flags,
+                        used_album_keys=used_album_keys,
+                        used_artist_keys=used_artist_keys,
+                    )
+                    base_keys = {_candidate_identity(item)[0] for item in base_eligible}
+                    relaxed_candidates = [
+                        item
+                        for item in relaxed_eligible
+                        if _candidate_identity(item)[0] not in base_keys
+                        and within_cooldown(
+                            date_key,
+                            history_index.album_last_seen.get(_candidate_identity(item)[0]),
+                            cooldown_policy.album_days,
+                        )
+                        and not within_cooldown(
+                            date_key,
+                            history_index.album_last_seen.get(_candidate_identity(item)[0]),
+                            cooldown_policy.fallback_days,
+                        )
+                    ]
+                    stage3_meta = dict(record["attempt_meta"])
+                    stage3_meta.update(
+                        {
+                            "fallback_stage": 3,
+                            "candidate_scope": "reuse_normalized",
+                            "eligible": len(relaxed_eligible),
+                            "candidate_count_after_hard_filters": len(relaxed_eligible),
+                            "reject_counts": dict(local_reject),
+                            "stage3_relaxed_candidates": len(relaxed_candidates),
+                        }
+                    )
+                    attempts_meta.append(stage3_meta)
+                    if len(base_eligible) < 2 or not relaxed_candidates:
+                        continue
+                    base_picks, _ = _weighted_sample_unique_artists(
+                        base_eligible,
+                        count=2,
+                        rng=random.Random(f"{date_key}:{slot_id}:{record['theme_key']}:stage3-base"),
+                        recent_ids=set(),
+                        cooling_penalty=None,
+                        log_line=log_line,
+                        temperature=slot_temperature,
+                    )
+                    if len(base_picks) < 2:
+                        continue
+                    base_artist_keys = set().union(*(_candidate_identity(item)[1] for item in base_picks))
+                    relaxed_candidates = [
+                        item
+                        for item in relaxed_candidates
+                        if not _candidate_identity(item)[1].intersection(base_artist_keys)
+                    ]
+                    relaxed_pick, _ = _weighted_sample_unique_artists(
+                        relaxed_candidates,
+                        count=1,
+                        rng=random.Random(f"{date_key}:{slot_id}:{record['theme_key']}:stage3-relaxed"),
+                        recent_ids=set(),
+                        cooling_penalty=None,
+                        log_line=log_line,
+                        temperature=slot_temperature,
+                    )
+                    if len(relaxed_pick) != 1:
+                        continue
+                    picked = [*base_picks, relaxed_pick[0]]
+                    picked_theme_tag = record["tag"]
+                    picked_theme_key = record["theme_key"]
+                    fallback_stage = 3
+                    stage3_daily_pick_count += 1
+                    relaxed_key, _relaxed_artists = _candidate_identity(relaxed_pick[0])
+                    nobj = getattr(relaxed_pick[0], "n", None)
+                    stage3_pick_info = {
+                        "slot_id": slot_id,
+                        "release_group_mbid": getattr(nobj, "mb_release_group_id", None) if nobj else None,
+                        "identity_kind": history_index.album_identity_kind.get(relaxed_key, "rg_mbid"),
+                        "identity_key": relaxed_key,
+                        "history_date": history_index.album_last_seen.get(relaxed_key),
+                    }
+                    stage3_meta["selected"] = True
+                    stage3_meta["stage3_pick"] = stage3_pick_info
                     break
+
+            if len(picked) < 3 and stage3_daily_pick_count >= cooldown_policy.stage3_daily_pick_cap:
+                attempts_meta.append(
+                    {
+                        "fallback_stage": 3,
+                        "candidate_scope": "reuse_normalized",
+                        "blocked": "stage3_daily_cap",
+                        "stage3_daily_pick_cap": cooldown_policy.stage3_daily_pick_cap,
+                    }
+                )
 
             if len(picked) < 3:
                 tried_tags = [a.get("tag") for a in attempts_meta if isinstance(a, dict) and a.get("tag")]
@@ -1900,12 +2295,63 @@ def cmd_build(
                     "tag_attempts": attempts_meta,
                     "reject_counts": reject_counts,
                     "top_rejection_reasons": _top_rejection_reasons(reject_counts),
+                    "history": history_context,
+                    "candidate_scope_expanded": candidate_scope_expanded,
+                    "expansion_before": expansion_before,
+                    "expansion_after": expansion_after,
+                    "additional_requests": additional_requests,
+                    "fallback_stage": "exhausted_after_stage3",
                 }
                 print(_format_slot_exhaustion_failure(diag))
                 print(f"exhaustion slot={slot_id} diagnostic={diag}")
                 log_line(f"slot_exhausted {json.dumps(diag, ensure_ascii=False)}")
                 exhaustion.append(diag)
                 return 2
+
+            if fallback_stage <= 1:
+                slot_cooldown_windows[slot_id] = (
+                    cooldown_policy.album_days,
+                    cooldown_policy.artist_days,
+                )
+            elif fallback_stage == 2:
+                slot_cooldown_windows[slot_id] = (
+                    cooldown_policy.album_days,
+                    cooldown_policy.fallback_days,
+                )
+            else:
+                slot_cooldown_windows[slot_id] = (
+                    cooldown_policy.fallback_days,
+                    cooldown_policy.fallback_days,
+                )
+
+            selected_attempt = _selected_attempt_meta(attempts_meta, picked_theme_tag)
+            diagnostics_summary["slot_progress"][str(slot_id)] = {
+                "slot_id": slot_id,
+                "selected_tag": picked_theme_tag,
+                "attempted_tags": list(
+                    dict.fromkeys(
+                        str(attempt.get("tag"))
+                        for attempt in attempts_meta
+                        if isinstance(attempt, dict) and str(attempt.get("tag") or "").strip()
+                    )
+                ),
+                "history": history_context,
+                "fallback_stage": fallback_stage,
+                "candidate_scope_expanded": candidate_scope_expanded,
+                "expansion_before": expansion_before,
+                "expansion_after": expansion_after,
+                "additional_requests": additional_requests,
+                "album_cooldown_days": slot_cooldown_windows[slot_id][0],
+                "artist_cooldown_days": slot_cooldown_windows[slot_id][1],
+                "theme_cooldown_days": cooldown_policy.theme_days,
+                "stage3_used": stage3_pick_info is not None,
+                "top_rejection_reasons": _top_rejection_reasons(reject_counts),
+                "strict_raw_candidates": int(selected_attempt.get("raw_candidate_count", 0) or 0),
+                "strict_normalized_candidates": int(
+                    selected_attempt.get("normalization_success_count", 0) or 0
+                ),
+                "eligible_candidates": int(selected_attempt.get("eligible", 0) or 0),
+            }
 
             scored_items = sorted(picked, key=lambda s: float(getattr(s, "score", 0.0)), reverse=True)[:3]
             for selected in scored_items:
@@ -1936,6 +2382,20 @@ def cmd_build(
                 attempts_meta=attempts_meta,
                 reject_counts=reject_counts,
                 scored_items=scored_items,
+                history_context=history_context,
+                fallback={
+                    "stage": fallback_stage,
+                    "candidate_scope_expanded": candidate_scope_expanded,
+                    "expansion_before": expansion_before,
+                    "expansion_after": expansion_after,
+                    "additional_requests": additional_requests,
+                    "album_cooldown_days": slot_cooldown_windows[slot_id][0],
+                    "artist_cooldown_days": slot_cooldown_windows[slot_id][1],
+                    "theme_cooldown_days": cooldown_policy.theme_days,
+                    "stage3_used": stage3_pick_info is not None,
+                    "stage3_pick": stage3_pick_info,
+                    "stage3_daily_pick_cap": cooldown_policy.stage3_daily_pick_cap,
+                },
             )
             slots_payload.append(slot_payload)
             exhaustion.append({"slot_id": slot_id, "attempts": attempts_meta, "reject_counts": reject_counts, "fetched_count": fetched_count})
@@ -2025,7 +2485,13 @@ def cmd_build(
         now_slot_payload = next((s for s in issue["slots"] if s.get("slot_id") == now_slot_id), issue["slots"][0])
         issue["picks"] = now_slot_payload.get("picks", [])
 
-        errors = validate_today_constraints(issue, history_index)
+        errors = validate_today_constraints(
+            issue,
+            history_index,
+            policy=cooldown_policy,
+            slot_windows=slot_cooldown_windows,
+            stage3_pick_count=stage3_daily_pick_count,
+        )
         if errors:
             for err in errors:
                 print(f"BUILD ERROR: constraint validator: {err}")
