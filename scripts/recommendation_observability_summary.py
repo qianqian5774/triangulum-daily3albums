@@ -120,6 +120,66 @@ def _aggregate_rejections(slots: list[dict[str, Any]]) -> dict[str, int]:
     return out
 
 
+def _render_normalization_shadow(payload: dict[str, Any], slots: list[dict[str, Any]]) -> list[str]:
+    metadata = payload.get("normalization_shadow")
+    slot_shadows = [
+        (slot.get("slot_id"), slot.get("normalization_shadow"))
+        for slot in slots
+        if isinstance(slot.get("normalization_shadow"), dict)
+    ]
+    if not isinstance(metadata, dict) and not slot_shadows:
+        return []
+
+    status = metadata.get("status") if isinstance(metadata, dict) else None
+    lines = ["", "### Normalization shadow observation", ""]
+    if status == "not_available_reused_published_archive":
+        lines.extend(
+            [
+                "Normalization shadow data is not available for this reused published archive.",
+                "Final picks and public observability came from the published archive seed; any internal candidate funnel data was discarded, so this artifact is excluded from generated-run sampling.",
+            ]
+        )
+        return lines
+
+    lines.extend(
+        [
+            "Shadow thresholds are observed only; they are not enforced and do not alter filtering, scoring, sampling, or final picks.",
+            "",
+            "| Slot | Reference | Min confidence | Ambiguity gap | Text search evaluated | Rejected | Low confidence | Ambiguous | Normalized remaining | Eligible remaining | Final picks impacted | Possible higher fallback |",
+            "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        ]
+    )
+    rendered = 0
+    for slot_id, shadow in slot_shadows:
+        references = shadow.get("references") if isinstance(shadow, dict) else None
+        if not isinstance(references, dict):
+            continue
+        for name in ("cli_reference", "config_reference"):
+            impact = references.get(name)
+            if not isinstance(impact, dict):
+                continue
+            rendered += 1
+            lines.append(
+                "| {slot} | {name} | {minimum} | {gap} | {evaluated} | {rejected} | {low} | {ambiguous} | {normalized} | {eligible} | {final} | {fallback} |".format(
+                    slot=_cell(slot_id),
+                    name=_cell(name),
+                    minimum=_cell(impact.get("min_confidence")),
+                    gap=_cell(impact.get("ambiguity_gap")),
+                    evaluated=_cell(impact.get("text_search_evaluated", 0)),
+                    rejected=_cell(impact.get("rejected_total", 0)),
+                    low=_cell(impact.get("rejected_low_confidence", 0)),
+                    ambiguous=_cell(impact.get("rejected_ambiguous", 0)),
+                    normalized=_cell(impact.get("normalized_remaining", 0)),
+                    eligible=_cell(impact.get("eligible_remaining", 0)),
+                    final=_cell(impact.get("final_picks_impacted", 0)),
+                    fallback=_yes_no(impact.get("possible_higher_fallback")),
+                )
+            )
+    if rendered == 0:
+        lines.append("| n/a | n/a | n/a | n/a | 0 | 0 | 0 | 0 | 0 | 0 | 0 | n/a |")
+    return lines
+
+
 def render_markdown(payload: dict[str, Any]) -> str:
     slots = [slot for slot in payload.get("slots", []) if isinstance(slot, dict)]
     coverage = payload.get("final_pick_coverage") if isinstance(payload.get("final_pick_coverage"), dict) else {}
@@ -138,6 +198,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "- These metrics are observability only; recommendation weights and final-pick selection logic are not changed by them.",
     ]
     lines.extend(_render_generation_mode(payload))
+    lines.extend(_render_normalization_shadow(payload, slots))
     lines.extend([
         "",
         "### Candidate counts",

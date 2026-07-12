@@ -53,6 +53,35 @@ def _sample_payload() -> dict:
                     "theme_cooldown_days": 3,
                     "stage3_used": False,
                 },
+                "normalization_shadow": {
+                    "status": "observed_not_enforced",
+                    "references": {
+                        "cli_reference": {
+                            "min_confidence": 0.80,
+                            "ambiguity_gap": 0.06,
+                            "text_search_evaluated": 4,
+                            "rejected_total": 2,
+                            "rejected_low_confidence": 1,
+                            "rejected_ambiguous": 1,
+                            "normalized_remaining": 4,
+                            "eligible_remaining": 2,
+                            "final_picks_impacted": 1,
+                            "possible_higher_fallback": True,
+                        },
+                        "config_reference": {
+                            "min_confidence": 0.72,
+                            "ambiguity_gap": 0.08,
+                            "text_search_evaluated": 4,
+                            "rejected_total": 1,
+                            "rejected_low_confidence": 0,
+                            "rejected_ambiguous": 1,
+                            "normalized_remaining": 5,
+                            "eligible_remaining": 3,
+                            "final_picks_impacted": 0,
+                            "possible_higher_fallback": False,
+                        },
+                    },
+                },
                 "final_picks": [],
             }
         )
@@ -64,6 +93,11 @@ def _sample_payload() -> dict:
         "reused_archive_date": None,
         "reused_archive_run_id": None,
         "final_picks_source": "candidate_funnel",
+        "normalization_shadow": {
+            "status": "observed_not_enforced",
+            "enforced": False,
+            "production_sample_eligible": True,
+        },
         "date": "2026-06-27",
         "run_id": "run-1",
         "slots": slots,
@@ -110,6 +144,8 @@ def test_render_markdown_includes_required_sections():
     assert "| Generation mode | generated |" in text
     assert "| Candidate funnel rerun | yes |" in text
     assert "### Candidate counts" in text
+    assert "### Normalization shadow observation" in text
+    assert "| 0 | cli_reference | 0.8 | 0.06 | 4 | 2 | 1 | 1 | 4 | 2 | 1 | yes |" in text
     assert "| 0 | 08:00 | tag-0 | 10 | 8 | 7 | 6 | 4 | 3 |" in text
     assert "### Source share" in text
     assert "### History and cooldown fallback" in text
@@ -131,6 +167,11 @@ def test_render_markdown_explains_reused_archive_mode():
             "reused_archive_date": "2026-06-27",
             "reused_archive_run_id": "published-run",
             "final_picks_source": "published_archive_seed",
+            "normalization_shadow": {
+                "status": "not_available_reused_published_archive",
+                "enforced": False,
+                "production_sample_eligible": False,
+            },
             "run_id": "published-run",
             "archive_lock": {
                 "reused_published_date": True,
@@ -160,6 +201,7 @@ def test_render_markdown_explains_reused_archive_mode():
     assert "| Reused archive date | 2026-06-27 |" in text
     assert "| Reused archive run | published-run |" in text
     assert "Candidate funnel: not rerun; final picks were restored from the published archive seed." in text
+    assert "Normalization shadow data is not available for this reused published archive." in text
     assert "| 0 | 08:00 | tag-0 | 0 | 0 | 0 | 0 | 0 | 3 |" in text
 
 
@@ -172,6 +214,7 @@ def test_render_markdown_handles_legacy_payload_without_generation_fields():
         "reused_archive_date",
         "reused_archive_run_id",
         "final_picks_source",
+        "normalization_shadow",
     ):
         payload.pop(key, None)
 
@@ -187,6 +230,7 @@ def test_render_markdown_handles_old_slots_without_history_or_fallback_fields():
     for slot in payload["slots"]:
         slot.pop("history_context", None)
         slot.pop("fallback", None)
+        slot.pop("normalization_shadow", None)
 
     text = render_markdown(payload)
 
