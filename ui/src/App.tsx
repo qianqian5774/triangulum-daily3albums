@@ -1,5 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Hud } from "./components/Hud";
 import { NoiseOverlay } from "./components/NoiseOverlay";
 import { ProjectInfoDialog } from "./components/ProjectInfoDialog";
@@ -8,18 +8,11 @@ import { TodayRoute } from "./routes/Today";
 import {
   formatBjtTime,
   formatCountdown,
-  formatDebugTime,
-  getBjtNowParts,
   getNextUnlock,
   getSlotWindowLabel,
-  loadDebugTime,
-  parseDebugTime,
-  readDebugTimeParam,
-  resolveNowState,
-  resolveVisualTheme,
-  saveDebugTime,
   type VisualTheme
 } from "./lib/bjt";
+import { ProductClockProvider, useProductClock } from "./lib/product-clock";
 import { useLocalizedCopy, useT } from "./lib/ui-settings";
 
 export type HudStatus = "OK" | "DEGRADED" | "ERROR" | "OFFLINE" | "ARCHIVE";
@@ -55,19 +48,17 @@ function createDefaultHud(tx: (key: string) => string, marqueeFallback: string[]
   };
 }
 
-function App() {
+function AppShell() {
   const tx = useT();
   const localizedCopy = useLocalizedCopy();
+  const { bjtNow, nowSlotId, nowState, visualTheme } = useProductClock();
   const [hud, setHud] = useState<HudState>(() =>
     createDefaultHud(tx, [...localizedCopy.system.marqueeFallback])
   );
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [visualTheme, setVisualTheme] = useState<VisualTheme>(() =>
-    resolveVisualTheme(getBjtNowParts(loadDebugTime()).secondsSinceMidnight)
-  );
+  const [displayVisualTheme, setDisplayVisualTheme] = useState<VisualTheme>(visualTheme);
   const [themeTransition, setThemeTransition] = useState<VisualTheme | null>(null);
   const themeTransitionTimerRef = useRef<number | null>(null);
-  const location = useLocation();
 
   const updateHud = useCallback((next: Partial<HudState>) => {
     setHud((prev) => ({ ...prev, ...next }));
@@ -76,82 +67,63 @@ function App() {
   const contextValue = useMemo(() => ({ hud, updateHud }), [hud, updateHud]);
 
   useEffect(() => {
-    const param = readDebugTimeParam(
-      location.search,
-      typeof window === "undefined" ? "" : window.location.search,
-      typeof window === "undefined" ? "" : window.location.hash
-    );
-    if (!param) {
-      return;
-    }
-    const parsed = parseDebugTime(param);
-    if (!parsed) {
-      return;
-    }
-    saveDebugTime(formatDebugTime(parsed));
-  }, [location.search]);
+    const windowLabel =
+      nowState === "OFFLINE"
+        ? tx("hud.window.offline")
+        : `${tx("hud.window.label")} ${getSlotWindowLabel(nowSlotId ?? 0)}`;
+    const nextUnlock = getNextUnlock(bjtNow);
+    const nextUnlockLabel =
+      nowState === "OFFLINE"
+        ? `${tx("hud.nextBoot")} ${nextUnlock.label}`
+        : `${tx("hud.nextUnlock")} ${nextUnlock.label}`;
+    const countdownLabel = `${tx("hud.countdownPrefix")} ${formatCountdown(nextUnlock.targetMs - bjtNow.nowMs)}`;
+    setHud((prev) => ({
+      ...prev,
+      bjtTime: formatBjtTime(bjtNow.parts),
+      windowLabel,
+      nextUnlockLabel,
+      countdownLabel,
+      debugActive: bjtNow.source === "debug"
+    }));
+  }, [bjtNow, nowSlotId, nowState, tx]);
 
   useEffect(() => {
-    const tick = () => {
-      const now = getBjtNowParts(loadDebugTime());
-      const nextVisualTheme = resolveVisualTheme(now.secondsSinceMidnight);
-      const { state, slotId } = resolveNowState(now.secondsSinceMidnight);
-      const windowLabel =
-        state === "OFFLINE"
-          ? tx("hud.window.offline")
-          : `${tx("hud.window.label")} ${getSlotWindowLabel(slotId ?? 0)}`;
-      const nextUnlock = getNextUnlock(now);
-      const nextUnlockLabel =
-        state === "OFFLINE"
-          ? `${tx("hud.nextBoot")} ${nextUnlock.label}`
-          : `${tx("hud.nextUnlock")} ${nextUnlock.label}`;
-      const countdownLabel = `${tx("hud.countdownPrefix")} ${formatCountdown(nextUnlock.targetMs - now.nowMs)}`;
-      setVisualTheme((prev) => {
-        if (prev === nextVisualTheme) {
-          return prev;
-        }
-        setThemeTransition(nextVisualTheme);
-        if (themeTransitionTimerRef.current) {
-          window.clearTimeout(themeTransitionTimerRef.current);
-        }
-        themeTransitionTimerRef.current = window.setTimeout(() => {
-          setThemeTransition(null);
-          themeTransitionTimerRef.current = null;
-        }, 1400);
-        return nextVisualTheme;
-      });
-      setHud((prev) => ({
-        ...prev,
-        bjtTime: formatBjtTime(now.parts),
-        windowLabel,
-        nextUnlockLabel,
-        countdownLabel,
-        debugActive: now.source === "debug"
-      }));
-    };
-    tick();
-    const timer = window.setInterval(tick, 500);
-    return () => {
-      window.clearInterval(timer);
+    if (displayVisualTheme === visualTheme) {
+      return;
+    }
+    setThemeTransition(visualTheme);
+    if (themeTransitionTimerRef.current) {
+      window.clearTimeout(themeTransitionTimerRef.current);
+    }
+    themeTransitionTimerRef.current = window.setTimeout(() => {
+      setThemeTransition(null);
+      themeTransitionTimerRef.current = null;
+    }, 1400);
+    setDisplayVisualTheme(visualTheme);
+  }, [displayVisualTheme, visualTheme]);
+
+  useEffect(
+    () => () => {
       if (themeTransitionTimerRef.current) {
         window.clearTimeout(themeTransitionTimerRef.current);
         themeTransitionTimerRef.current = null;
       }
-    };
-  }, [tx]);
+    },
+    []
+  );
 
   useEffect(() => {
-    document.documentElement.dataset.theme = visualTheme;
+    document.documentElement.dataset.theme = displayVisualTheme;
     return () => {
       delete document.documentElement.dataset.theme;
     };
-  }, [visualTheme]);
+  }, [displayVisualTheme]);
 
   return (
     <HudContext.Provider value={contextValue}>
       <div
         className="theme-shell min-h-screen text-clinical-white"
-        data-theme={visualTheme}
+        data-theme={displayVisualTheme}
         data-transition-active={themeTransition ? "signal-glitch" : undefined}
       >
         {themeTransition ? (
@@ -182,6 +154,14 @@ function App() {
         <NoiseOverlay />
       </div>
     </HudContext.Provider>
+  );
+}
+
+function App() {
+  return (
+    <ProductClockProvider>
+      <AppShell />
+    </ProductClockProvider>
   );
 }
 

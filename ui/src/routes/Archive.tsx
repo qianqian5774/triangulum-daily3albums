@@ -5,8 +5,8 @@ import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { SlotCard } from "../components/SlotCard";
 import { DEFAULT_ARCHIVE_RETENTION_DAYS, getArchiveIssueSlots, getRecentArchiveEntries } from "../lib/archive";
-import { getBjtNowParts, loadDebugTime, resolveNowState } from "../lib/bjt";
 import { loadArchiveDay, loadArchiveIndex } from "../lib/data";
+import { useProductClock } from "../lib/product-clock";
 import { useT } from "../lib/ui-settings";
 import type { ArchiveIndex, IndexItem, TodayIssue } from "../lib/types";
 
@@ -36,6 +36,7 @@ function archiveDayId(entry: IndexItem) {
 export function ArchiveRoute() {
   const tx = useT();
   const hudContext = useContext(HudContext);
+  const { nowState } = useProductClock();
 
   // IMPORTANT:
   // Do NOT put `hudContext` into effects' dependency arrays.
@@ -48,9 +49,6 @@ export function ArchiveRoute() {
   const [index, setIndex] = useState<ArchiveIndex | null>(null);
   const [records, setRecords] = useState<ArchiveRecord[]>([]);
   const [indexError, setIndexError] = useState<string | null>(null);
-  const [nowState, setNowState] = useState(() =>
-    resolveNowState(getBjtNowParts(loadDebugTime()).secondsSinceMidnight).state
-  );
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -107,15 +105,6 @@ export function ArchiveRoute() {
       active = false;
     };
   }, [recentEntries]);
-
-  useEffect(() => {
-    const tick = () => {
-      setNowState(resolveNowState(getBjtNowParts(loadDebugTime()).secondsSinceMidnight).state);
-    };
-    tick();
-    const timer = window.setInterval(tick, 500);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     const loadedIssues = records.map((record) => record.issue).filter((issue): issue is TodayIssue => Boolean(issue));
