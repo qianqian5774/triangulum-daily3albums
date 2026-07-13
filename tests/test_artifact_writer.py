@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,7 @@ def _pick(title: str, slot: str) -> dict:
         "slot": slot,
         "title": title,
         "artist_credit": "Artist",
-        "rg_mbid": f"rg-{title}",
+        "rg_mbid": str(uuid.uuid5(uuid.NAMESPACE_URL, title)),
         "cover": {
             "has_cover": True,
             "optimized_cover_url": f"covers/{title}.jpg",
@@ -34,10 +35,11 @@ def _issue(date: str, run_id: str, run_at: str) -> dict:
         for slot_id, label in enumerate(["08:00-12:29", "12:30-15:59", "16:00-23:59"])
     ]
     return {
-        "output_schema_version": "1",
+        "output_schema_version": "1.0",
         "date": date,
         "run_id": run_id,
         "theme_of_day": "Theme",
+        "now_slot_id": 0,
         "run_at": run_at,
         "slots": slots,
         "picks": slots[0]["picks"],
@@ -51,7 +53,7 @@ def test_writer_keeps_configured_recent_unique_archive_dates(tmp_path: Path):
     index_path.write_text(
         json.dumps(
             {
-                "output_schema_version": "1",
+                "output_schema_version": "1.0",
                 "items": [
                     {
                         "date": "2026-06-24",
@@ -87,11 +89,6 @@ def test_writer_keeps_configured_recent_unique_archive_dates(tmp_path: Path):
                         "date": "2026-06-18",
                         "run_id": "day-8",
                         "run_at": "2026-06-18T06:00:00+08:00",
-                    },
-                    {
-                        "date": "2026-06-21",
-                        "run_id": "dev-seed-local",
-                        "run_at": "2026-06-21T06:00:00+08:00",
                     },
                 ],
             }
@@ -192,7 +189,7 @@ def test_writer_reuses_existing_archive_date_on_normal_rerun(tmp_path: Path):
     index_path.write_text(
         json.dumps(
             {
-                "output_schema_version": "1",
+                "output_schema_version": "1.0",
                 "items": [
                     {
                         "date": "2026-06-25",
@@ -247,7 +244,7 @@ def test_writer_fails_if_kept_historical_archive_json_changes(tmp_path: Path, mo
     index_path.write_text(
         json.dumps(
             {
-                "output_schema_version": "1",
+                "output_schema_version": "1.0",
                 "items": [
                     {
                         "date": "2026-06-24",

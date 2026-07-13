@@ -1,0 +1,13 @@
+{
+  "output_schema_version": "1.0",
+  "archive_retention_days": 7,
+  "items": [
+    {
+      "date": "2026-07-13",
+      "run_id": "contract-current",
+      "theme_of_day": "contract-theme",
+      "slot": 1,
+      "run_at": "2026-07-13T12:30:00+08:00"
+    }
+  ]
+}

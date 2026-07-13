@@ -9,6 +9,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from daily3albums.public_contract import (
+    PublicContractError,
+    canonical_archive_paths,
+    require_byte_identical,
+    validate_archive,
+    validate_archive_identity,
+    validate_index,
+    validate_issue,
+)
+
 
 class SelfCheckError(RuntimeError):
     pass
@@ -25,7 +35,7 @@ def _read_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
-        raise SelfCheckError(f"JSON parse failed: {path} ({exc})") from exc
+        raise SelfCheckError(f"INVALID_JSON: JSON parse failed: {path} ({exc})") from exc
 
 
 def _ensure_file(path: Path) -> None:
@@ -39,59 +49,29 @@ def _ensure_str(value: Any, field: str, path: Path) -> None:
 
 
 def _validate_today(payload: Any, path: Path) -> None:
-    if not isinstance(payload, dict):
-        raise SelfCheckError(f"Today payload must be object: {path}")
-    _ensure_str(payload.get("output_schema_version"), "output_schema_version", path)
-    _ensure_str(payload.get("date"), "date", path)
-    _ensure_str(payload.get("run_id"), "run_id", path)
-    _ensure_str(payload.get("theme_of_day"), "theme_of_day", path)
-
-    slots = payload.get("slots")
-    if not isinstance(slots, list) or len(slots) != 3:
-        raise SelfCheckError(f"today.json must contain exactly 3 slots: {path}")
-
-    slot_ids = [slot.get("slot_id") if isinstance(slot, dict) else None for slot in slots]
-    if slot_ids != [0, 1, 2]:
-        raise SelfCheckError(f"today.json slots must be ordered [0, 1, 2], got {slot_ids}: {path}")
-
-    top_picks = payload.get("picks")
-    if not isinstance(top_picks, list) or len(top_picks) != 3:
-        raise SelfCheckError(f"today.json top-level picks must contain exactly 3 items: {path}")
-
-    for idx, slot in enumerate(slots):
-        if not isinstance(slot, dict):
-            raise SelfCheckError(f"Today slot[{idx}] must be object: {path}")
-        if not isinstance(slot.get("slot_id"), int):
-            raise SelfCheckError(f"slot[{idx}].slot_id missing: {path}")
-        _ensure_str(slot.get("window_label"), f"slot[{idx}].window_label", path)
-        picks = slot.get("picks")
-        if not isinstance(picks, list) or len(picks) != 3:
-            raise SelfCheckError(f"slot[{idx}].picks must contain exactly 3 items: {path}")
-        for jdx, pick in enumerate(picks):
-            if not isinstance(pick, dict):
-                raise SelfCheckError(f"slot[{idx}].pick[{jdx}] must be object: {path}")
-            _ensure_str(pick.get("slot"), f"slot[{idx}].picks[{jdx}].slot", path)
-            _ensure_str(pick.get("title"), f"slot[{idx}].picks[{jdx}].title", path)
-            cover = pick.get("cover")
-            if not isinstance(cover, dict) or not isinstance(cover.get("optimized_cover_url"), str):
-                raise SelfCheckError(f"slot[{idx}].picks[{jdx}].cover.optimized_cover_url missing: {path}")
+    try:
+        validate_issue(payload, artifact_kind="today", profile="current")
+    except PublicContractError as exc:
+        raise SelfCheckError(f"Today contract invalid: {path} ({exc})") from exc
 
 
 def _validate_index(payload: Any, path: Path) -> None:
-    if not isinstance(payload, dict):
-        raise SelfCheckError(f"Index payload must be object: {path}")
-    _ensure_str(payload.get("output_schema_version"), "output_schema_version", path)
-    items = payload.get("items")
-    if not isinstance(items, list):
-        raise SelfCheckError(f"Index items must be list: {path}")
-    for idx, item in enumerate(items):
-        if not isinstance(item, dict):
-            raise SelfCheckError(f"Index item[{idx}] must be object: {path}")
-        _ensure_str(item.get("date"), f"items[{idx}].date", path)
-        _ensure_str(item.get("run_id"), f"items[{idx}].run_id", path)
-        run_id = item.get("run_id")
-        if isinstance(run_id, str) and run_id.startswith("dev-seed"):
+    try:
+        validated = validate_index(payload)
+    except PublicContractError as exc:
+        raise SelfCheckError(f"Index contract invalid: {path} ({exc})") from exc
+    for idx, item in enumerate(validated["items"]):
+        run_id = item["run_id"]
+        if run_id.startswith("dev-seed"):
             raise SelfCheckError(f"Index item[{idx}] contains dev seed run_id '{run_id}': {path}")
+
+
+def _validate_archive_payload(payload: Any, path: Path) -> dict[str, Any]:
+    try:
+        validated, _profile = validate_archive(payload)
+        return validated
+    except PublicContractError as exc:
+        raise SelfCheckError(f"Archive contract invalid: {path} ({exc})") from exc
 
 
 def _validate_today_date(payload: dict[str, Any], path: Path) -> None:
@@ -116,15 +96,61 @@ def _validate_archive_consistency(today_payload: dict[str, Any], today_path: Pat
         out_dir / "data" / "archive" / archive_date / f"{run_id}.json",
         out_dir / "data" / "archive" / f"{archive_date}.json",
     ]
+    archive_bytes: list[bytes] = []
+    today_bytes = today_path.read_bytes()
     for archive_path in archive_paths:
         _ensure_file(archive_path)
+        archive_bytes.append(archive_path.read_bytes())
         archive_payload = _read_json(archive_path)
-        _validate_today(archive_payload, archive_path)
+        try:
+            validate_issue(archive_payload, artifact_kind="archive", profile="current")
+        except PublicContractError as exc:
+            raise SelfCheckError(f"Current archive contract invalid: {archive_path} ({exc})") from exc
         if archive_payload != today_payload:
             raise SelfCheckError(
                 f"Archive JSON mismatch: {archive_path} does not match {today_path} "
                 f"for date={archive_date} run_id={run_id}"
             )
+        if archive_bytes[-1] != today_bytes:
+            raise SelfCheckError(
+                f"Archive JSON bytes mismatch: {archive_path} does not match {today_path} "
+                f"for date={archive_date} run_id={run_id}"
+            )
+    try:
+        require_byte_identical(archive_bytes[0], archive_bytes[1])
+    except PublicContractError as exc:
+        raise SelfCheckError(f"Current archive alias bytes mismatch: {exc}") from exc
+
+
+def _validate_index_archives(index_payload: dict[str, Any], path: Path, out_dir: Path) -> None:
+    for item_index, item in enumerate(index_payload["items"]):
+        date = item["date"]
+        run_id = item["run_id"]
+        relative_paths = canonical_archive_paths(date, run_id)
+        candidates = [out_dir / relative for relative in relative_paths]
+        existing = [candidate for candidate in candidates if candidate.is_file()]
+        if not existing:
+            raise SelfCheckError(
+                f"ARCHIVE_MISSING: Index item[{item_index}] points to missing archive "
+                f"date={date} run_id={run_id}: {path}"
+            )
+        bytes_by_path = [(candidate.read_bytes(), candidate) for candidate in existing]
+        if len(bytes_by_path) == 2:
+            try:
+                require_byte_identical(bytes_by_path[0][0], bytes_by_path[1][0])
+            except PublicContractError as exc:
+                raise SelfCheckError(
+                    f"Index item[{item_index}] archive aliases disagree date={date} run_id={run_id}: {exc}"
+                ) from exc
+        archive_path = bytes_by_path[0][1]
+        archive_payload = _read_json(archive_path)
+        validated = _validate_archive_payload(archive_payload, archive_path)
+        try:
+            validate_archive_identity(validated, date=date, run_id=run_id)
+        except PublicContractError as exc:
+            raise SelfCheckError(
+                f"Index item[{item_index}] archive contract invalid: {archive_path} ({exc})"
+            ) from exc
 
 
 def _validate_index_contains_today(index_payload: Any, path: Path, today_payload: dict[str, Any]) -> None:
@@ -244,6 +270,7 @@ def main() -> int:
     index_payload = _read_json(index_path)
     _validate_index(index_payload, index_path)
     _validate_index_contains_today(index_payload, index_path, today_payload)
+    _validate_index_archives(index_payload, index_path, out_dir)
 
     observability_path = out_dir / "data" / "recommendation-observability.json"
     if observability_path.exists():

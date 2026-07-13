@@ -1,0 +1,14 @@
+{
+  "output_schema_version": "1",
+  "date": "2026-07-13",
+  "run_id": "contract-current",
+  "theme_of_day": "different-payload",
+  "picks": [
+    {
+      "slot": "Headliner",
+      "title": "Different Album",
+      "artist_credit": "Different Artist",
+      "cover": { "has_cover": false, "optimized_cover_url": "assets/placeholder.svg" }
+    }
+  ]
+}

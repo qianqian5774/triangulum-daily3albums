@@ -1,0 +1,44 @@
+{
+  "manifest_version": 1,
+  "cases": [
+    {"id":"current_today_valid","artifact_kind":"today","profile":"current","base":"current-issue.json","expected":"valid","error_code":null},
+    {"id":"current_archive_valid","artifact_kind":"archive","profile":"current","base":"current-issue.json","expected":"valid","error_code":null},
+    {"id":"current_index_valid","artifact_kind":"index","profile":"current","base":"current-index.json","expected":"valid","error_code":null},
+    {"id":"placeholder_cover_valid","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/slots/0/picks/0/cover/has_cover","value":false},{"op":"set","path":"/slots/0/picks/0/cover/optimized_cover_url","value":"assets/placeholder.svg"}],"expected":"valid","error_code":null},
+    {"id":"optional_metadata_missing_valid","artifact_kind":"today","profile":"current","base":"current-issue.json","expected":"valid","error_code":null},
+    {"id":"optional_metadata_null_valid","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/slots/1/picks/0/first_release_year","value":null},{"op":"set","path":"/slots/1/picks/0/tags","value":null},{"op":"set","path":"/slots/1/picks/0/musicbrainz","value":null},{"op":"set","path":"/picks/0/first_release_year","value":null},{"op":"set","path":"/picks/0/tags","value":null},{"op":"set","path":"/picks/0/musicbrainz","value":null}],"expected":"valid","error_code":null},
+    {"id":"unknown_additive_field_valid","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/future_additive_metadata","value":{"enabled":true}}],"expected":"valid","error_code":null},
+    {"id":"legacy_archive_missing_rg_valid","artifact_kind":"archive","profile":"legacy","base":"legacy-archive.json","expected":"valid_legacy","error_code":null},
+
+    {"id":"missing_required_field","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"delete","path":"/date"}],"expected":"invalid","error_code":"MISSING_REQUIRED_FIELD"},
+    {"id":"required_wrong_type","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/run_id","value":3}],"expected":"invalid","error_code":"WRONG_TYPE"},
+    {"id":"required_null","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/theme_of_day","value":null}],"expected":"invalid","error_code":"NULL_REQUIRED_FIELD"},
+    {"id":"invalid_slot_enum","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/slots/0/picks/0/slot","value":"Unknown"}],"expected":"invalid","error_code":"INVALID_SLOT_ENUM"},
+    {"id":"duplicate_slot_id","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/slots/1/slot_id","value":0}],"expected":"invalid","error_code":"INVALID_SLOT_COVERAGE"},
+    {"id":"missing_slot_id","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"delete","path":"/slots/1/slot_id"}],"expected":"invalid","error_code":"MISSING_REQUIRED_FIELD"},
+    {"id":"slots_count_not_three","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"delete","path":"/slots/2"}],"expected":"invalid","error_code":"INVALID_3X3_STRUCTURE"},
+    {"id":"slot_picks_count_not_three","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"delete","path":"/slots/0/picks/2"}],"expected":"invalid","error_code":"INVALID_3X3_STRUCTURE"},
+    {"id":"top_level_picks_mismatch","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/now_slot_id","value":0}],"expected":"invalid","error_code":"TOP_LEVEL_PICKS_MISMATCH"},
+    {"id":"current_missing_rg_mbid","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"delete","path":"/slots/0/picks/0/rg_mbid"}],"expected":"invalid","error_code":"MISSING_REQUIRED_FIELD"},
+    {"id":"invalid_rg_mbid","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/slots/0/picks/0/rg_mbid","value":"not-a-mbid"}],"expected":"invalid","error_code":"INVALID_RELEASE_GROUP_MBID"},
+    {"id":"unknown_schema_version","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/output_schema_version","value":"99"}],"expected":"invalid","error_code":"UNKNOWN_SCHEMA_VERSION"},
+    {"id":"schema_version_wrong_type","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/output_schema_version","value":1}],"expected":"invalid","error_code":"WRONG_TYPE"},
+    {"id":"schema_version_missing","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"delete","path":"/output_schema_version"}],"expected":"invalid","error_code":"MISSING_REQUIRED_FIELD"},
+    {"id":"legacy_today_not_supported","artifact_kind":"today","profile":"current","base":"legacy-archive.json","expected":"invalid","error_code":"UNKNOWN_SCHEMA_VERSION"},
+    {"id":"invalid_calendar_date","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/date","value":"2026-02-30"}],"expected":"invalid","error_code":"INVALID_DATE"},
+    {"id":"optional_metadata_wrong_type","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/slots/0/picks/0/musicbrainz","value":{"rating":{"value":"high"}}}],"expected":"invalid","error_code":"WRONG_TYPE"},
+    {"id":"index_missing_date","artifact_kind":"index","profile":"current","base":"current-index.json","mutations":[{"op":"delete","path":"/items/0/date"}],"expected":"invalid","error_code":"MISSING_REQUIRED_FIELD"},
+    {"id":"index_missing_run_id","artifact_kind":"index","profile":"current","base":"current-index.json","mutations":[{"op":"delete","path":"/items/0/run_id"}],"expected":"invalid","error_code":"MISSING_REQUIRED_FIELD"},
+    {"id":"duplicate_archive_identity","artifact_kind":"index","profile":"current","base":"current-index.json","mutations":[{"op":"append","path":"/items","value":{"date":"2026-07-13","run_id":"conflicting-run"}}],"expected":"invalid","error_code":"DUPLICATE_ARCHIVE_IDENTITY"},
+    {"id":"cover_structure_invalid","artifact_kind":"today","profile":"current","base":"current-issue.json","mutations":[{"op":"set","path":"/slots/0/picks/0/cover","value":"cover.jpg"}],"expected":"invalid","error_code":"WRONG_TYPE"}
+  ],
+  "bundle_cases": [
+    {"id":"archive_pair_identical","index":"current-index.json","run_file":"current-issue.json","alias_file":"current-issue.json","expected":"valid","error_code":null},
+    {"id":"archive_pair_run_only","index":"current-index.json","run_file":"current-issue.json","alias_file":null,"expected":"valid","error_code":null},
+    {"id":"index_archive_missing","index":"current-index.json","run_file":null,"alias_file":null,"expected":"invalid","error_code":"ARCHIVE_MISSING"},
+    {"id":"index_archive_identity_mismatch","index":"current-index.json","index_mutations":[{"op":"set","path":"/items/0/date","value":"2026-07-12"},{"op":"set","path":"/items/0/run_id","value":"wrong-run"}],"run_file":"current-issue.json","alias_file":"current-issue.json","expected":"invalid","error_code":"ARCHIVE_IDENTITY_MISMATCH"},
+    {"id":"archive_pair_semantic_same_bytes_different","index":"current-index.json","run_file":"current-issue.json","alias_file":"current-issue-compact.json","expected":"invalid","error_code":"ARCHIVE_ALIAS_BYTES_MISMATCH"},
+    {"id":"archive_pair_payload_different","index":"current-index.json","run_file":"current-issue.json","alias_file":"current-issue-mismatch.json","expected":"invalid","error_code":"ARCHIVE_ALIAS_BYTES_MISMATCH"},
+    {"id":"archive_json_unparseable","index":"current-index.json","run_file":"invalid-json.txt","alias_file":"invalid-json.txt","expected":"invalid","error_code":"INVALID_JSON"}
+  ]
+}

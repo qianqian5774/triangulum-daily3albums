@@ -1,62 +1,44 @@
 {
-  "output_schema_version": "1",
-  "date": "2026-01-19",
-  "run_id": "dev-seed-20260119",
-  "theme_of_day": "Signal Decay",
-  "picks": [
+  "output_schema_version": "1.0",
+  "date": "2026-07-13",
+  "run_id": "dev-current-20260713",
+  "theme_of_day": "Current Contract Preview",
+  "now_slot_id": 1,
+  "slots": [
     {
-      "slot": "Headliner",
-      "title": "The Downward Spiral",
-      "artist_credit": "Nine Inch Nails",
-      "first_release_year": 1994,
-      "tags": [{ "name": "industrial", "source": "dev" }],
-      "cover": {
-        "has_cover": true,
-        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/8/8c/Nine_Inch_Nails_-_The_Downward_Spiral.png"
-      },
-      "links": {
-        "musicbrainz": null,
-        "lastfm": null,
-        "youtube_search": "https://www.youtube.com/results?search_query=The%20Downward%20Spiral%20Nine%20Inch%20Nails"
-      },
-      "evidence": { "mapping_confidence": 0.42 },
-      "reason": "A corrosive signal core that anchors the headliner slot with maximum voltage."
+      "slot_id": 0,
+      "window_label": "08:00-12:29",
+      "theme": "signal-decay",
+      "picks": [
+        {"slot":"Headliner","rg_mbid":"00000000-0000-4000-8000-000000000001","title":"The Downward Spiral","artist_credit":"Nine Inch Nails","first_release_year":1994,"cover":{"has_cover":true,"optimized_cover_url":"https://upload.wikimedia.org/wikipedia/en/8/8c/Nine_Inch_Nails_-_The_Downward_Spiral.png"}},
+        {"slot":"Lineage","rg_mbid":"00000000-0000-4000-8000-000000000002","title":"Unknown Pleasures","artist_credit":"Joy Division","first_release_year":1979,"cover":{"has_cover":true,"optimized_cover_url":"https://upload.wikimedia.org/wikipedia/en/7/7c/Unknown_pleasures.jpg"}},
+        {"slot":"DeepCut","rg_mbid":"00000000-0000-4000-8000-000000000003","title":"The Man-Machine","artist_credit":"Kraftwerk","first_release_year":1978,"cover":{"has_cover":true,"optimized_cover_url":"https://upload.wikimedia.org/wikipedia/en/5/54/Kraftwerk_The_Man-Machine.png"}}
+      ]
     },
     {
-      "slot": "Lineage",
-      "title": "Unknown Pleasures",
-      "artist_credit": "Joy Division",
-      "first_release_year": 1979,
-      "tags": [{ "name": "post-punk", "source": "dev" }],
-      "cover": {
-        "has_cover": true,
-        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/7/7c/Unknown_pleasures.jpg"
-      },
-      "links": {
-        "musicbrainz": null,
-        "lastfm": null,
-        "youtube_search": "https://www.youtube.com/results?search_query=Unknown%20Pleasures%20Joy%20Division"
-      },
-      "evidence": { "mapping_confidence": 0.37 },
-      "reason": "Minimalist pulse lines and shadowed vocals preserve the archival lineage."
+      "slot_id": 1,
+      "window_label": "12:30-15:59",
+      "theme": "chrome-drift",
+      "picks": [
+        {"slot":"Headliner","rg_mbid":"00000000-0000-4000-8000-000000000004","title":"Mezzanine","artist_credit":"Massive Attack","first_release_year":1998,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}},
+        {"slot":"Lineage","rg_mbid":"00000000-0000-4000-8000-000000000005","title":"Dummy","artist_credit":"Portishead","first_release_year":1994,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}},
+        {"slot":"DeepCut","rg_mbid":"00000000-0000-4000-8000-000000000006","title":"Maxinquaye","artist_credit":"Tricky","first_release_year":1995,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}}
+      ]
     },
     {
-      "slot": "DeepCut",
-      "title": "The Man-Machine",
-      "artist_credit": "Kraftwerk",
-      "first_release_year": 1978,
-      "tags": [{ "name": "electronic", "source": "dev" }],
-      "cover": {
-        "has_cover": true,
-        "optimized_cover_url": "https://upload.wikimedia.org/wikipedia/en/5/54/Kraftwerk_The_Man-Machine.png"
-      },
-      "links": {
-        "musicbrainz": null,
-        "lastfm": null,
-        "youtube_search": "https://www.youtube.com/results?search_query=The%20Man-Machine%20Kraftwerk"
-      },
-      "evidence": { "mapping_confidence": 0.33 },
-      "reason": "Mechanical clarity keeps the deep cut slot locked to precision timing."
+      "slot_id": 2,
+      "window_label": "16:00-23:59",
+      "theme": "machine-memory",
+      "picks": [
+        {"slot":"Headliner","rg_mbid":"00000000-0000-4000-8000-000000000007","title":"Selected Ambient Works 85-92","artist_credit":"Aphex Twin","first_release_year":1992,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}},
+        {"slot":"Lineage","rg_mbid":"00000000-0000-4000-8000-000000000008","title":"Music Has the Right to Children","artist_credit":"Boards of Canada","first_release_year":1998,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}},
+        {"slot":"DeepCut","rg_mbid":"00000000-0000-4000-8000-000000000009","title":"Tri Repetae","artist_credit":"Autechre","first_release_year":1995,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}}
+      ]
     }
+  ],
+  "picks": [
+    {"slot":"Headliner","rg_mbid":"00000000-0000-4000-8000-000000000004","title":"Mezzanine","artist_credit":"Massive Attack","first_release_year":1998,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}},
+    {"slot":"Lineage","rg_mbid":"00000000-0000-4000-8000-000000000005","title":"Dummy","artist_credit":"Portishead","first_release_year":1994,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}},
+    {"slot":"DeepCut","rg_mbid":"00000000-0000-4000-8000-000000000006","title":"Maxinquaye","artist_credit":"Tricky","first_release_year":1995,"cover":{"has_cover":false,"optimized_cover_url":"assets/placeholder.svg"}}
   ]
 }

@@ -15,7 +15,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from daily3albums.artifact_writer import OutputValidationError, validate_today
+from daily3albums.public_contract import (
+    PublicContractError,
+    require_byte_identical,
+    validate_archive,
+    validate_archive_identity,
+    validate_index,
+)
 
 
 DEFAULT_TIMEOUT_SECONDS = 12
@@ -130,42 +136,37 @@ def _select_recent_unique_dates(items: list[Any], max_days: int) -> list[dict[st
 def _decode_json(data: bytes, source: str) -> Any:
     stripped = data.lstrip()
     if stripped.startswith((b"<!DOCTYPE html", b"<html", b"<HTML")):
-        raise SeedRestoreError(f"HTML response is not valid archive seed JSON: {source}")
+        raise SeedRestoreError(f"INVALID_JSON: HTML response is not valid archive seed JSON: {source}")
     try:
         return json.loads(data.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SeedRestoreError(f"invalid JSON from {source}: {exc}") from exc
+        raise SeedRestoreError(f"INVALID_JSON: invalid JSON from {source}: {exc}") from exc
 
 
 def _validate_index(index: Any, source: str, max_days: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    if not isinstance(index, dict):
-        raise SeedRestoreError(f"index must be an object: {source}")
-    items = index.get("items")
-    if not isinstance(items, list):
-        raise SeedRestoreError(f"index.items must be a list: {source}")
+    try:
+        validated = validate_index(index)
+    except PublicContractError as exc:
+        raise SeedRestoreError(f"index contract invalid at {source}: {exc}") from exc
+    items = validated["items"]
     selected = _select_recent_unique_dates(items, max_days=max_days)
     if items and not selected:
         raise SeedRestoreError(f"index contains no valid date/run_id entries: {source}")
-    return index, selected
+    return validated, selected
 
 
 def _validate_archive(data: bytes, item: dict[str, Any], source: str) -> None:
     payload = _decode_json(data, source)
-    if not isinstance(payload, dict):
-        raise SeedRestoreError(f"archive payload must be an object: {source}")
-    if payload.get("date") != item.get("date"):
-        raise SeedRestoreError(
-            f"archive date mismatch at {source}: index={item.get('date')} payload={payload.get('date')}"
-        )
-    if payload.get("run_id") != item.get("run_id"):
-        raise SeedRestoreError(
-            f"archive run_id mismatch at {source}: "
-            f"index={item.get('run_id')} payload={payload.get('run_id')}"
-        )
     try:
-        validate_today(payload)
-    except OutputValidationError as exc:
-        raise SeedRestoreError(f"archive issue schema invalid at {source}: {exc}") from exc
+        validated, _profile = validate_archive(payload)
+        validate_archive_identity(validated, date=item["date"], run_id=item["run_id"])
+    except PublicContractError as exc:
+        raise SeedRestoreError(f"archive contract invalid at {source}: {exc}") from exc
+
+
+def _is_missing_http_error(error: SeedRestoreError) -> bool:
+    text = str(error).lower()
+    return "404" in text or "410" in text or "not found" in text
 
 
 def _http_read(url: str) -> tuple[bytes, str, str]:
@@ -218,23 +219,36 @@ def _materialize_http_provider(
     archive_dir = destination / "archive"
     for item in selected:
         errors: list[str] = []
-        archive_bytes: bytes | None = None
-        source = ""
+        valid_candidates: list[tuple[bytes, str]] = []
+        non_missing_error: SeedRestoreError | None = None
         for remote_path in _archive_candidate_paths(item):
             url = urllib.parse.urljoin(base_url, remote_path)
             try:
                 candidate, _type, _effective = _http_read(url)
                 _validate_archive(candidate, item, url)
-                archive_bytes = candidate
-                source = url
-                break
+                valid_candidates.append((candidate, url))
             except SeedRestoreError as exc:
                 errors.append(str(exc))
-        if archive_bytes is None:
+                if not _is_missing_http_error(exc):
+                    non_missing_error = exc
+        if not valid_candidates:
             raise SeedRestoreError(
-                f"no valid archive JSON for date={item['date']} run_id={item['run_id']}: "
+                f"ARCHIVE_MISSING: no valid archive JSON for date={item['date']} run_id={item['run_id']}: "
                 + " | ".join(errors)
             )
+        if non_missing_error is not None:
+            raise SeedRestoreError(
+                f"archive alias validation failed for date={item['date']} run_id={item['run_id']}: "
+                + " | ".join(errors)
+            )
+        if len(valid_candidates) == 2:
+            try:
+                require_byte_identical(valid_candidates[0][0], valid_candidates[1][0])
+            except PublicContractError as exc:
+                raise SeedRestoreError(
+                    f"archive paths disagree for date={item['date']} run_id={item['run_id']}: {exc}"
+                ) from exc
+        archive_bytes, source = valid_candidates[0]
         date = item["date"]
         run_id = item["run_id"]
         _write_bytes(archive_dir / date / f"{run_id}.json", archive_bytes)
@@ -269,13 +283,22 @@ def _materialize_local_provider(
     archive_dir = destination / "archive"
     for item in selected:
         candidates = [source_dir / path.removeprefix("data/") for path in _archive_candidate_paths(item)]
-        existing = next((path for path in candidates if path.is_file()), None)
-        if existing is None:
+        existing = [path for path in candidates if path.is_file()]
+        if not existing:
             raise SeedRestoreError(
-                f"local archive missing for date={item['date']} run_id={item['run_id']}"
+                f"ARCHIVE_MISSING: local archive missing for date={item['date']} run_id={item['run_id']}"
             )
-        archive_bytes = existing.read_bytes()
-        _validate_archive(archive_bytes, item, str(existing))
+        archive_bytes_by_path = [(path.read_bytes(), path) for path in existing]
+        for candidate_bytes, path in archive_bytes_by_path:
+            _validate_archive(candidate_bytes, item, str(path))
+        if len(archive_bytes_by_path) == 2:
+            try:
+                require_byte_identical(archive_bytes_by_path[0][0], archive_bytes_by_path[1][0])
+            except PublicContractError as exc:
+                raise SeedRestoreError(
+                    f"local archive paths disagree for date={item['date']} run_id={item['run_id']}: {exc}"
+                ) from exc
+        archive_bytes = archive_bytes_by_path[0][0]
         date = item["date"]
         run_id = item["run_id"]
         _write_bytes(archive_dir / date / f"{run_id}.json", archive_bytes)
@@ -292,7 +315,7 @@ def _write_index(
     max_days: int,
 ) -> None:
     seed_index = {
-        "output_schema_version": str(original_index.get("output_schema_version") or "1"),
+        "output_schema_version": original_index["output_schema_version"],
         "archive_retention_days": max_days,
         "items": selected,
     }

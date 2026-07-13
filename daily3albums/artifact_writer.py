@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .public_contract import PublicContractError, validate_index, validate_issue
+
 
 class OutputValidationError(RuntimeError):
     pass
@@ -46,41 +48,10 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
 
 
 def validate_today(issue: dict) -> None:
-    # 顶层必填
-    for k in ["output_schema_version", "date", "run_id", "theme_of_day", "slots"]:
-        if k not in issue:
-            raise OutputValidationError(f"missing top-level field: {k}")
-
-    slots = issue["slots"]
-    if not isinstance(slots, list) or len(slots) != 3:
-        raise OutputValidationError("slots must be a list of 3 items")
-
-    slot_ids = [slot.get("slot_id") for slot in slots if isinstance(slot, dict)]
-    if len(slot_ids) != 3 or len(set(slot_ids)) != 3:
-        raise OutputValidationError(f"slot_id must be unique: {slot_ids}")
-    if slot_ids != [0, 1, 2]:
-        raise OutputValidationError(f"slots must be ordered [0,1,2]: {slot_ids}")
-
-    for i, slot in enumerate(slots):
-        if not isinstance(slot, dict):
-            raise OutputValidationError(f"slot[{i}] is not an object")
-        if "window_label" not in slot:
-            raise OutputValidationError(f"slot[{i}].window_label is missing")
-        picks = slot.get("picks")
-        if not isinstance(picks, list) or len(picks) != 3:
-            raise OutputValidationError(f"slot[{i}].picks must be a list of 3 items")
-        for j, pick in enumerate(picks):
-            if not isinstance(pick, dict) or not pick.get("rg_mbid"):
-                raise OutputValidationError(f"slot[{i}].pick[{j}].rg_mbid is empty")
-            cover = pick.get("cover") or {}
-            if not cover.get("optimized_cover_url"):
-                raise OutputValidationError(f"slot[{i}].pick[{j}].cover.optimized_cover_url is empty")
-
-    picks = issue.get("picks")
-    if isinstance(picks, list) and picks:
-        slots_seen = [p.get("slot") for p in picks if isinstance(p, dict)]
-        if len(set(slots_seen)) != len(slots_seen):
-            raise OutputValidationError(f"duplicate slot names in picks: {slots_seen}")
+    try:
+        validate_issue(issue, artifact_kind="today", profile="current")
+    except PublicContractError as exc:
+        raise OutputValidationError(str(exc)) from exc
 
 
 def _is_dev_seed_item(item: dict[str, Any]) -> bool:
@@ -161,11 +132,10 @@ def _load_index(index_path: Path, output_schema_version: str) -> dict[str, Any]:
     try:
         text = index_path.read_text(encoding="utf-8-sig")
         index_obj = json.loads(text) if text.strip() else {}
-        if not isinstance(index_obj, dict) or not isinstance(index_obj.get("items", []), list):
-            raise ValueError("bad index schema")
+        validate_index(index_obj)
         return index_obj
-    except Exception:
-        return {"output_schema_version": output_schema_version, "items": []}
+    except (OSError, ValueError, json.JSONDecodeError, PublicContractError) as exc:
+        raise OutputValidationError(f"invalid existing index contract: {index_path} ({exc})") from exc
 
 
 def _archive_paths_for_item(archive_dir: Path, item: dict[str, Any]) -> list[Path]:
@@ -238,7 +208,10 @@ def _load_locked_archive_issue(
         raise OutputValidationError(
             f"published archive run_id mismatch: index={index_run_id} payload={payload_run_id}"
         )
-    validate_today(payload)
+    try:
+        validate_issue(payload, artifact_kind="archive", profile="current")
+    except PublicContractError as exc:
+        raise OutputValidationError(f"published archive contract invalid: {exc}") from exc
     return payload, source_bytes, source_path
 
 
@@ -279,6 +252,7 @@ def write_daily_artifacts(
     archive_retention_days: int = DEFAULT_ARCHIVE_RETENTION_DAYS,
     force_archive_rewrite: bool = False,
 ) -> dict[str, Path]:
+    validate_today(issue)
     data_dir = out_public_dir / "data"
     archive_dir = data_dir / "archive"
     quarantine_dir = data_dir / "quarantine"
@@ -340,6 +314,7 @@ def write_daily_artifacts(
         if len(recent_items) >= retention_days:
             break
     index_obj["archive_retention_days"] = retention_days
+    index_obj["output_schema_version"] = str(issue["output_schema_version"])
     index_obj["items"] = recent_items
     _prune_archive_files(archive_dir, seen_dates)
     _assert_historical_archive_json_unchanged(
