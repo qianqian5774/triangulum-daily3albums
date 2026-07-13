@@ -1,4 +1,4 @@
-const BJT_TIMEZONE = "Asia/Shanghai";
+export const BJT_TIMEZONE = "Asia/Shanghai";
 
 export type NowState = "OFFLINE" | "SLOT0" | "SLOT1" | "SLOT2";
 export type VisualTheme = "day" | "night";

@@ -1,10 +1,13 @@
 // ui/src/lib/bjt.test.ts
 import { describe, it, expect } from "vitest";
+import productSchedule from "../../../tests/fixtures/product_schedule.json";
 import {
   addDays,
+  BJT_TIMEZONE,
   getBjtNowParts,
   getNextUnlock,
   parseDebugTime,
+  PRODUCT_SCHEDULE,
   readDebugFlagParam,
   readDebugTimeParam,
   resolveNowState,
@@ -16,15 +19,31 @@ const seconds = (hour: number, minute: number, second: number) =>
   hour * 3600 + minute * 60 + second;
 
 describe("resolveNowState", () => {
-  it("handles boundaries with left-closed/right-open windows", () => {
-    expect(resolveNowState(seconds(7, 59, 59)).state).toBe("OFFLINE");
-    expect(resolveNowState(seconds(8, 0, 0)).state).toBe("SLOT0");
-    expect(resolveNowState(seconds(12, 29, 59)).state).toBe("SLOT0");
-    expect(resolveNowState(seconds(12, 30, 0)).state).toBe("SLOT1");
-    expect(resolveNowState(seconds(15, 59, 59)).state).toBe("SLOT1");
-    expect(resolveNowState(seconds(16, 0, 0)).state).toBe("SLOT2");
-    expect(resolveNowState(seconds(23, 59, 59)).state).toBe("SLOT2");
-    expect(resolveNowState(seconds(0, 0, 0)).state).toBe("OFFLINE");
+  it("uses the canonical product timezone", () => {
+    expect(BJT_TIMEZONE).toBe(productSchedule.timezone);
+  });
+
+  it("matches the canonical schedule boundary fixture", () => {
+    for (const boundary of productSchedule.boundary_cases) {
+      const [hour, minute, second] = boundary.time.split(":").map(Number);
+      expect(resolveNowState(seconds(hour, minute, second))).toEqual({
+        state: boundary.ui_state,
+        slotId: boundary.ui_slot_id
+      });
+    }
+  });
+
+  it("keeps the UI schedule aligned with canonical slot metadata", () => {
+    expect(PRODUCT_SCHEDULE).toHaveLength(productSchedule.slots_per_day);
+    expect(PRODUCT_SCHEDULE.map((slot) => ({
+      slotId: slot.slotId,
+      start: `${slot.label}:00`,
+      windowLabel: slot.windowLabel
+    }))).toEqual(productSchedule.slots.map((slot) => ({
+      slotId: slot.slot_id,
+      start: slot.start,
+      windowLabel: slot.ui_window_label
+    })));
   });
 });
 

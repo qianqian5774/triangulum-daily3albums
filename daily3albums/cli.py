@@ -11,7 +11,7 @@ import re
 import shutil
 import subprocess
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -272,7 +272,7 @@ def _beijing_now() -> datetime:
 
         return datetime.now(ZoneInfo("Asia/Shanghai"))
     except Exception:
-        return datetime.now()
+        return datetime.now(timezone(timedelta(hours=8), "Asia/Shanghai"))
 
 
 def _beijing_slot(dt: datetime) -> int:
