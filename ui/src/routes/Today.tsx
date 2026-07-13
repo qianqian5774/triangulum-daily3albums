@@ -1,4 +1,3 @@
-import type { KeyboardEvent, MouseEvent } from "react";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { HudContext } from "../App";
@@ -8,18 +7,13 @@ import { ShareCardDialog } from "../components/ShareCardDialog";
 import { SlotCard } from "../components/SlotCard";
 import { TreatmentViewerOverlay } from "../components/TreatmentViewerOverlay";
 import { FLAGS } from "../config/flags";
-import { loadArchiveDay, loadArchiveIndex, loadToday } from "../lib/data";
 import { resolveCoverUrl } from "../lib/covers";
-import {
-  addDays,
-  formatDebugTime,
-  getBjtNowParts,
-  getSlotWindowLabel,
-  loadDebugTime
-} from "../lib/bjt";
 import { useProductClock } from "../lib/product-clock";
-import { parseTodayIssue, type TodayIssue, type TodaySlot } from "../lib/types";
+import { type TodaySlot } from "../lib/types";
 import { useT } from "../lib/ui-settings";
+import { useTodayData } from "../lib/use-today-data";
+import { useTodayOverlayState } from "../lib/use-today-overlay-state";
+import { useTodayPresentation } from "../lib/use-today-presentation";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -45,49 +39,9 @@ const cardVariants = {
   }
 };
 
-const LAST_GOOD_KEY = "lastGoodTodayJson";
-const LAST_GOOD_DATE_KEY = "lastGoodDateKey";
-const LAST_FETCHED_AT_KEY = "lastFetchedAtBjt";
-
 const TRANSITION_DURATION_MS = 900;
 const TRANSITION_SWAP_MS = 420;
 const PRELOAD_TIMEOUT_MS = 2000;
-const AMBIENT_IDLE_DELAY_MS = 120000;
-const IDLE_ACTIVITY_THROTTLE_MS = 750;
-const RETRY_FAST_MS = 5000;
-const RETRY_SLOW_MS = 30000;
-const RETRY_SLOW_AFTER_MS = 10 * 60 * 1000;
-
-function hashPick(value: string) {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(36);
-}
-
-function deriveStableId(pick: { title: string; artist_credit: string; slot: string; id?: string }) {
-  if (pick.id && pick.id.trim()) {
-    return pick.id;
-  }
-  return `slot-${hashPick(`${pick.title}—${pick.artist_credit}—${pick.slot}`)}`;
-}
-
-function getStoredLastGood(): TodayIssue | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const raw = window.localStorage.getItem(LAST_GOOD_KEY);
-  if (!raw) {
-    return null;
-  }
-  try {
-    return parseTodayIssue(JSON.parse(raw));
-  } catch {
-    return null;
-  }
-}
 
 export function TodayRoute() {
   const tx = useT();
@@ -116,75 +70,56 @@ export function TodayRoute() {
   }, [hudContext?.updateHud]);
 
   const prefersReducedMotion = useReducedMotion();
-  const [issue, setIssue] = useState<TodayIssue | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
-  const [direction, setDirection] = useState<-1 | 1>(1);
-  const [glitchActive, setGlitchActive] = useState(false);
-  const [ambientActive, setAmbientActive] = useState(false);
-  const [signalState, setSignalState] = useState<"NORMAL" | "SIGNAL_LOST" | "RESTORED">("NORMAL");
-  const [signalSince, setSignalSince] = useState<number | null>(null);
-  const [lastRetryAt, setLastRetryAt] = useState<number | null>(null);
-  const [archivedIssue, setArchivedIssue] = useState<TodayIssue | null>(null);
-  const [archivedError, setArchivedError] = useState<string | null>(null);
   const [transitionActive, setTransitionActive] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [lastGoodIssue, setLastGoodIssue] = useState<TodayIssue | null>(() => getStoredLastGood());
-  const [lockedFeedback, setLockedFeedback] = useState(false);
 
-  const lastActiveRef = useRef<HTMLElement | null>(null);
-  const glitchTimeoutRef = useRef<number | null>(null);
-  const idleTimeoutRef = useRef<number | null>(null);
-  const lastFocusedRef = useRef<string | null>(null);
+  const {
+    archivedError,
+    archivedIssue,
+    displayIssue,
+    error,
+    issue,
+    lastGoodIssue,
+    lastRetryAt,
+    loadIssue,
+    retryNow,
+    signalState
+  } = useTodayData({ bjtDateKey: bjtNow.bjtDateKey, nowState });
+
   const transitionTimerRef = useRef<number | null>(null);
   const transitionSwapRef = useRef<number | null>(null);
-  const lockedFeedbackTimeoutRef = useRef<number | null>(null);
-  const lastIdleResetAtRef = useRef(0);
+  const {
+    activeSlot,
+    coverCacheKey,
+    picks,
+    returnToNow,
+    selectSlot,
+    selectedSlotId,
+    setSelectedSlotId,
+    showNowAvailable,
+    showReturnToNow,
+    slots
+  } = useTodayPresentation({ displayIssue, issue, lastGoodIssue, nowSlotId, nowState });
 
-  const coverCacheKey = issue?.run_id ?? issue?.date ?? lastGoodIssue?.run_id ?? lastGoodIssue?.date ?? "";
+  const {
+    ambientActive,
+    closeShare,
+    direction,
+    enterAmbient,
+    exitAmbient,
+    focusedId,
+    glitchActive,
+    handleClose,
+    handleNext,
+    handleOpen,
+    handlePrev,
+    lockedFeedback,
+    openShare,
+    shareOpen,
+    triggerLockedFeedback
+  } = useTodayOverlayState({ picks, prefersReducedMotion });
 
   const prevStateRef = useRef(nowState);
   const prevSlotRef = useRef(nowSlotId);
-
-  const needsArchiveFallback = nowState === "OFFLINE" || (signalState === "SIGNAL_LOST" && !lastGoodIssue);
-  const displayIssue = signalState === "NORMAL" ? issue : lastGoodIssue ?? archivedIssue ?? issue;
-
-  const slots = useMemo(() => {
-    if (!displayIssue) {
-      return [] as TodaySlot[];
-    }
-    if (displayIssue.slots?.length) {
-      return displayIssue.slots;
-    }
-    return [
-      {
-        slot_id: displayIssue.now_slot_id ?? 0,
-        window_label: getSlotWindowLabel(0),
-        theme: displayIssue.theme_of_day,
-        picks: displayIssue.picks
-      }
-    ];
-  }, [displayIssue]);
-
-  const activeSlot = useMemo(() => {
-    if (!slots.length) {
-      return null;
-    }
-    const match = slots.find((slot) => slot.slot_id === selectedSlotId);
-    return match ?? slots[0];
-  }, [slots, selectedSlotId]);
-
-  const picks = useMemo(() => {
-    if (!displayIssue) {
-      return [];
-    }
-    const activePicks = activeSlot?.picks ?? displayIssue.picks;
-    return activePicks.map((pick) => ({
-      ...pick,
-      stableId: deriveStableId(pick as { title: string; artist_credit: string; slot: string; id?: string })
-    }));
-  }, [activeSlot, displayIssue]);
 
   const headerText = useMemo(() => {
     if (!displayIssue) {
@@ -192,32 +127,6 @@ export function TodayRoute() {
     }
     return displayIssue.date;
   }, [displayIssue, tx]);
-
-  const showReturnToNow =
-    nowSlotId !== null && selectedSlotId !== null && selectedSlotId !== nowSlotId && nowState !== "OFFLINE";
-
-  const showNowAvailable = showReturnToNow;
-
-  const activeIndex = useMemo(() => {
-    if (!focusedId) {
-      return 0;
-    }
-    const index = picks.findIndex((pick) => pick.stableId === focusedId);
-    return index >= 0 ? index : 0;
-  }, [focusedId, picks]);
-
-  const triggerGlitch = (duration: number) => {
-    if (prefersReducedMotion || !FLAGS.organicGlitch) {
-      return;
-    }
-    if (glitchTimeoutRef.current) {
-      window.clearTimeout(glitchTimeoutRef.current);
-    }
-    setGlitchActive(true);
-    glitchTimeoutRef.current = window.setTimeout(() => {
-      setGlitchActive(false);
-    }, duration);
-  };
 
   const preloadSlotCovers = useCallback(
     async (slot: TodaySlot | undefined | null) => {
@@ -288,98 +197,6 @@ export function TodayRoute() {
     [prefersReducedMotion, preloadSlotCovers, slots]
   );
 
-  const storeLastGood = useCallback((payload: TodayIssue) => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const fetchedAt = getBjtNowParts(loadDebugTime());
-    window.localStorage.setItem(LAST_GOOD_KEY, JSON.stringify(payload));
-    window.localStorage.setItem(LAST_GOOD_DATE_KEY, payload.date);
-    window.localStorage.setItem(LAST_FETCHED_AT_KEY, formatDebugTime(fetchedAt.parts));
-    setLastGoodIssue(payload);
-  }, []);
-
-  const loadIssue = useCallback(
-    async (options?: { cacheBust?: boolean; reason?: string }) => {
-      setError(null);
-      const cacheBust = options?.cacheBust ? Date.now().toString() : undefined;
-      try {
-        const data = await loadToday(cacheBust);
-        const now = getBjtNowParts(loadDebugTime());
-        if (data.date !== now.bjtDateKey) {
-          setSignalState("SIGNAL_LOST");
-          setSignalSince((prev) => prev ?? Date.now());
-          return;
-        }
-        setIssue(data);
-        storeLastGood(data);
-        setSignalSince(null);
-        setSignalState((prev) => (prev !== "NORMAL" ? "RESTORED" : "NORMAL"));
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
-        setSignalState("SIGNAL_LOST");
-        setSignalSince((prev) => prev ?? Date.now());
-      }
-    },
-    [storeLastGood]
-  );
-
-  const handleRetryNow = useCallback(() => {
-    setLastRetryAt(Date.now());
-    loadIssue({ cacheBust: true, reason: "manual" });
-  }, [loadIssue]);
-
-  // Load exactly once on mount.
-  useEffect(() => {
-    loadIssue();
-  }, [loadIssue]);
-
-  useEffect(() => {
-    const handleRefresh = () => {
-      if (document.visibilityState === "visible") {
-        loadIssue();
-      }
-    };
-
-    window.addEventListener("focus", handleRefresh);
-    document.addEventListener("visibilitychange", handleRefresh);
-
-    return () => {
-      window.removeEventListener("focus", handleRefresh);
-      document.removeEventListener("visibilitychange", handleRefresh);
-    };
-  }, [loadIssue]);
-
-  useEffect(() => {
-    if (!slots.length) {
-      return;
-    }
-    if (nowState === "OFFLINE") {
-      setSelectedSlotId(null);
-      return;
-    }
-    setSelectedSlotId((prev) => {
-      if (prev === null) {
-        return nowSlotId ?? slots[0]?.slot_id ?? null;
-      }
-      if (!slots.find((slot) => slot.slot_id === prev)) {
-        return nowSlotId ?? slots[0]?.slot_id ?? prev;
-      }
-      return prev;
-    });
-  }, [nowState, nowSlotId, slots]);
-
-  useEffect(() => {
-    if (signalState !== "RESTORED") {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setSignalState("NORMAL");
-    }, 2500);
-    return () => window.clearTimeout(timer);
-  }, [signalState]);
-
   useEffect(() => {
     const prevState = prevStateRef.current;
     const prevSlot = prevSlotRef.current;
@@ -421,145 +238,17 @@ export function TodayRoute() {
     }
   }, [bjtNow.secondsSinceMidnight, issue?.slots, nowSlotId, preloadSlotCovers]);
 
-  useEffect(() => {
-    if (!needsArchiveFallback) {
-      return;
-    }
-    let active = true;
-    const yesterdayKey = addDays(bjtNow.bjtDateKey, -1);
-    setArchivedError(null);
-    setArchivedIssue(null);
-    loadArchiveIndex()
-      .then((index) => {
-        const entry = index.items.find((item) => item.date === yesterdayKey) ?? index.items[0];
-        if (!entry) {
-          throw new Error("Archive index empty");
-        }
-        return loadArchiveDay(entry.date, entry.run_id);
-      })
-      .then((data) => {
-        if (!active) return;
-        setArchivedIssue(data);
-      })
-      .catch((err: Error) => {
-        if (!active) return;
-        setArchivedError(err.message);
-      });
-    return () => {
-      active = false;
-    };
-  }, [bjtNow.bjtDateKey, needsArchiveFallback]);
-
-  useEffect(() => {
-    if (nowState === "OFFLINE") {
-      return;
-    }
-    if (signalState !== "SIGNAL_LOST") {
-      return;
-    }
-    const start = signalSince ?? Date.now();
-    const elapsed = Date.now() - start;
-    const interval = elapsed > RETRY_SLOW_AFTER_MS ? RETRY_SLOW_MS : RETRY_FAST_MS;
-    const timer = window.setTimeout(() => {
-      setLastRetryAt(Date.now());
-      loadIssue({ cacheBust: true, reason: "retry" });
-    }, interval);
-    return () => window.clearTimeout(timer);
-  }, [loadIssue, nowState, signalSince, signalState]);
-
-  useEffect(() => {
-    if (!focusedId || lastFocusedRef.current) {
-      lastFocusedRef.current = focusedId;
-      return;
-    }
-    triggerGlitch(120);
-    lastFocusedRef.current = focusedId;
-  }, [focusedId]);
-
   useEffect(
     () => () => {
-      if (glitchTimeoutRef.current) {
-        window.clearTimeout(glitchTimeoutRef.current);
-      }
       if (transitionSwapRef.current) {
         window.clearTimeout(transitionSwapRef.current);
       }
       if (transitionTimerRef.current) {
         window.clearTimeout(transitionTimerRef.current);
       }
-      if (lockedFeedbackTimeoutRef.current) {
-        window.clearTimeout(lockedFeedbackTimeoutRef.current);
-      }
     },
     []
   );
-
-  useEffect(() => {
-    if (!focusedId) {
-      return;
-    }
-    setAmbientActive(false);
-    if (idleTimeoutRef.current) {
-      window.clearTimeout(idleTimeoutRef.current);
-      idleTimeoutRef.current = null;
-    }
-  }, [focusedId]);
-
-  const resetIdleTimer = useCallback((force = false) => {
-    if (focusedId || ambientActive) {
-      return;
-    }
-    const now = Date.now();
-    if (!force && now - lastIdleResetAtRef.current < IDLE_ACTIVITY_THROTTLE_MS) {
-      return;
-    }
-    lastIdleResetAtRef.current = now;
-    if (idleTimeoutRef.current) {
-      window.clearTimeout(idleTimeoutRef.current);
-    }
-    idleTimeoutRef.current = window.setTimeout(() => {
-      setAmbientActive(true);
-    }, AMBIENT_IDLE_DELAY_MS);
-  }, [ambientActive, focusedId]);
-
-  useEffect(() => {
-    const handleActivity = () => resetIdleTimer();
-    const events = ["mousemove", "mousedown", "keydown", "touchstart", "pointerdown", "wheel"];
-    events.forEach((eventName) => window.addEventListener(eventName, handleActivity, { passive: true }));
-    resetIdleTimer(true);
-    return () => {
-      events.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
-      if (idleTimeoutRef.current) {
-        window.clearTimeout(idleTimeoutRef.current);
-      }
-    };
-  }, [resetIdleTimer]);
-
-  const openPick = useCallback(
-    (pickId: string) => {
-      if (!picks.some((pick) => pick.stableId === pickId)) {
-        return;
-      }
-      setFocusedId(pickId);
-    },
-    [picks]
-  );
-
-  const handleOpen = (pickId: string, event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {
-    lastActiveRef.current = event.currentTarget as HTMLElement;
-    setDirection(1);
-    openPick(pickId);
-  };
-
-  const handleClose = () => {
-    setFocusedId(null);
-    setGlitchActive(false);
-    if (glitchTimeoutRef.current) {
-      window.clearTimeout(glitchTimeoutRef.current);
-      glitchTimeoutRef.current = null;
-    }
-    window.requestAnimationFrame(() => lastActiveRef.current?.focus());
-  };
 
   useEffect(() => {
     if (!picks.length) {
@@ -579,49 +268,6 @@ export function TodayRoute() {
       }
     });
   }, [coverCacheKey, picks]);
-
-  const handleNext = () => {
-    if (!picks.length) return;
-    const nextIndex = (activeIndex + 1) % picks.length;
-    setDirection(1);
-    openPick(picks[nextIndex].stableId);
-    triggerGlitch(80);
-  };
-
-  const handlePrev = () => {
-    if (!picks.length) return;
-    const nextIndex = (activeIndex - 1 + picks.length) % picks.length;
-    setDirection(-1);
-    openPick(picks[nextIndex].stableId);
-    triggerGlitch(80);
-  };
-
-  const handleAmbientToggle = () => {
-    if (idleTimeoutRef.current) {
-      window.clearTimeout(idleTimeoutRef.current);
-      idleTimeoutRef.current = null;
-    }
-    setAmbientActive(true);
-  };
-
-  const handleSelectSlot = (slotId: number) => {
-    if (nowSlotId !== null && slotId > nowSlotId) {
-      return;
-    }
-    setSelectedSlotId(slotId);
-  };
-
-  const triggerLockedFeedback = () => {
-    if (lockedFeedbackTimeoutRef.current) {
-      window.clearTimeout(lockedFeedbackTimeoutRef.current);
-    }
-    setLockedFeedback(true);
-    triggerGlitch(140);
-    lockedFeedbackTimeoutRef.current = window.setTimeout(() => {
-      setLockedFeedback(false);
-      lockedFeedbackTimeoutRef.current = null;
-    }, 1800);
-  };
 
   useEffect(() => {
     const unlockedPicks =
@@ -711,7 +357,7 @@ export function TodayRoute() {
         </button>
         <button
           type="button"
-          onClick={handleAmbientToggle}
+          onClick={enterAmbient}
           data-testid="ambient-toggle"
           className="ui-button border-panel-700/70 text-clinical-white/70 hover:border-signal-accent/60"
         >
@@ -807,7 +453,7 @@ export function TodayRoute() {
           {showReturnToNow && (
             <button
               type="button"
-              onClick={() => setSelectedSlotId(nowSlotId)}
+              onClick={returnToNow}
               className="ui-button border-signal-accent/60 text-signal-accent hover:border-signal-accent hover:text-signal-accent/90"
             >
               {tx("today.returnToNow")}
@@ -815,7 +461,7 @@ export function TodayRoute() {
           )}
           <button
             type="button"
-            onClick={() => setShareOpen(true)}
+            onClick={openShare}
             disabled={!displayIssue || nowSlotId === null}
             data-testid="share-card-toggle"
             className="share-card-primary-button ui-button disabled:cursor-not-allowed disabled:border-panel-700/40 disabled:text-clinical-white/40"
@@ -850,7 +496,7 @@ export function TodayRoute() {
                       key={slot.slot_id}
                       type="button"
                       disabled={isLocked}
-                      onClick={() => handleSelectSlot(slot.slot_id)}
+                      onClick={() => selectSlot(slot.slot_id)}
                       className={`timeline-button flex w-full items-center gap-4 rounded-card border px-4 py-4 text-left transition ${
                         isActive
                           ? "border-signal-accent/70 bg-panel-800/70 text-signal-accent"
@@ -905,7 +551,7 @@ export function TodayRoute() {
                   ) : null}
                   <button
                     type="button"
-                    onClick={handleRetryNow}
+                    onClick={retryNow}
                     className="mt-3 rounded-full border border-alert-red/60 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-alert-red"
                   >
                     {tx("today.offline.retry")}
@@ -956,13 +602,13 @@ export function TodayRoute() {
           {tx("today.loading")}
         </div>
       )}
-      {ambientActive ? <AmbientOverlay onExit={() => setAmbientActive(false)} /> : null}
+      {ambientActive ? <AmbientOverlay onExit={exitAmbient} /> : null}
       <ShareCardDialog
         open={shareOpen}
         issue={displayIssue}
         nowSlotId={nowSlotId}
         visualTheme={visualTheme}
-        onClose={() => setShareOpen(false)}
+        onClose={closeShare}
       />
     </section>
   );
