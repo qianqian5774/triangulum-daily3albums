@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import uuid
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -11,7 +12,7 @@ from typing import Any, Callable
 from daily3albums import cli
 from scripts import self_check
 
-from test_history_cooldown_pipeline import _issue, _write_history
+from test_history_cooldown_pipeline import _issue, _write_history as _write_history_raw
 
 
 class FakeBroker:
@@ -34,7 +35,34 @@ class FakeBroker:
         return None
 
 
+def _mbid(label: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, label))
+
+
+def _prepare_legacy_history_issue(issue: dict[str, Any]) -> None:
+    issue["output_schema_version"] = "1"
+    roles = ["Headliner", "Lineage", "DeepCut"]
+    for slot in issue.get("slots", []):
+        slot.setdefault("window_label", "Archived selection")
+        for index, pick in enumerate(slot.get("picks", [])):
+            pick["slot"] = roles[index]
+            pick.setdefault(
+                "cover",
+                {"has_cover": False, "optimized_cover_url": "assets/placeholder.svg"},
+            )
+            if pick.get("rg_mbid"):
+                pick["rg_mbid"] = _mbid(str(pick["rg_mbid"]))
+    issue["picks"] = issue["slots"][0]["picks"]
+
+
+def _write_history(data_dir: Path, issues: list[dict], *, aliases: bool = True) -> dict[Path, bytes]:
+    for issue in issues:
+        _prepare_legacy_history_issue(issue)
+    return _write_history_raw(data_dir, issues, aliases=aliases)
+
+
 def _scored(rg_mbid: str, artist_key: str, *, score: float = 100.0) -> Any:
+    canonical_mbid = _mbid(rg_mbid)
     return SimpleNamespace(
         c=SimpleNamespace(
             title=f"Album {rg_mbid}",
@@ -44,7 +72,7 @@ def _scored(rg_mbid: str, artist_key: str, *, score: float = 100.0) -> Any:
             image_url=None,
         ),
         n=SimpleNamespace(
-            mb_release_group_id=rg_mbid,
+            mb_release_group_id=canonical_mbid,
             first_release_date="2000-01-01",
             primary_type="Album",
             artist_mbids=[artist_key],
@@ -493,8 +521,9 @@ def test_stage2_relaxes_artist_to_three_days_without_relaxing_album(monkeypatch,
     assert all(slot["fallback"]["artist_cooldown_days"] == 3 for slot in observability["slots"])
     assert all(slot["fallback"]["album_cooldown_days"] == 7 for slot in observability["slots"])
     today = json.loads((out_dir / "data" / "today.json").read_text(encoding="utf-8"))
+    old_mbids = {_mbid(f"rg-old-{tag}") for tag in tags}
     assert all(
-        not pick["rg_mbid"].startswith("rg-old-")
+        pick["rg_mbid"] not in old_mbids
         for slot in today["slots"]
         for pick in slot["picks"]
     )
@@ -541,8 +570,13 @@ def test_stage3_allows_one_four_day_album_but_never_three_day_album(monkeypatch,
     assert observability["slots"][0]["fallback"]["stage3_used"] is True
     assert observability["slots"][0]["fallback"]["stage3_pick"]["history_date"] == "2026-07-08"
     assert sum(int(slot["fallback"]["stage3_used"]) for slot in observability["slots"]) == 1
-    today_text = (out_dir / "data" / "today.json").read_text(encoding="utf-8")
-    assert "rg-recent-" not in today_text
+    today = json.loads((out_dir / "data" / "today.json").read_text(encoding="utf-8"))
+    recent_mbids = {_mbid(f"rg-recent-{tag}") for tag in tags}
+    assert all(
+        pick["rg_mbid"] not in recent_mbids
+        for slot in today["slots"]
+        for pick in slot["picks"]
+    )
 
 
 def test_second_stage3_request_is_blocked_by_daily_cap(monkeypatch, tmp_path: Path, capsys):

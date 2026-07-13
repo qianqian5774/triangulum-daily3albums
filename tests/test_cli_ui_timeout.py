@@ -2,6 +2,7 @@ import json
 from types import SimpleNamespace
 from pathlib import Path
 import subprocess
+import uuid
 
 from daily3albums import cli
 
@@ -9,7 +10,7 @@ from daily3albums import cli
 def _fake_scored(i: int):
     c = SimpleNamespace(title=f"Album {i}", artist=f"Artist {i}", sources={"lastfm"}, source_ranks={"lastfm": i})
     n = SimpleNamespace(
-        mb_release_group_id=f"rg-{i}",
+        mb_release_group_id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"rg-{i}")),
         first_release_date="2000-01-01",
         primary_type="Album",
         artist_mbids=[f"artist-{i}"],

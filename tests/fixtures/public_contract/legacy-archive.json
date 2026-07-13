@@ -1,0 +1,16 @@
+{
+  "output_schema_version": "1",
+  "date": "2026-01-19",
+  "run_id": "legacy-contract",
+  "theme_of_day": "legacy-theme",
+  "now_slot_id": 1,
+  "picks": [
+    {
+      "slot": "Headliner",
+      "title": "Legacy Album",
+      "artist_credit": "Legacy Artist",
+      "first_release_year": 1999,
+      "cover": { "has_cover": false, "optimized_cover_url": "assets/placeholder.svg" }
+    }
+  ]
+}

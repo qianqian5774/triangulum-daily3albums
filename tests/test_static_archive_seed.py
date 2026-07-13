@@ -21,7 +21,9 @@ def _pick(slot: str, index: int) -> dict:
     return {
         "slot": slot,
         "rg_mbid": f"00000000-0000-0000-0000-{index:012d}",
-        "cover": {"optimized_cover_url": "assets/placeholder.svg"},
+        "title": f"Album {index}",
+        "artist_credit": f"Artist {index}",
+        "cover": {"has_cover": False, "optimized_cover_url": "assets/placeholder.svg"},
     }
 
 
@@ -34,6 +36,7 @@ def _issue(date: str, run_id: str) -> dict:
             {
                 "slot_id": slot_id,
                 "window_label": label,
+                "theme": f"Theme {slot_id}",
                 "picks": [_pick(role, slot_id * 3 + index + 1) for index, role in enumerate(roles)],
             }
         )
@@ -43,7 +46,9 @@ def _issue(date: str, run_id: str) -> dict:
         "run_id": run_id,
         "run_at": f"{date}T06:00:00+08:00",
         "theme_of_day": "auto",
+        "now_slot_id": 0,
         "slots": slots,
+        "picks": slots[0]["picks"],
     }
 
 

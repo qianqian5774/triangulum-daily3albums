@@ -17,7 +17,7 @@ function pick(title: string): PickItem {
 describe("archive helpers", () => {
   it("keeps the configured number of latest unique archive dates", () => {
     const index: ArchiveIndex = {
-      output_schema_version: "1",
+      output_schema_version: "1.0",
       archive_retention_days: 4,
       items: [
         { date: "2026-06-24", run_id: "older", run_at: "2026-06-24T06:00:00+08:00" },
