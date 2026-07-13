@@ -14,6 +14,7 @@ function makePick(index: number) {
   const slot = (["Headliner", "Lineage", "DeepCut"] as const)[index % 3];
   return {
     slot,
+    rg_mbid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
     title: `Album ${index + 1}`,
     artist_credit: `Artist ${index + 1}`,
     first_release_year: 2000 + index,

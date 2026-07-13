@@ -1,7 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import { useLocation } from "react-router-dom";
 import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { AmbientOverlay } from "../components/AmbientOverlay";
@@ -16,13 +15,9 @@ import {
   formatDebugTime,
   getBjtNowParts,
   getSlotWindowLabel,
-  loadDebugTime,
-  readDebugFlagParam,
-  readDebugTimeParam,
-  resolveVisualTheme,
-  resolveNowState,
-  saveDebugTime
+  loadDebugTime
 } from "../lib/bjt";
+import { useProductClock } from "../lib/product-clock";
 import { parseTodayIssue, type TodayIssue, type TodaySlot } from "../lib/types";
 import { useT } from "../lib/ui-settings";
 
@@ -94,22 +89,19 @@ function getStoredLastGood(): TodayIssue | null {
   }
 }
 
-function loadDebugTimeFromLocation() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const urlDebugTime = readDebugTimeParam(window.location.search, window.location.hash);
-  if (urlDebugTime) {
-    saveDebugTime(urlDebugTime);
-    return urlDebugTime;
-  }
-  return loadDebugTime();
-}
-
 export function TodayRoute() {
   const tx = useT();
   const hudContext = useContext(HudContext);
-  const location = useLocation();
+  const {
+    bjtNow,
+    clearDebug,
+    debugPanelEnabled,
+    debugTime,
+    nowSlotId,
+    nowState,
+    setDebugClock,
+    visualTheme
+  } = useProductClock();
 
   /**
    * Critical: do NOT put the entire hudContext object into the data-loading effect deps.
@@ -138,8 +130,6 @@ export function TodayRoute() {
   const [archivedError, setArchivedError] = useState<string | null>(null);
   const [transitionActive, setTransitionActive] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [debugTime, setDebugTime] = useState<string | null>(() => loadDebugTimeFromLocation());
-  const [bjtNow, setBjtNow] = useState(() => getBjtNowParts(loadDebugTimeFromLocation()));
   const [lastGoodIssue, setLastGoodIssue] = useState<TodayIssue | null>(() => getStoredLastGood());
   const [lockedFeedback, setLockedFeedback] = useState(false);
 
@@ -154,35 +144,6 @@ export function TodayRoute() {
 
   const coverCacheKey = issue?.run_id ?? issue?.date ?? lastGoodIssue?.run_id ?? lastGoodIssue?.date ?? "";
 
-  useEffect(() => {
-    const tick = () => {
-      const stored = loadDebugTime();
-      setDebugTime(stored);
-      setBjtNow(getBjtNowParts(stored));
-    };
-    tick();
-    const timer = window.setInterval(tick, 500);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const urlDebugTime = readDebugTimeParam(
-      location.search,
-      typeof window === "undefined" ? "" : window.location.search,
-      typeof window === "undefined" ? "" : window.location.hash
-    );
-    if (!urlDebugTime) {
-      return;
-    }
-    saveDebugTime(urlDebugTime);
-    setDebugTime(urlDebugTime);
-    setBjtNow(getBjtNowParts(urlDebugTime));
-  }, [location.hash, location.search]);
-
-  const nowStateInfo = useMemo(() => resolveNowState(bjtNow.secondsSinceMidnight), [bjtNow.secondsSinceMidnight]);
-  const nowState = nowStateInfo.state;
-  const nowSlotId = nowStateInfo.slotId;
-  const visualTheme = useMemo(() => resolveVisualTheme(bjtNow.secondsSinceMidnight), [bjtNow.secondsSinceMidnight]);
   const prevStateRef = useRef(nowState);
   const prevSlotRef = useRef(nowSlotId);
 
@@ -236,17 +197,6 @@ export function TodayRoute() {
     nowSlotId !== null && selectedSlotId !== null && selectedSlotId !== nowSlotId && nowState !== "OFFLINE";
 
   const showNowAvailable = showReturnToNow;
-
-  const debugPanelEnabled = useMemo(
-    () =>
-      Boolean(debugTime) ||
-      readDebugFlagParam(
-        location.search,
-        typeof window === "undefined" ? "" : window.location.search,
-        typeof window === "undefined" ? "" : window.location.hash
-      ),
-    [debugTime, location.search]
-  );
 
   const activeIndex = useMemo(() => {
     if (!focusedId) {
@@ -659,18 +609,6 @@ export function TodayRoute() {
       return;
     }
     setSelectedSlotId(slotId);
-  };
-
-  const clearDebug = () => {
-    saveDebugTime(null);
-    setDebugTime(null);
-  };
-
-  const setDebugClock = (hour: number, minute: number, second = 0) => {
-    const next = formatDebugTime({ ...bjtNow.parts, hour, minute, second });
-    saveDebugTime(next);
-    setDebugTime(next);
-    setBjtNow(getBjtNowParts(next));
   };
 
   const triggerLockedFeedback = () => {
