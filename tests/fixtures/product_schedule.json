@@ -1,0 +1,45 @@
+{
+  "timezone": "Asia/Shanghai",
+  "slots_per_day": 3,
+  "picks_per_slot": 3,
+  "offline": {
+    "start": "00:00:00",
+    "end_exclusive": "08:00:00"
+  },
+  "slots": [
+    {
+      "slot_id": 0,
+      "start": "08:00:00",
+      "writer_window_label": "08:00-12:29",
+      "ui_window_label": "08:00–12:29",
+      "share_version": "0800",
+      "share_album_count": 3
+    },
+    {
+      "slot_id": 1,
+      "start": "12:30:00",
+      "writer_window_label": "12:30-15:59",
+      "ui_window_label": "12:30–15:59",
+      "share_version": "1230",
+      "share_album_count": 6
+    },
+    {
+      "slot_id": 2,
+      "start": "16:00:00",
+      "writer_window_label": "16:00-23:59",
+      "ui_window_label": "16:00–23:59",
+      "share_version": "1600",
+      "share_album_count": 9
+    }
+  ],
+  "boundary_cases": [
+    { "time": "00:00:00", "ui_state": "OFFLINE", "ui_slot_id": null, "writer_slot_id": 0 },
+    { "time": "07:59:59", "ui_state": "OFFLINE", "ui_slot_id": null, "writer_slot_id": 0 },
+    { "time": "08:00:00", "ui_state": "SLOT0", "ui_slot_id": 0, "writer_slot_id": 0 },
+    { "time": "12:29:59", "ui_state": "SLOT0", "ui_slot_id": 0, "writer_slot_id": 0 },
+    { "time": "12:30:00", "ui_state": "SLOT1", "ui_slot_id": 1, "writer_slot_id": 1 },
+    { "time": "15:59:59", "ui_state": "SLOT1", "ui_slot_id": 1, "writer_slot_id": 1 },
+    { "time": "16:00:00", "ui_state": "SLOT2", "ui_slot_id": 2, "writer_slot_id": 2 },
+    { "time": "23:59:59", "ui_state": "SLOT2", "ui_slot_id": 2, "writer_slot_id": 2 }
+  ]
+}

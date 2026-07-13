@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getArchiveIssueSlots, getRecentArchiveEntries } from "./archive";
+import { DEFAULT_ARCHIVE_RETENTION_DAYS, getArchiveIssueSlots, getRecentArchiveEntries } from "./archive";
 import type { ArchiveIndex, PickItem, TodayIssue } from "./types";
 
 function pick(title: string): PickItem {
@@ -15,6 +15,10 @@ function pick(title: string): PickItem {
 }
 
 describe("archive helpers", () => {
+  it("keeps the product retention fallback at seven unique dates", () => {
+    expect(DEFAULT_ARCHIVE_RETENTION_DAYS).toBe(7);
+  });
+
   it("keeps the configured number of latest unique archive dates", () => {
     const index: ArchiveIndex = {
       output_schema_version: "1.0",

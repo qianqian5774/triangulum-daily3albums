@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import productSchedule from "../../../tests/fixtures/product_schedule.json";
 import {
   getAvailableShareVersions,
   getDefaultShareVersionId,
   getShareCardAlbumCount,
-  getShareCardSlots
+  getShareCardSlots,
+  SHARE_CARD_VERSIONS
 } from "./share-card";
 import type { PickItem, TodayIssue } from "./types";
 
@@ -61,6 +63,15 @@ const issue: TodayIssue = {
 };
 
 describe("share card versions", () => {
+  it("matches the canonical schedule fixture", () => {
+    expect(SHARE_CARD_VERSIONS).toEqual(productSchedule.slots.map((slot) => ({
+      id: slot.share_version,
+      maxSlotId: slot.slot_id,
+      albumCount: slot.share_album_count,
+      windowLabel: slot.start.slice(0, 5)
+    })));
+  });
+
   it("only exposes versions that are unlocked by the current slot", () => {
     expect(getAvailableShareVersions(0).map((version) => version.id)).toEqual(["0800"]);
     expect(getAvailableShareVersions(1).map((version) => version.id)).toEqual(["0800", "1230"]);
