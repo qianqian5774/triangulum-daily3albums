@@ -5,7 +5,13 @@ import { HudContext } from "../App";
 import { BSOD } from "../components/BSOD";
 import { SlotCard } from "../components/SlotCard";
 import { DEFAULT_ARCHIVE_RETENTION_DAYS, getArchiveIssueSlots, getRecentArchiveEntries } from "../lib/archive";
-import { loadArchiveDay, loadArchiveIndex } from "../lib/data";
+import {
+  loadArchiveDay,
+  loadArchiveIndex,
+  normalizeDataLoadError,
+  type DataLoadDiagnostic,
+  type DataLoadError
+} from "../lib/data";
 import { useProductClock } from "../lib/product-clock";
 import { useT } from "../lib/ui-settings";
 import type { ArchiveIndex, IndexItem, TodayIssue } from "../lib/types";
@@ -26,7 +32,8 @@ const itemVariants = {
 interface ArchiveRecord {
   entry: IndexItem;
   issue: TodayIssue | null;
-  error: string | null;
+  error: DataLoadError | null;
+  diagnostics: DataLoadDiagnostic[];
 }
 
 function archiveDayId(entry: IndexItem) {
@@ -48,7 +55,7 @@ export function ArchiveRoute() {
 
   const [index, setIndex] = useState<ArchiveIndex | null>(null);
   const [records, setRecords] = useState<ArchiveRecord[]>([]);
-  const [indexError, setIndexError] = useState<string | null>(null);
+  const [indexError, setIndexError] = useState<DataLoadError | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -56,15 +63,15 @@ export function ArchiveRoute() {
     setIndexError(null);
 
     loadArchiveIndex()
-      .then((data) => {
+      .then((result) => {
         if (!active) return;
-        setIndex(data);
-        const recentEntries = getRecentArchiveEntries(data);
-        setRecords(recentEntries.map((entry) => ({ entry, issue: null, error: null })));
+        setIndex(result.data);
+        const recentEntries = getRecentArchiveEntries(result.data);
+        setRecords(recentEntries.map((entry) => ({ entry, issue: null, error: null, diagnostics: [] })));
       })
-      .catch((err: Error) => {
+      .catch((err: unknown) => {
         if (!active) return;
-        setIndexError(err.message);
+        setIndexError(normalizeDataLoadError(err, "archive_index"));
       });
 
     return () => {
@@ -81,18 +88,19 @@ export function ArchiveRoute() {
     }
 
     let active = true;
-    setRecords(recentEntries.map((entry) => ({ entry, issue: null, error: null })));
+    setRecords(recentEntries.map((entry) => ({ entry, issue: null, error: null, diagnostics: [] })));
 
     Promise.all(
       recentEntries.map(async (entry): Promise<ArchiveRecord> => {
         try {
-          const issue = await loadArchiveDay(entry.date, entry.run_id);
-          return { entry, issue, error: null };
+          const result = await loadArchiveDay(entry.date, entry.run_id);
+          return { entry, issue: result.data, error: null, diagnostics: result.diagnostics };
         } catch (err) {
           return {
             entry,
             issue: null,
-            error: err instanceof Error ? err.message : String(err)
+            error: normalizeDataLoadError(err, "archive_run"),
+            diagnostics: []
           };
         }
       })
@@ -127,7 +135,7 @@ export function ArchiveRoute() {
   };
 
   if (indexError) {
-    return <BSOD message={`${tx("system.errors.archiveLoad")}: ${indexError}`} />;
+    return <BSOD message={`${tx("system.errors.archiveLoad")}: ${indexError.message}`} />;
   }
 
   return (
@@ -220,7 +228,7 @@ export function ArchiveRoute() {
 
                   {record.error ? (
                     <div className="mt-5 rounded-card border border-alert-red/40 bg-panel-900/60 p-4 font-mono text-sm text-alert-red">
-                      {tx("archive.missingDay")}: {record.error}
+                      {tx("archive.missingDay")}: {record.error.message}
                     </div>
                   ) : null}
 

@@ -69,6 +69,33 @@ test("stale Today recovers through archive fallback and preserves overlay naviga
   expect(todayCalls).toBe(callsBeforeRetry + 1);
 });
 
+test("failed Today uses current last-good data before archive fallback", async ({ page }) => {
+  let archiveIndexCalls = 0;
+  await page.addInitScript((payload) => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.localStorage.setItem("tri_ui_language", "en");
+    window.localStorage.setItem("lastGoodTodayJson", JSON.stringify(payload));
+    window.localStorage.setItem("lastGoodDateKey", payload.date);
+  }, currentIssue);
+  await page.route("**/data/today.json*", (route) =>
+    route.fulfill({ status: 503, contentType: "text/plain", body: "unavailable" })
+  );
+  await page.route("**/data/index.json*", (route) => {
+    archiveIndexCalls += 1;
+    return route.fulfill({ status: 500, contentType: "text/plain", body: "should not be requested" });
+  });
+  await page.route("**/covers/**", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: imageBody })
+  );
+
+  await page.goto(`/#/?debug=1&debug_time=${currentIssue.date}T16:00:00`);
+  await expect(page.getByText("ESTABLISHING LINK...", { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId("album-card-0")).toBeVisible();
+  await expect(page.getByText(currentIssue.slots[2].picks[0].title, { exact: true })).toBeVisible();
+  expect(archiveIndexCalls).toBe(0);
+});
+
 test("Offline State restores the locked archive surface", async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.clear();

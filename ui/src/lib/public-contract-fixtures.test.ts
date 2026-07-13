@@ -112,7 +112,7 @@ describe("archive bundle byte and identity matrix", () => {
 
       const promise = loadArchiveDay(item.date, item.run_id);
       if (fixture.expected === "valid") {
-        await expect(promise).resolves.toMatchObject({ date: item.date, run_id: item.run_id });
+        await expect(promise).resolves.toMatchObject({ data: { date: item.date, run_id: item.run_id } });
       } else {
         await expect(promise).rejects.toThrow(fixture.error_code as string);
       }

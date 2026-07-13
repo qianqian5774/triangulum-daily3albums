@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { addDays, formatDebugTime, getBjtNowParts, loadDebugTime, type NowState } from "./bjt";
-import { loadArchiveDay, loadArchiveIndex, loadToday } from "./data";
+import {
+  loadArchiveDay,
+  loadArchiveIndex,
+  loadToday,
+  normalizeDataLoadError,
+  type DataLoadDiagnostic,
+  type DataLoadError,
+  type DataLoadErrorCode
+} from "./data";
 import { parseTodayIssue, type TodayIssue } from "./types";
 
 const LAST_GOOD_KEY = "lastGoodTodayJson";
@@ -12,6 +20,58 @@ const RETRY_SLOW_MS = 30000;
 const RETRY_SLOW_AFTER_MS = 10 * 60 * 1000;
 
 export type TodaySignalState = "NORMAL" | "SIGNAL_LOST" | "RESTORED";
+export type TodayRecoverySource = "last_good" | "archive" | null;
+export type TodayDataDiagnostic =
+  | DataLoadDiagnostic
+  | { code: "stale_data"; resource: "today"; expectedDate: string; actualDate: string }
+  | {
+      code: "fallback_used";
+      resource: "today_recovery";
+      source: Exclude<TodayRecoverySource, null>;
+      reason: "current_unavailable" | "offline_state";
+    }
+  | { code: "recovery_exhausted"; resource: "today_recovery" };
+
+interface TodayRecoveryFailure {
+  code: DataLoadErrorCode | "legitimate_empty";
+  message: string;
+  error?: DataLoadError;
+}
+
+export function getTodayDateDiagnostics(expectedDate: string, actualDate: string): TodayDataDiagnostic[] {
+  return expectedDate === actualDate
+    ? []
+    : [{ code: "stale_data", resource: "today", expectedDate, actualDate }];
+}
+
+export function buildTodayDataDiagnostics({
+  loadDiagnostics,
+  archiveDiagnostics,
+  recoverySource,
+  signalState,
+  nowState,
+  recoveryFailed
+}: {
+  loadDiagnostics: TodayDataDiagnostic[];
+  archiveDiagnostics: DataLoadDiagnostic[];
+  recoverySource: TodayRecoverySource;
+  signalState: TodaySignalState;
+  nowState: NowState;
+  recoveryFailed: boolean;
+}): TodayDataDiagnostic[] {
+  const diagnostics: TodayDataDiagnostic[] = [...loadDiagnostics, ...archiveDiagnostics];
+  if (recoverySource) {
+    diagnostics.push({
+      code: "fallback_used",
+      resource: "today_recovery",
+      source: recoverySource,
+      reason: nowState === "OFFLINE" ? "offline_state" : "current_unavailable"
+    });
+  } else if (signalState === "SIGNAL_LOST" && recoveryFailed) {
+    diagnostics.push({ code: "recovery_exhausted", resource: "today_recovery" });
+  }
+  return diagnostics;
+}
 
 function getStoredLastGood(): TodayIssue | null {
   if (typeof window === "undefined") {
@@ -30,12 +90,14 @@ function getStoredLastGood(): TodayIssue | null {
 
 export function useTodayData({ bjtDateKey, nowState }: { bjtDateKey: string; nowState: NowState }) {
   const [issue, setIssue] = useState<TodayIssue | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [dataError, setDataError] = useState<DataLoadError | null>(null);
+  const [loadDiagnostics, setLoadDiagnostics] = useState<TodayDataDiagnostic[]>([]);
   const [signalState, setSignalState] = useState<TodaySignalState>("NORMAL");
   const [signalSince, setSignalSince] = useState<number | null>(null);
   const [lastRetryAt, setLastRetryAt] = useState<number | null>(null);
   const [archivedIssue, setArchivedIssue] = useState<TodayIssue | null>(null);
-  const [archivedError, setArchivedError] = useState<string | null>(null);
+  const [archivedFailure, setArchivedFailure] = useState<TodayRecoveryFailure | null>(null);
+  const [archiveDiagnostics, setArchiveDiagnostics] = useState<DataLoadDiagnostic[]>([]);
   const [lastGoodIssue, setLastGoodIssue] = useState<TodayIssue | null>(() => getStoredLastGood());
 
   const storeLastGood = useCallback((payload: TodayIssue) => {
@@ -51,23 +113,28 @@ export function useTodayData({ bjtDateKey, nowState }: { bjtDateKey: string; now
 
   const loadIssue = useCallback(
     async (options?: { cacheBust?: boolean; reason?: string }) => {
-      setError(null);
+      setDataError(null);
+      setLoadDiagnostics([]);
       const cacheBust = options?.cacheBust ? Date.now().toString() : undefined;
       try {
-        const data = await loadToday(cacheBust);
+        const result = await loadToday(cacheBust);
+        const data = result.data;
         const now = getBjtNowParts(loadDebugTime());
         if (data.date !== now.bjtDateKey) {
+          setLoadDiagnostics([...result.diagnostics, ...getTodayDateDiagnostics(now.bjtDateKey, data.date)]);
           setSignalState("SIGNAL_LOST");
           setSignalSince((prev) => prev ?? Date.now());
           return;
         }
+        setLoadDiagnostics(result.diagnostics);
+        setArchiveDiagnostics([]);
+        setArchivedFailure(null);
         setIssue(data);
         storeLastGood(data);
         setSignalSince(null);
         setSignalState((prev) => (prev !== "NORMAL" ? "RESTORED" : "NORMAL"));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
+        setDataError(normalizeDataLoadError(err, "today"));
         setSignalState("SIGNAL_LOST");
         setSignalSince((prev) => prev ?? Date.now());
       }
@@ -118,24 +185,29 @@ export function useTodayData({ bjtDateKey, nowState }: { bjtDateKey: string; now
     }
     let active = true;
     const yesterdayKey = addDays(bjtDateKey, -1);
-    setArchivedError(null);
+    setArchivedFailure(null);
+    setArchiveDiagnostics([]);
     setArchivedIssue(null);
-    loadArchiveIndex()
-      .then((index) => {
-        const entry = index.items.find((item) => item.date === yesterdayKey) ?? index.items[0];
+    void (async () => {
+      try {
+        const indexResult = await loadArchiveIndex();
+        if (!active) return;
+        setArchiveDiagnostics(indexResult.diagnostics);
+        const entry = indexResult.data.items.find((item) => item.date === yesterdayKey) ?? indexResult.data.items[0];
         if (!entry) {
-          throw new Error("Archive index empty");
+          setArchivedFailure({ code: "legitimate_empty", message: "Archive index empty" });
+          return;
         }
-        return loadArchiveDay(entry.date, entry.run_id);
-      })
-      .then((data) => {
+        const archiveResult = await loadArchiveDay(entry.date, entry.run_id);
         if (!active) return;
-        setArchivedIssue(data);
-      })
-      .catch((err: Error) => {
+        setArchiveDiagnostics([...indexResult.diagnostics, ...archiveResult.diagnostics]);
+        setArchivedIssue(archiveResult.data);
+      } catch (err) {
         if (!active) return;
-        setArchivedError(err.message);
-      });
+        const error = normalizeDataLoadError(err, "archive_index");
+        setArchivedFailure({ code: error.code, message: error.message, error });
+      }
+    })();
     return () => {
       active = false;
     };
@@ -159,16 +231,39 @@ export function useTodayData({ bjtDateKey, nowState }: { bjtDateKey: string; now
   }, [loadIssue, nowState, signalSince, signalState]);
 
   const displayIssue = signalState === "NORMAL" ? issue : lastGoodIssue ?? archivedIssue ?? issue;
+  const recoverySource: TodayRecoverySource = signalState === "SIGNAL_LOST"
+    ? lastGoodIssue
+      ? "last_good"
+      : archivedIssue
+        ? "archive"
+        : null
+    : nowState === "OFFLINE" && archivedIssue
+      ? "archive"
+      : null;
+  const diagnostics = buildTodayDataDiagnostics({
+    loadDiagnostics,
+    archiveDiagnostics,
+    recoverySource,
+    signalState,
+    nowState,
+    recoveryFailed: Boolean(archivedFailure)
+  });
 
   return {
-    archivedError,
+    archivedError: archivedFailure?.message ?? null,
+    archivedErrorCode: archivedFailure?.code ?? null,
+    archivedFailure,
     archivedIssue,
+    dataError,
+    diagnostics,
     displayIssue,
-    error,
+    error: dataError?.message ?? null,
+    errorCode: dataError?.code ?? null,
     issue,
     lastGoodIssue,
     lastRetryAt,
     loadIssue,
+    recoverySource,
     retryNow,
     signalState
   };
