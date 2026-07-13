@@ -4,16 +4,17 @@ import { describe, expect, it } from "vitest";
 const todaySource = readFileSync(new URL("./Today.tsx", import.meta.url), "utf8");
 const hudSource = readFileSync(new URL("../components/Hud.tsx", import.meta.url), "utf8");
 const ambientSource = readFileSync(new URL("../components/AmbientOverlay.tsx", import.meta.url), "utf8");
+const overlayStateSource = readFileSync(new URL("../lib/use-today-overlay-state.ts", import.meta.url), "utf8");
 const stylesSource = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
 describe("public UI polish policies", () => {
   it("makes Enter Ambient enter standby mode without opening the album viewer", () => {
-    const handlerStart = todaySource.indexOf("const handleAmbientToggle");
-    const handlerEnd = todaySource.indexOf("const handleSelectSlot", handlerStart);
+    const handlerStart = overlayStateSource.indexOf("const enterAmbient");
+    const handlerEnd = overlayStateSource.indexOf("const exitAmbient", handlerStart);
     expect(handlerStart).toBeGreaterThanOrEqual(0);
     expect(handlerEnd).toBeGreaterThan(handlerStart);
 
-    const handler = todaySource.slice(handlerStart, handlerEnd);
+    const handler = overlayStateSource.slice(handlerStart, handlerEnd);
     expect(handler).toContain("setAmbientActive(true)");
     expect(handler).not.toContain("openPick(");
     expect(handler).not.toContain("handleClose()");
@@ -21,7 +22,7 @@ describe("public UI polish policies", () => {
   });
 
   it("keeps manual Ambient entry scoped to Time Lab and doubles the idle delay", () => {
-    expect(todaySource).toContain("const AMBIENT_IDLE_DELAY_MS = 120000");
+    expect(overlayStateSource).toContain("const AMBIENT_IDLE_DELAY_MS = 120000");
     const normalTodayStart = todaySource.indexOf('${ambientActive ? "ambient-mode" : ""}');
     expect(normalTodayStart).toBeGreaterThanOrEqual(0);
     const toolbarStart = todaySource.indexOf(

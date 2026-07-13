@@ -13,6 +13,7 @@
     "test": "vitest run -c vitest.config.ts",
     "browser:smoke": "playwright test tests/mobile-layout.spec.ts",
     "browser:product-clock": "playwright test tests/product-clock-regression.spec.ts",
+    "browser:today-state": "playwright test tests/today-state-regression.spec.ts",
     "browser:viewer-cover": "playwright test tests/viewer-cover-resilience.spec.ts",
     "browser:visual": "playwright test tests/visual-regression.spec.ts",
     "screenshots": "playwright test tests/screenshots.spec.ts",
