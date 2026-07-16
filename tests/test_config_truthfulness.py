@@ -45,9 +45,13 @@ def test_repository_config_exposes_only_truthful_active_or_reserved_surfaces():
         assert removed_top_level not in raw
 
     assert raw["normalizer"] == {
-        "min_confidence": 0.72,
+        "policy_version": "td02b-v1",
+        "min_confidence": 0.82,
+        "hard_confidence_floor": 0.78,
         "ambiguity_gap": 0.08,
-        "hard_ambiguity_policy": "quarantine",
+        "identity_title_floor": 0.60,
+        "identity_artist_floor": 0.50,
+        "hard_ambiguity_policy": "reject_distinct",
         "mb_max_queries_per_candidate": 3,
         "mb_max_candidates_per_slot": 100,
         "mb_time_budget_s_per_slot": 60,
@@ -77,6 +81,9 @@ def test_active_config_values_are_loaded_into_their_runtime_projection():
     assert config.mb_max_queries_per_candidate == 3
     assert config.mb_max_candidates_per_slot == 100
     assert config.mb_time_budget_s_per_slot == 60.0
+    assert config.normalization_policy.policy_version == "td02b-v1"
+    assert config.normalization_policy.min_confidence == 0.82
+    assert config.normalization_policy.hard_confidence_floor == 0.78
     assert config.lastfm_page_start == 1
     assert config.lastfm_max_pages == 6
     assert config.discogs_enabled is True
@@ -172,8 +179,13 @@ def test_removed_fields_do_not_change_the_active_runtime_projection(tmp_path: Pa
             "dedupe_same_artist_days": 7,
         },
         "normalizer": {
-            "min_confidence": 0.72,
+            "policy_version": "td02b-v1",
+            "min_confidence": 0.82,
+            "hard_confidence_floor": 0.78,
             "ambiguity_gap": 0.08,
+            "identity_title_floor": 0.60,
+            "identity_artist_floor": 0.50,
+            "hard_ambiguity_policy": "reject_distinct",
             "mb_max_queries_per_candidate": 3,
             "mb_max_candidates_per_slot": 100,
             "mb_time_budget_s_per_slot": 60,

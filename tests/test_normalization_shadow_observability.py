@@ -30,6 +30,8 @@ def _rg(rg_id: str = "rg-1") -> MbReleaseGroupSummary:
         artist_mbids=[f"artist-{rg_id}"],
         first_release_date="2000-01-01",
         primary_type="Album",
+        title="Album",
+        artist_credit="Artist",
     )
 
 
@@ -58,6 +60,10 @@ def test_mbid_normalization_paths_are_classified(monkeypatch, source: str, expec
         "has_second_best": False,
         "ambiguity_gap": None,
         "shadow_comparison_applicable": False,
+        "identity_title_similarity": 1.0,
+        "identity_artist_similarity": 1.0,
+        "runner_release_group_mbid": None,
+        "runner_same_work": None,
     }
 
 
@@ -273,5 +279,7 @@ def test_config_reference_values_parse_from_declared_normalizer_section():
     repo_root = Path(__file__).resolve().parents[1]
     config = load_config(repo_root)
 
-    assert float(config.raw["normalizer"]["min_confidence"]) == 0.72
+    assert float(config.raw["normalizer"]["min_confidence"]) == 0.82
     assert float(config.raw["normalizer"]["ambiguity_gap"]) == 0.08
+    assert config.normalization_policy.policy_version == "td02b-v1"
+    assert config.normalization_policy.hard_confidence_floor == 0.78

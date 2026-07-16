@@ -22,12 +22,14 @@ history:
 # 数据清洗与匹配器
 # -----------------------------------------------------------------------------
 normalizer:
-  # Shadow reference only：用于观测假设影响，不执行候选拒绝或 eligible filtering。
-  min_confidence: 0.72
-  # Shadow reference only：用于观测 best/runner-up gap，不执行歧义拒绝。
+  # TD-02B 正式归一化策略的唯一生产 authority。
+  policy_version: "td02b-v1"
+  min_confidence: 0.82
+  hard_confidence_floor: 0.78
   ambiguity_gap: 0.08
-  # Reserved for TD-02B；当前没有生产 consumer，不执行 quarantine/drop。
-  hard_ambiguity_policy: "quarantine"
+  identity_title_floor: 0.60
+  identity_artist_floor: 0.50
+  hard_ambiguity_policy: "reject_distinct"
   # 以下三项是当前 MusicBrainz 归一化预算的生产 authority。
   mb_max_queries_per_candidate: 3
   mb_max_candidates_per_slot: 100

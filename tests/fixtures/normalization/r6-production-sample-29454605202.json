@@ -1,0 +1,88 @@
+{
+  "run_id": "29454605202",
+  "source_commit": "2604a4ee2e5354b4269dee1993d474bac25521e1",
+  "generation_mode": "generated",
+  "candidate_funnel_rerun": true,
+  "additional_requests": 0,
+  "fallback_stage": 0,
+  "row_schema": ["candidate_key", "query_strategy", "best_confidence", "second_best_confidence", "in_eligible_pool", "in_final_picks", "runner_same_work"],
+  "fixture_notes": [
+    "Candidate rows are sanitized from the retained production artifact.",
+    "Identity similarities were not present in the old shadow artifact; identity_prevalidated records that the old text matcher had already applied its title/artist floors.",
+    "The gap-zero distinct-runner scenario is fixture-enriched for the approved TD-02B critical-case replay."
+  ],
+  "slots": [
+    {
+      "slot_id": 0,
+      "theme": "lo-fi house",
+      "rows": [
+        ["29ff1628-8523-4a82-ab6a-823e792174d4", "strict", 0.945, 0.945, true, true, false],
+        ["2e6e0aa5-b256-4f32-9827-302569dc442b", "strict", 0.795, null, false, false, null],
+        ["4748ad7f-7973-4e98-bd76-a09de7885fd5", "strict", 0.803076923076923, null, true, true, null],
+        ["628128c9-4cf6-4a70-ba7d-f06a2466f4c0", "strict", 0.792307692307692, null, false, false, null],
+        ["7686635a-e648-46b4-92eb-e7e6002b56ce", "strict", 0.800645161290323, null, false, false, null],
+        ["8458afda-50c7-4e09-8e4d-cbec7c32c9bc", "strict", 0.796842105263158, null, false, false, null],
+        ["93ff7d82-6174-408f-951d-a9babb265e4b", "strict", 0.798181818181818, null, false, false, null],
+        ["ac6330e4-da62-4c2b-b3b0-c2266bb4bdd2", "strict", 0.953076923076923, null, true, false, null],
+        ["baaa6aae-78b8-4a40-800c-475a4ed60701", "cleaned_loose", 0.800645161290323, 0.5368, true, true, null],
+        ["f4bcfbc7-7253-4193-ab02-49af56b1f0db", "strict", 0.798181818181818, null, false, false, null],
+        ["fa7a60e7-bb65-444d-836e-10f33884c01c", "strict", 0.801176470588235, null, false, false, null]
+      ]
+    },
+    {
+      "slot_id": 1,
+      "theme": "progressive rock",
+      "rows": [
+        ["0dad14f6-1237-3f9f-b3df-d3db480eabb3", "strict", 0.952608695652174, 0.710028050490884, true, false, null],
+        ["2864ec02-5e6a-36d8-9960-ccd959b9a618", "strict", 0.945, 0.537, true, true, null],
+        ["416f5022-3d41-4ee0-9aa4-05cc7dc8f0a9", "strict", 0.946842105263158, null, true, false, null],
+        ["4940b8aa-898b-3e60-9992-94e073bab6f6", "strict", 0.950645161290323, 0.669045161290323, true, true, null],
+        ["4df78e5a-fb0a-4230-b8be-a029c81fccf6", "strict", 0.952857142857143, null, true, false, null],
+        ["664ffb4c-8178-3f99-b0d3-0bab3a51f793", "strict", 0.942307692307692, 0.611872909698997, true, false, null],
+        ["7155e424-2bf4-30de-b997-fe2a352a494b", "strict", 0.950645161290323, null, true, false, null],
+        ["8d40e763-9cbf-3cea-a661-f61a1aa1f4ec", "strict", 0.942307692307692, null, true, false, null],
+        ["c2980035-5ee5-30ff-9fbc-657255fbe4fd", "strict", 0.951176470588235, null, true, false, null],
+        ["cd725d34-9746-4211-b487-5e8a8b2142cd", "strict", 0.945, null, true, false, null],
+        ["d05f6ef9-09dc-4dc9-a800-3edd5f75ceda", "strict", 0.953448275862069, null, true, false, null],
+        ["d85fd220-b4a7-3d98-baf1-7a53a5e5e255", "strict", 0.938, 0.57, true, true, null],
+        ["dfddf6d4-06ca-4e09-abdb-40d1eb79b910", "strict", 0.945, null, true, false, null],
+        ["e50c96ab-8822-3483-a111-336f47aa2c84", "strict", 0.945, 0.825, true, false, null],
+        ["f2026101-945b-3d05-9ef4-aa718fc3feef", "cleaned_strict", 0.950645161290323, 0.704281524926686, true, false, null],
+        ["fbcbd0e0-ab86-3fa5-b504-2f8b87e649b2", "strict", 0.951621621621622, 0.642977553825012, true, false, null],
+        ["fea5b2a9-1f3f-3b34-a419-2f1323a24c88", "cleaned_loose", 0.818, 0.662705882352941, true, false, null]
+      ]
+    },
+    {
+      "slot_id": 2,
+      "theme": "no wave",
+      "rows": [
+        ["0435955f-4e11-404d-888b-f16ef368cac4", "strict", 0.953076923076923, null, true, false, null],
+        ["0af9aeb8-11d7-38c6-8041-a5435491bf9f", "strict", 0.862307692307692, null, true, false, null],
+        ["16ed1543-2f30-3851-8cd7-847687d3c581", "strict", 0.950645161290323, null, true, false, null],
+        ["243ab2c2-6844-43d4-81a4-8b78bd28de3d", "cleaned_loose", 0.902093023255814, null, true, false, null],
+        ["2afae15b-210e-327b-8681-5094c68c557c", "strict", 0.954470588235294, null, true, false, null],
+        ["383666d5-c225-31e4-9091-3276c9e4d7aa", "strict", 0.952, 0.748923076923077, true, false, null],
+        ["4c448f64-4df4-4f50-ade2-5370137881b6", "strict", 0.951621621621622, null, true, false, null],
+        ["4d6435a5-42b2-42ea-bf72-82df43fbdbe1", "strict", 0.952325581395349, null, true, true, null],
+        ["5c22d28d-a5b3-436f-b0d9-e4fe6ef033e1", "strict", 0.95375, null, true, false, null],
+        ["6013be7a-69ca-3a47-9e0f-44411afcd5cc", "strict", 0.950645161290323, null, true, false, null],
+        ["67258284-5dc3-4599-8227-6038bf299794", "cleaned_loose", 0.909647058823529, null, true, false, null],
+        ["67e1cebc-233a-34a9-b0cb-45e7d5955342", "strict", 0.942307692307692, null, true, false, null],
+        ["78353849-15e7-4457-8602-b3245fdacfbe", "strict", 0.951621621621622, 0.857708578143361, true, false, null],
+        ["8a06d419-25a8-4ee6-a73c-5df5c217f22b", "strict", 0.948181818181818, 0.798181818181818, true, true, null],
+        ["8e8b00b9-3468-375d-a039-c6a0bdc6e3a5", "strict", 0.953272727272727, null, true, false, null],
+        ["91321064-4989-4dca-89f2-8114a8f218a1", "strict", 0.9492, null, true, false, null],
+        ["98437567-5446-3631-af6b-1d032593fc96", "cleaned_loose", 0.956666666666667, null, true, false, null],
+        ["a0adb28c-f42b-49cc-87f4-87c54e72044c", "strict", 0.95, 0.8, true, false, null],
+        ["a3c3a7b6-a9b6-4a52-abcc-3b086d186879", "strict", 0.951176470588235, null, true, false, null],
+        ["bfe7fbf6-f323-4555-99bc-3bbd44b2cf43", "strict", 0.803076923076923, null, true, false, null],
+        ["c99172cd-eb5f-4be9-80bd-96815c0f9f9f", "strict", 0.952608695652174, null, true, false, null],
+        ["d2c63e39-ea14-44b4-ba7d-e98f96213ac5", "strict", 0.951621621621622, null, true, false, null],
+        ["dd8efe44-33b1-39fe-aa86-3ea811a56846", "strict", 0.952, null, true, false, null],
+        ["eeab353b-ab83-391b-b34e-55d9222c6c20", "strict", 0.832, null, true, true, null],
+        ["ef4cc147-dc0c-4dcf-90f9-3f4539bd0e9e", "strict", 0.951176470588235, null, true, false, null],
+        ["f3f2e365-6817-39cb-84d1-6969b3ead96f", "strict", 0.953076923076923, null, true, false, null]
+      ]
+    }
+  ]
+}

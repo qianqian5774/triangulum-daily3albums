@@ -45,6 +45,12 @@ from daily3albums.constraints import (
     within_cooldown,
 )
 from daily3albums.dry_run import run_dry_run
+from daily3albums.normalization_policy import (
+    BORDERLINE,
+    HARD_REJECT,
+    STRICT,
+    NormalizationPolicy,
+)
 
 
 # ----------------------------
@@ -110,8 +116,8 @@ def cmd_dry_run(
     verbose: bool,
     split_slots: bool,
     mb_search_limit: int,
-    min_confidence: float,
-    ambiguity_gap: float,
+    min_confidence: float | None,
+    ambiguity_gap: float | None,
     mb_debug: bool,
     quarantine_out: str,
     diagnostics: bool,
@@ -122,8 +128,12 @@ def cmd_dry_run(
     logger = print if verbose else None
     broker = RequestBroker(repo_root=repo_root, endpoint_policies=cfg.policies, logger=logger)
     mb_search_limit = int(mb_search_limit)
-    min_confidence = float(min_confidence)
-    ambiguity_gap = float(ambiguity_gap)
+    normalization_policy = cfg.normalization_policy
+    if min_confidence is not None or ambiguity_gap is not None:
+        print(
+            "WARN: --min-confidence/--ambiguity-gap are retained for CLI compatibility "
+            "but ignored; config.normalizer is authoritative."
+        )
     quarantine_out = (quarantine_out or "").strip() or None
     prefilter_topn = int(getattr(cfg, "coarse_top_n_per_slot", 120))
     candidate_cfg = (cfg.raw.get("candidates", {}) or {}).get("lastfm", {})
@@ -131,9 +141,8 @@ def cmd_dry_run(
     mb_max_queries_per_candidate = int(getattr(cfg, "mb_max_queries_per_candidate", 3))
     mb_max_candidates_per_slot = int(getattr(cfg, "mb_max_candidates_per_slot", 120))
     mb_time_budget_s_per_slot = float(getattr(cfg, "mb_time_budget_s_per_slot", 90.0))
-    normalizer_cfg = cfg.raw.get("normalizer", {}) or {}
-    config_reference_min_confidence = float(normalizer_cfg.get("min_confidence", 0.72))
-    config_reference_ambiguity_gap = float(normalizer_cfg.get("ambiguity_gap", 0.08))
+    config_reference_min_confidence = normalization_policy.min_confidence
+    config_reference_ambiguity_gap = normalization_policy.ambiguity_gap
     lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
     lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
     discogs_enabled = bool(getattr(cfg, "discogs_enabled", True))
@@ -150,10 +159,11 @@ def cmd_dry_run(
             topk=topk,
             split_slots=split_slots,
             mb_search_limit=mb_search_limit,
-            min_confidence=min_confidence,
-            ambiguity_gap=ambiguity_gap,
+            min_confidence=normalization_policy.min_confidence,
+            ambiguity_gap=normalization_policy.ambiguity_gap,
             config_reference_min_confidence=config_reference_min_confidence,
             config_reference_ambiguity_gap=config_reference_ambiguity_gap,
+            normalization_policy=normalization_policy,
             mb_debug=mb_debug,
             quarantine_out=quarantine_out,
             prefilter_topn=prefilter_topn,
@@ -470,6 +480,98 @@ def _filter_candidate_pool(
     return eligible, rejected
 
 
+def _normalization_tier(candidate: Any) -> tuple[str, str]:
+    debug = getattr(candidate, "debug", None)
+    decision = debug.get("normalization_policy") if isinstance(debug, dict) else None
+    if not isinstance(decision, dict):
+        # Compatibility for internal fixtures and older cached diagnostic objects.
+        return STRICT, "legacy_fixture_assumed_strict"
+    tier = str(decision.get("tier") or HARD_REJECT)
+    if tier not in {STRICT, BORDERLINE, HARD_REJECT}:
+        return HARD_REJECT, "invalid_policy_tier"
+    return tier, str(decision.get("reason") or "unspecified")
+
+
+def _policy_filter_candidate_pool(
+    candidates: list[Any],
+    *,
+    date_key: str,
+    history: HistoryIndex,
+    policy: CooldownPolicy,
+    album_days: int,
+    artist_days: int,
+    type_flags: dict[str, bool],
+    used_album_keys: set[str],
+    used_artist_keys: set[str],
+) -> tuple[list[Any], dict[str, int], dict[str, Any]]:
+    strict: list[Any] = []
+    borderline: list[Any] = []
+    hard: list[Any] = []
+    hard_reasons: dict[str, int] = {}
+    for candidate in candidates:
+        tier, reason = _normalization_tier(candidate)
+        if tier == STRICT:
+            strict.append(candidate)
+        elif tier == BORDERLINE:
+            borderline.append(candidate)
+        else:
+            hard.append(candidate)
+            hard_reasons[reason] = hard_reasons.get(reason, 0) + 1
+
+    strict_eligible, rejected = _filter_candidate_pool(
+        strict,
+        date_key=date_key,
+        history=history,
+        policy=policy,
+        album_days=album_days,
+        artist_days=artist_days,
+        type_flags=type_flags,
+        used_album_keys=used_album_keys,
+        used_artist_keys=used_artist_keys,
+    )
+    admitted = list(strict_eligible)
+    borderline_eligible: list[Any] = []
+    borderline_admitted: list[Any] = []
+    if len(admitted) < 3 and borderline:
+        borderline_eligible, borderline_rejected = _filter_candidate_pool(
+            borderline,
+            date_key=date_key,
+            history=history,
+            policy=policy,
+            album_days=album_days,
+            artist_days=artist_days,
+            type_flags=type_flags,
+            used_album_keys=used_album_keys,
+            used_artist_keys=used_artist_keys,
+        )
+        for key, value in borderline_rejected.items():
+            rejected[key] = rejected.get(key, 0) + value
+        needed = max(0, 3 - len(admitted))
+        borderline_admitted = borderline_eligible[:needed]
+        admitted.extend(borderline_admitted)
+
+    rejected["normalization_hard_reject"] = len(hard)
+    version = "td02b-v1"
+    for item in candidates:
+        debug = getattr(item, "debug", None)
+        decision = debug.get("normalization_policy") if isinstance(debug, dict) else None
+        if isinstance(decision, dict) and decision.get("policy_version"):
+            version = str(decision["policy_version"])
+            break
+    metadata = {
+        "policy_version": version,
+        "strict_candidates": len(strict),
+        "borderline_candidates": len(borderline),
+        "hard_reject_candidates": len(hard),
+        "strict_eligible": len(strict_eligible),
+        "borderline_eligible": len(borderline_eligible),
+        "borderline_admitted": len(borderline_admitted),
+        "hard_reject_reasons": dict(sorted(hard_reasons.items())),
+        "borderline_used": bool(borderline_admitted),
+    }
+    return admitted, rejected, metadata
+
+
 def _merge_scored_candidates(primary: list[Any], additional: list[Any]) -> list[Any]:
     merged: dict[str, Any] = {}
     order: list[str] = []
@@ -499,10 +601,11 @@ def _attempt_meta_from_out(
     reject_counts: dict[str, int],
     fallback_stage: int,
     candidate_scope: str,
+    normalization_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     prefetched = int(out.get("prefilter_total", len(out.get("candidates") or [])))
     topn = int(out.get("prefilter_topn", len(out.get("scored") or [])))
-    return {
+    payload = {
         "tag": tag,
         "theme_key": theme_key,
         "fallback_stage": fallback_stage,
@@ -538,6 +641,9 @@ def _attempt_meta_from_out(
         "listenbrainz_failed": bool(out.get("listenbrainz_failed", False)),
         "listenbrainz_candidates": int(out.get("listenbrainz_candidates", 0)),
     }
+    if normalization_policy is not None:
+        payload["normalization_policy"] = dict(normalization_policy)
+    return payload
 
 
 def _softmax_weights(scores: list[float], temperature: float = 10.0) -> list[float]:
@@ -1324,6 +1430,7 @@ def _rejection_reasons_for_observability(
         "artist_cooldown": int(reject_counts.get("artist_cooldown", 0)),
         "theme_cooldown": int(reject_counts.get("theme_cooldown", 0)),
         "musicbrainz_normalization_failed": int(selected_attempt.get("normalization_failed_count", 0)),
+        "normalization_hard_reject": int(reject_counts.get("normalization_hard_reject", 0)),
         "missing_required_metadata": 0,
         "other": 0,
     }
@@ -1350,16 +1457,33 @@ def _normalization_shadow_slot_payload(
         candidate_key, _artist_keys = _candidate_identity(item)
         nobj = getattr(item, "n", None)
         references = shadow.get("references") if isinstance(shadow.get("references"), dict) else {}
+        decision = debug.get("normalization_policy") if isinstance(debug, dict) else None
+        if not isinstance(decision, dict):
+            decision = {
+                "policy_version": "td02b-v1",
+                "authority": "config.normalizer",
+                "tier": STRICT,
+                "reason": "legacy_fixture_assumed_strict",
+                "admitted": True,
+            }
         rows.append(
             {
                 "candidate_key": candidate_key,
                 "release_group_mbid": getattr(nobj, "mb_release_group_id", None) if nobj else None,
+                "artist_keys": sorted(_artist_keys),
+                "score": float(getattr(item, "score", 0.0)),
                 "path": shadow.get("path"),
                 "query_strategy": shadow.get("query_strategy"),
                 "best_confidence": shadow.get("best_confidence"),
                 "second_best_confidence": shadow.get("second_best_confidence"),
                 "has_second_best": bool(shadow.get("has_second_best", False)),
                 "ambiguity_gap": shadow.get("ambiguity_gap"),
+                "identity_title_similarity": shadow.get("identity_title_similarity"),
+                "identity_artist_similarity": shadow.get("identity_artist_similarity"),
+                "runner_release_group_mbid": shadow.get("runner_release_group_mbid"),
+                "runner_same_work": shadow.get("runner_same_work"),
+                "policy_tier": decision.get("tier"),
+                "policy_reason": decision.get("reason"),
                 "in_normalized_pool": True,
                 "in_eligible_pool": candidate_key in eligible_keys,
                 "in_final_picks": candidate_key in final_keys,
@@ -1381,6 +1505,26 @@ def _normalization_shadow_slot_payload(
         if strategy is not None:
             key = str(strategy)
             strategy_counts[key] = strategy_counts.get(key, 0) + 1
+
+    tier_counts = {
+        tier: sum(1 for row in rows if row.get("policy_tier") == tier)
+        for tier in (STRICT, BORDERLINE, HARD_REJECT)
+    }
+    strict_eligible = sum(
+        1
+        for row in rows
+        if row.get("policy_tier") == STRICT and row.get("in_eligible_pool") is True
+    )
+    borderline_admitted = sum(
+        1
+        for row in rows
+        if row.get("policy_tier") == BORDERLINE and row.get("in_eligible_pool") is True
+    )
+    borderline_final = sum(
+        1
+        for row in rows
+        if row.get("policy_tier") == BORDERLINE and row.get("in_final_picks") is True
+    )
 
     reference_specs = (
         ("cli_reference", float(cli_min_confidence), float(cli_ambiguity_gap)),
@@ -1443,11 +1587,19 @@ def _normalization_shadow_slot_payload(
         }
 
     return {
-        "status": "observed_not_enforced",
-        "enforced": False,
+        "status": "enforced",
+        "enforced": True,
+        "authority": "config.normalizer",
+        "policy_version": "td02b-v1",
         "candidate_count": len(rows),
         "path_counts": dict(sorted(path_counts.items())),
         "query_strategy_counts": dict(sorted(strategy_counts.items())),
+        "tier_counts": tier_counts,
+        "strict_eligible": strict_eligible,
+        "strict_pool_insufficient": strict_eligible < 3,
+        "borderline_admitted": borderline_admitted,
+        "borderline_final_picks": borderline_final,
+        "hard_reject_count": tier_counts[HARD_REJECT],
         "references": impacts,
         "candidates": rows,
     }
@@ -1514,6 +1666,7 @@ def _slot_observability_payload(
                     "expansion_after",
                     "additional_requests",
                     "stage3_relaxed_candidates",
+                    "normalization_policy",
                     "blocked",
                 )
                 if key in attempt
@@ -1580,7 +1733,9 @@ def _new_recommendation_observability(
     issue: dict[str, Any],
     slot_payloads: list[dict[str, Any]],
     discogs_enabled: bool,
+    normalization_policy: NormalizationPolicy | None = None,
 ) -> dict[str, Any]:
+    active_policy = normalization_policy or NormalizationPolicy.defaults()
     return {
         "schema_version": 1,
         "generation_mode": "generated",
@@ -1589,14 +1744,13 @@ def _new_recommendation_observability(
         "reused_archive_date": None,
         "reused_archive_run_id": None,
         "final_picks_source": "candidate_funnel",
+        "normalization_policy_enforced": True,
         "normalization_shadow": {
-            "status": "observed_not_enforced",
-            "enforced": False,
+            "status": "enforced",
+            "enforced": True,
             "production_sample_eligible": True,
-            "references": [
-                {"name": "cli_reference", "source": "CLI arguments"},
-                {"name": "config_reference", "source": "config.normalizer"},
-            ],
+            "authority": "config.normalizer",
+            **active_policy.public_thresholds(),
         },
         "date": issue.get("date"),
         "run_id": issue.get("run_id"),
@@ -1823,6 +1977,7 @@ def _archive_lock_observability(
                     "artist_cooldown": 0,
                     "theme_cooldown": 0,
                     "musicbrainz_normalization_failed": 0,
+                    "normalization_hard_reject": 0,
                     "missing_required_metadata": 0,
                     "other": 0,
                 },
@@ -1848,6 +2003,7 @@ def _archive_lock_observability(
         "reused_archive_date": issue.get("date"),
         "reused_archive_run_id": issue.get("run_id"),
         "final_picks_source": "published_archive_seed",
+        "normalization_policy_enforced": False,
         "normalization_shadow": {
             "status": "not_available_reused_published_archive",
             "enforced": False,
@@ -1897,8 +2053,8 @@ def cmd_build(
     verbose: bool,
     split_slots: bool,
     mb_search_limit: int,
-    min_confidence: float,
-    ambiguity_gap: float,
+    min_confidence: float | None,
+    ambiguity_gap: float | None,
     mb_debug: bool,
     quarantine_out: str,
     out_dir: str,
@@ -1939,6 +2095,12 @@ def cmd_build(
     broker = RequestBroker(repo_root=repo_root, endpoint_policies=cfg.policies, logger=logger)
     cover_adapter = CoverArtArchiveAdapter(broker)
     type_flags = _type_flags_from_cfg(cfg)
+    normalization_policy = cfg.normalization_policy
+    if min_confidence is not None or ambiguity_gap is not None:
+        print(
+            "BUILD WARN: --min-confidence/--ambiguity-gap are retained for CLI "
+            "compatibility but ignored; config.normalizer is authoritative."
+        )
 
     mb_search_limit = int(mb_search_limit)
     prefilter_topn = int(getattr(cfg, "coarse_top_n_per_slot", 120))
@@ -1947,9 +2109,8 @@ def cmd_build(
     mb_max_queries_per_candidate = int(getattr(cfg, "mb_max_queries_per_candidate", 3))
     mb_max_candidates_per_slot = int(getattr(cfg, "mb_max_candidates_per_slot", 120))
     mb_time_budget_s_per_slot = float(getattr(cfg, "mb_time_budget_s_per_slot", 90.0))
-    normalizer_cfg = cfg.raw.get("normalizer", {}) or {}
-    config_reference_min_confidence = float(normalizer_cfg.get("min_confidence", 0.72))
-    config_reference_ambiguity_gap = float(normalizer_cfg.get("ambiguity_gap", 0.08))
+    config_reference_min_confidence = normalization_policy.min_confidence
+    config_reference_ambiguity_gap = normalization_policy.ambiguity_gap
     lastfm_page_start = int(getattr(cfg, "lastfm_page_start", candidate_cfg.get("lastfm_page_start", candidate_cfg.get("page_start", 1))))
     lastfm_max_pages = int(getattr(cfg, "lastfm_max_pages", candidate_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6))))
     discogs_enabled = bool(getattr(cfg, "discogs_enabled", True))
@@ -2040,6 +2201,7 @@ def cmd_build(
                 "artist_same_day": 0,
                 "album_collision": 0,
                 "theme_cooldown": 0,
+                "normalization_hard_reject": 0,
             }
             fetched_count = 0
             attempts_meta: list[dict[str, Any]] = []
@@ -2093,10 +2255,11 @@ def cmd_build(
                         seed_key=seed_key,
                         split_slots=False,
                         mb_search_limit=mb_search_limit,
-                        min_confidence=float(min_confidence),
-                        ambiguity_gap=float(ambiguity_gap),
+                        min_confidence=normalization_policy.min_confidence,
+                        ambiguity_gap=normalization_policy.ambiguity_gap,
                         config_reference_min_confidence=config_reference_min_confidence,
                         config_reference_ambiguity_gap=config_reference_ambiguity_gap,
+                        normalization_policy=normalization_policy,
                         mb_debug=mb_debug,
                         quarantine_out=None,
                         prefilter_topn=prefilter_topn,
@@ -2143,7 +2306,7 @@ def cmd_build(
 
                 candidates = [item for item in (out.get("top") or []) if getattr(item, "n", None) is not None]
                 fetched_count = max(fetched_count, len(candidates))
-                eligible, local_reject = _filter_candidate_pool(
+                eligible, local_reject, policy_meta = _policy_filter_candidate_pool(
                     candidates,
                     date_key=date_key,
                     history=history_index,
@@ -2163,7 +2326,12 @@ def cmd_build(
                     eligible=eligible,
                     reject_counts=local_reject,
                     fallback_stage=0,
-                    candidate_scope="strict",
+                    candidate_scope=(
+                        "strict_plus_borderline"
+                        if policy_meta["borderline_admitted"]
+                        else "strict"
+                    ),
+                    normalization_policy=policy_meta,
                 )
                 attempts_meta.append(attempt_meta)
                 tag_records.append(
@@ -2207,10 +2375,11 @@ def cmd_build(
                         seed_key=f"{date_key}:{slot_id}:{expansion_record['tag']}:stage1",
                         split_slots=False,
                         mb_search_limit=mb_search_limit,
-                        min_confidence=float(min_confidence),
-                        ambiguity_gap=float(ambiguity_gap),
+                        min_confidence=normalization_policy.min_confidence,
+                        ambiguity_gap=normalization_policy.ambiguity_gap,
                         config_reference_min_confidence=config_reference_min_confidence,
                         config_reference_ambiguity_gap=config_reference_ambiguity_gap,
+                        normalization_policy=normalization_policy,
                         mb_debug=mb_debug,
                         quarantine_out=None,
                         prefilter_topn=prefilter_topn,
@@ -2260,7 +2429,7 @@ def cmd_build(
                         }
                     )
                     expansion_record["out"] = combined_out
-                    eligible, local_reject = _filter_candidate_pool(
+                    eligible, local_reject, policy_meta = _policy_filter_candidate_pool(
                         combined,
                         date_key=date_key,
                         history=history_index,
@@ -2282,6 +2451,7 @@ def cmd_build(
                         reject_counts=local_reject,
                         fallback_stage=1,
                         candidate_scope="expanded_lastfm_one_page",
+                        normalization_policy=policy_meta,
                     )
                     stage1_meta.update(
                         {
@@ -2326,7 +2496,7 @@ def cmd_build(
 
             if len(picked) < 3:
                 for record in tag_records:
-                    eligible, local_reject = _filter_candidate_pool(
+                    eligible, local_reject, policy_meta = _policy_filter_candidate_pool(
                         record["candidates"],
                         date_key=date_key,
                         history=history_index,
@@ -2347,6 +2517,7 @@ def cmd_build(
                             "eligible": len(eligible),
                             "candidate_count_after_hard_filters": len(eligible),
                             "reject_counts": dict(local_reject),
+                            "normalization_policy": policy_meta,
                         }
                     )
                     attempts_meta.append(stage2_meta)
@@ -2364,7 +2535,7 @@ def cmd_build(
 
             if len(picked) < 3 and stage3_daily_pick_count < cooldown_policy.stage3_daily_pick_cap:
                 for record in tag_records:
-                    base_eligible, _base_reject = _filter_candidate_pool(
+                    base_eligible, _base_reject, _base_policy_meta = _policy_filter_candidate_pool(
                         record["candidates"],
                         date_key=date_key,
                         history=history_index,
@@ -2375,7 +2546,7 @@ def cmd_build(
                         used_album_keys=used_album_keys,
                         used_artist_keys=used_artist_keys,
                     )
-                    relaxed_eligible, local_reject = _filter_candidate_pool(
+                    relaxed_eligible, local_reject, relaxed_policy_meta = _policy_filter_candidate_pool(
                         record["candidates"],
                         date_key=date_key,
                         history=history_index,
@@ -2411,6 +2582,7 @@ def cmd_build(
                             "candidate_count_after_hard_filters": len(relaxed_eligible),
                             "reject_counts": dict(local_reject),
                             "stage3_relaxed_candidates": len(relaxed_candidates),
+                            "normalization_policy": relaxed_policy_meta,
                         }
                     )
                     attempts_meta.append(stage3_meta)
@@ -2562,7 +2734,10 @@ def cmd_build(
                 "window_label": _slot_label(slot_id),
                 "theme": picked_theme_tag,
                 "theme_key": picked_theme_key,
-                "constraints": {"min_confidence": float(min_confidence), "ambiguity_gap": float(ambiguity_gap)},
+                "constraints": {
+                    "min_confidence": normalization_policy.min_confidence,
+                    "ambiguity_gap": normalization_policy.ambiguity_gap,
+                },
                 "picks": [],
                 "scored_items": scored_items,
             }
@@ -2591,8 +2766,8 @@ def cmd_build(
                     candidates=selected_candidates,
                     eligible=selected_eligible,
                     final_picks=scored_items,
-                    cli_min_confidence=float(min_confidence),
-                    cli_ambiguity_gap=float(ambiguity_gap),
+                    cli_min_confidence=normalization_policy.min_confidence,
+                    cli_ambiguity_gap=normalization_policy.ambiguity_gap,
                     config_min_confidence=config_reference_min_confidence,
                     config_ambiguity_gap=config_reference_ambiguity_gap,
                 ),
@@ -2622,7 +2797,10 @@ def cmd_build(
             "run_at": beijing_now.isoformat(timespec="seconds"),
             "lineage_source": None,
             "picks": [],
-            "constraints": {"min_confidence": float(min_confidence), "ambiguity_gap": float(ambiguity_gap)},
+            "constraints": {
+                "min_confidence": normalization_policy.min_confidence,
+                "ambiguity_gap": normalization_policy.ambiguity_gap,
+            },
             "slots": [],
             "generation": {"started_at": datetime.now().isoformat(timespec="seconds"), "versions": {"daily3albums": getattr(cfg, "version", None)}},
             "warnings": [],
@@ -2633,6 +2811,7 @@ def cmd_build(
             issue=issue,
             slot_payloads=slots_payload,
             discogs_enabled=discogs_enabled,
+            normalization_policy=normalization_policy,
         )
 
         cover_version = issue["generation"].get("started_at")
@@ -2901,12 +3080,17 @@ def main() -> None:
     p_dry.add_argument("--split-slots", action="store_true")
     p_dry.add_argument("--verbose", action="store_true")
     p_dry.add_argument("--mb-search-limit", type=int, default=10)
-    p_dry.add_argument("--min-confidence", type=float, default=0.80)
+    p_dry.add_argument(
+        "--min-confidence",
+        type=float,
+        default=None,
+        help="Deprecated compatibility option; config.normalizer is authoritative.",
+    )
     p_dry.add_argument(
         "--ambiguity-gap",
         type=float,
-        default=0.06,
-        help="If best and runner-up confidences are too close (< gap), treat as ambiguous and reject.",
+        default=None,
+        help="Deprecated compatibility option; config.normalizer is authoritative.",
     )
     p_dry.add_argument("--mb-debug", action="store_true", help="Print MB matching attempts for each candidate")
     p_dry.add_argument(
@@ -2928,12 +3112,17 @@ def main() -> None:
     p_build.add_argument("--topk", type=int, default=10)
     p_build.add_argument("--verbose", action="store_true")
     p_build.add_argument("--mb-search-limit", type=int, default=10)
-    p_build.add_argument("--min-confidence", type=float, default=0.80)
+    p_build.add_argument(
+        "--min-confidence",
+        type=float,
+        default=None,
+        help="Deprecated compatibility option; config.normalizer is authoritative.",
+    )
     p_build.add_argument(
         "--ambiguity-gap",
         type=float,
-        default=0.06,
-        help="If best and runner-up confidences are too close (< gap), treat as ambiguous and reject.",
+        default=None,
+        help="Deprecated compatibility option; config.normalizer is authoritative.",
     )
     p_build.add_argument("--mb-debug", action="store_true", help="Print MB matching attempts for each candidate")
     p_build.add_argument(
