@@ -3,7 +3,7 @@ from pathlib import Path
 
 from daily3albums.adapters import DiscogsSearchItem, LastFmTopAlbum
 from daily3albums import dry_run as dr
-from daily3albums.request_broker import RequestBroker
+from daily3albums.request_broker import RequestBroker, RequestFailed
 
 
 @dataclass
@@ -46,7 +46,7 @@ def test_discogs_cached_404_nonfatal_returns_empty(tmp_path: Path):
         broker.close()
 
 
-def test_run_dry_run_tolerates_discogs_runtime_error(monkeypatch):
+def test_run_dry_run_tolerates_typed_discogs_request_failure(monkeypatch):
     monkeypatch.setattr(
         dr,
         "lastfm_tag_top_albums",
@@ -65,7 +65,18 @@ def test_run_dry_run_tolerates_discogs_runtime_error(monkeypatch):
         )
 
     monkeypatch.setattr(dr, "_normalize_candidate", fake_norm)
-    monkeypatch.setattr(dr, "discogs_database_search", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("HTTP 404 cached")))
+    monkeypatch.setattr(
+        dr,
+        "discogs_database_search",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            RequestFailed(
+                "DiscogsAdapter",
+                "https://api.discogs.com/database/search?token=secret",
+                404,
+                cached=True,
+            )
+        ),
+    )
 
     out = dr.run_dry_run(_Broker(), _Env(), tag="electronic", n=20, topk=10)
     assert "top" in out

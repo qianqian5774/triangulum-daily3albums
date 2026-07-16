@@ -8,9 +8,62 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from daily3albums.runtime_outcomes import OutcomeCode, ProviderResult, RuntimeOutcome
+
 
 def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _payload_outcome(payload: Any) -> RuntimeOutcome:
+    base = {"provider": "workflow_summary", "stage": "read_observability", "resource": "recommendation_observability"}
+    if not isinstance(payload, dict):
+        return RuntimeOutcome(OutcomeCode.INVALID_SCHEMA, **base)
+    typed_sections = {
+        "slots": list,
+        "final_pick_coverage": dict,
+        "final_pick_metadata_coverage": dict,
+        "enrichment": dict,
+        "normalization_shadow": dict,
+    }
+    for key, expected_type in typed_sections.items():
+        if key in payload and payload[key] is not None and not isinstance(payload[key], expected_type):
+            return RuntimeOutcome(
+                OutcomeCode.INVALID_SCHEMA,
+                "workflow_summary",
+                "validate_observability",
+                key,
+            )
+    display_sections = ("slots", "final_pick_coverage", "final_pick_metadata_coverage", "enrichment", "notes")
+    if not any(payload.get(key) for key in display_sections):
+        return RuntimeOutcome(OutcomeCode.LEGITIMATE_EMPTY, **base)
+    modern_sections = ("generation_mode", "normalization_shadow", "final_pick_metadata_coverage")
+    if not any(key in payload for key in modern_sections):
+        return RuntimeOutcome(
+            OutcomeCode.UNAVAILABLE,
+            "workflow_summary",
+            "render_legacy_observability",
+            "modern_sections",
+        )
+    return RuntimeOutcome(OutcomeCode.SUCCESS, **base)
+
+
+def render_result(payload: Any) -> ProviderResult[str | None]:
+    outcome = _payload_outcome(payload)
+    if outcome.code == OutcomeCode.INVALID_SCHEMA:
+        return ProviderResult(None, outcome)
+    try:
+        return ProviderResult(render_markdown(payload), outcome)
+    except Exception:
+        return ProviderResult(
+            None,
+            RuntimeOutcome(
+                OutcomeCode.RENDER_FAILED,
+                "workflow_summary",
+                "render_observability",
+                "recommendation_observability",
+            ),
+        )
 
 
 def _cell(value: Any) -> str:
@@ -365,23 +418,59 @@ def main(argv: list[str] | None = None) -> int:
         if args.github_summary:
             target = args.summary_file or (Path(os.environ["GITHUB_STEP_SUMMARY"]) if os.getenv("GITHUB_STEP_SUMMARY") else None)
             if target is not None:
-                _write_summary(text, target)
+                try:
+                    _write_summary(text, target)
+                except OSError as exc:
+                    print(
+                        "recommendation_summary code=unavailable stage=write_summary "
+                        f"resource=github_summary cause_type={type(exc).__name__}",
+                        file=sys.stderr,
+                    )
+                    return 1
+            else:
+                print(
+                    "recommendation_summary code=unavailable stage=write_summary "
+                    "resource=github_summary",
+                    file=sys.stderr,
+                )
             print(text, end="")
             return 0
         print(text, file=sys.stderr, end="")
         return 1
 
-    payload = _read_json(args.path)
-    if not isinstance(payload, dict):
-        print(f"Recommendation observability JSON must be an object: {args.path}", file=sys.stderr)
+    try:
+        payload = _read_json(args.path)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        print(
+            "recommendation_summary code=corrupt stage=read_observability "
+            f"resource=recommendation_observability cause_type={type(exc).__name__}",
+            file=sys.stderr,
+        )
         return 1
-    text = render_markdown(payload)
+    result = render_result(payload)
+    if result.value is None:
+        print(f"recommendation_summary {result.outcome.format_safe()}", file=sys.stderr)
+        return 1
+    text = result.value
+    if result.outcome.code != OutcomeCode.SUCCESS:
+        print(f"recommendation_summary {result.outcome.format_safe()}", file=sys.stderr)
     if args.github_summary:
         target = args.summary_file or (Path(os.environ["GITHUB_STEP_SUMMARY"]) if os.getenv("GITHUB_STEP_SUMMARY") else None)
         if target is None:
-            print("GITHUB_STEP_SUMMARY is not set; printing to stdout.", file=sys.stderr)
+            print(
+                "recommendation_summary code=unavailable stage=write_summary resource=github_summary",
+                file=sys.stderr,
+            )
         else:
-            _write_summary(text, target)
+            try:
+                _write_summary(text, target)
+            except OSError as exc:
+                print(
+                    "recommendation_summary code=unavailable stage=write_summary "
+                    f"resource=github_summary cause_type={type(exc).__name__}",
+                    file=sys.stderr,
+                )
+                return 1
     print(text, end="")
     return 0
 

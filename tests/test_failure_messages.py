@@ -26,7 +26,9 @@ def test_lastfm_application_error_has_provider_stage_and_advice():
 
     assert "provider=Last.fm" in message
     assert "stage=tag.getTopAlbums" in message
-    assert "Rate Limit Exceeded" in message
+    assert "code=rate_limited" in message
+    assert "provider_status=29" in message
+    assert "Rate Limit Exceeded" not in message
     assert "LASTFM_API_KEY" in message
 
 

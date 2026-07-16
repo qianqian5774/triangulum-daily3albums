@@ -14,6 +14,8 @@ from urllib.parse import urlparse, urlsplit, parse_qsl, urlencode, urlunsplit
 import httpx
 import logging
 
+from daily3albums.runtime_outcomes import OutcomeCode, outcome_code_for_http_status
+
 
 def _parse_ttl(s: str) -> int:
     s = s.strip().lower()
@@ -29,7 +31,7 @@ def _now_epoch() -> int:
     return int(time.time())
 
 
-def _redact_url(url: str) -> str:
+def redact_url(url: str) -> str:
     # 避免把 api_key/token 打进日志/截图
     sensitive = {
         "api_key", "api_sig", "token", "access_token",
@@ -47,6 +49,9 @@ def _redact_url(url: str) -> str:
         return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
     except Exception:
         return url
+
+
+_redact_url = redact_url
 
 
 def _get_adapter_logger(repo_root: Path) -> logging.Logger:
@@ -95,19 +100,41 @@ class AdapterPolicy:
 class BrokerRequestError(RuntimeError):
     def __init__(self, adapter_name: str | None, url: str, cause: Exception) -> None:
         self.adapter_name = adapter_name or "unknown"
-        self.url = url
-        self.cause = cause
-        super().__init__(f"{self.adapter_name} request failed url={_redact_url(url)} cause={type(cause).__name__}: {cause}")
+        self.url = redact_url(url)
+        self.cause_type = type(cause).__name__
+        self.code = (
+            OutcomeCode.TIMEOUT.value
+            if isinstance(cause, httpx.TimeoutException)
+            else OutcomeCode.REQUEST_FAILED.value
+        )
+        super().__init__(
+            f"provider={self.adapter_name} stage=http_transport code={self.code} "
+            f"url={self.url} cause_type={self.cause_type}"
+        )
 
 
 class RequestFailed(RuntimeError):
     def __init__(self, adapter_name: str | None, url: str, status: int, *, cached: bool = False) -> None:
         self.adapter_name = adapter_name or "unknown"
-        self.url = url
+        self.url = redact_url(url)
         self.status = int(status)
         self.cached = bool(cached)
+        self.code = outcome_code_for_http_status(self.status).value
         super().__init__(
-            f"{self.adapter_name} request failed url={_redact_url(url)} status={self.status} cached={str(self.cached).lower()}"
+            f"provider={self.adapter_name} stage=http_status code={self.code} "
+            f"url={self.url} status={self.status} cached={str(self.cached).lower()}"
+        )
+
+
+class BrokerResponseError(RuntimeError):
+    def __init__(self, adapter_name: str | None, url: str, *, cause_type: str) -> None:
+        self.adapter_name = adapter_name or "unknown"
+        self.url = redact_url(url)
+        self.cause_type = cause_type
+        self.code = OutcomeCode.CORRUPT.value
+        super().__init__(
+            f"provider={self.adapter_name} stage=parse_json code={self.code} "
+            f"url={self.url} cause_type={cause_type}"
         )
 
 
@@ -186,6 +213,7 @@ class RequestBroker:
             "status": int(status),
             "cached": bool(cached),
             "non_fatal": bool(non_fatal),
+            "code": outcome_code_for_http_status(int(status)).value,
         }
 
     def get_last_failure(self, adapter_name: str) -> dict[str, Any] | None:
@@ -632,4 +660,8 @@ class RequestBroker:
         try:
             return json.loads(raw.decode("utf-8"))
         except Exception as e:
-            raise RuntimeError(f"Bad JSON from {_redact_url(url)}: {e}") from e
+            raise BrokerResponseError(
+                adapter_name=adapter_name,
+                url=url,
+                cause_type=type(e).__name__,
+            ) from e

@@ -81,6 +81,7 @@ def main() -> int:
     os.environ["DAILY3ALBUMS_FIXTURES_STRICT"] = "1"
     os.environ["LASTFM_API_KEY"] = "fixture-key"
     os.environ["MB_USER_AGENT"] = "fixture-agent"
+    os.environ["DISCOGS_TOKEN"] = ""
 
     repo_root = Path(__file__).resolve().parents[1]
     env = load_env(repo_root)

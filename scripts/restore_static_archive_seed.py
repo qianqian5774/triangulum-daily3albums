@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import shutil
+import socket
 import sys
 import tempfile
 import urllib.error
@@ -22,6 +23,12 @@ from daily3albums.public_contract import (
     validate_archive_identity,
     validate_index,
 )
+from daily3albums.request_broker import redact_url
+from daily3albums.runtime_outcomes import (
+    OutcomeCode,
+    outcome_code_for_contract_error,
+    outcome_code_for_http_status,
+)
 
 
 DEFAULT_TIMEOUT_SECONDS = 12
@@ -32,8 +39,38 @@ DEFAULT_USER_AGENT = (
 )
 
 
+def _safe_location(kind: str, location: str) -> str:
+    return redact_url(location) if kind == "http" else location
+
+
 class SeedRestoreError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        code: OutcomeCode,
+        *,
+        stage: str,
+        resource: str,
+        detail: str | None = None,
+        http_status: int | None = None,
+        date_key: str | None = None,
+        run_id: str | None = None,
+    ) -> None:
+        self.code = code.value
+        self.stage = stage
+        self.resource = resource
+        self.http_status = http_status
+        self.date_key = date_key
+        self.run_id = run_id
+        fields = [f"code={self.code}", f"stage={stage}", f"resource={resource}"]
+        if http_status is not None:
+            fields.append(f"http_status={http_status}")
+        if date_key:
+            fields.append(f"date={date_key}")
+        if run_id:
+            fields.append(f"run_id={run_id}")
+        if detail:
+            fields.append(f"detail={detail}")
+        super().__init__(" ".join(fields))
 
 
 @dataclass(frozen=True)
@@ -49,6 +86,7 @@ class ProviderAttempt:
     kind: str
     location: str
     status: str
+    code: str
     error: str | None = None
     effective_url: str | None = None
     dates: int = 0
@@ -58,6 +96,7 @@ class ProviderAttempt:
 @dataclass
 class RestoreSummary:
     status: str
+    code: str
     provider: str | None
     provider_kind: str | None
     effective_url: str | None
@@ -136,22 +175,42 @@ def _select_recent_unique_dates(items: list[Any], max_days: int) -> list[dict[st
 def _decode_json(data: bytes, source: str) -> Any:
     stripped = data.lstrip()
     if stripped.startswith((b"<!DOCTYPE html", b"<html", b"<HTML")):
-        raise SeedRestoreError(f"INVALID_JSON: HTML response is not valid archive seed JSON: {source}")
+        raise SeedRestoreError(
+            OutcomeCode.CORRUPT,
+            stage="decode_json",
+            resource="archive_seed_json",
+            detail="html_response",
+        )
     try:
         return json.loads(data.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SeedRestoreError(f"INVALID_JSON: invalid JSON from {source}: {exc}") from exc
+        raise SeedRestoreError(
+            OutcomeCode.CORRUPT,
+            stage="decode_json",
+            resource="archive_seed_json",
+            detail="json_decode_failed",
+        ) from exc
 
 
 def _validate_index(index: Any, source: str, max_days: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     try:
         validated = validate_index(index)
     except PublicContractError as exc:
-        raise SeedRestoreError(f"index contract invalid at {source}: {exc}") from exc
+        raise SeedRestoreError(
+            outcome_code_for_contract_error(exc.code),
+            stage="validate_index",
+            resource="archive_seed_index",
+            detail=f"contract_code:{exc.code}",
+        ) from exc
     items = validated["items"]
     selected = _select_recent_unique_dates(items, max_days=max_days)
     if items and not selected:
-        raise SeedRestoreError(f"index contains no valid date/run_id entries: {source}")
+        raise SeedRestoreError(
+            OutcomeCode.INVALID_SCHEMA,
+            stage="select_index_entries",
+            resource="archive_seed_index",
+            detail="no_valid_entries",
+        )
     return validated, selected
 
 
@@ -161,12 +220,18 @@ def _validate_archive(data: bytes, item: dict[str, Any], source: str) -> None:
         validated, _profile = validate_archive(payload)
         validate_archive_identity(validated, date=item["date"], run_id=item["run_id"])
     except PublicContractError as exc:
-        raise SeedRestoreError(f"archive contract invalid at {source}: {exc}") from exc
+        raise SeedRestoreError(
+            outcome_code_for_contract_error(exc.code),
+            stage="validate_archive",
+            resource="archive_seed_archive",
+            detail=f"contract_code:{exc.code}",
+            date_key=item.get("date"),
+            run_id=item.get("run_id"),
+        ) from exc
 
 
 def _is_missing_http_error(error: SeedRestoreError) -> bool:
-    text = str(error).lower()
-    return "404" in text or "410" in text or "not found" in text
+    return error.code in {OutcomeCode.MISSING.value, OutcomeCode.PROVIDER_NOT_FOUND.value}
 
 
 def _http_read(url: str) -> tuple[bytes, str, str]:
@@ -184,15 +249,55 @@ def _http_read(url: str) -> tuple[bytes, str, str]:
             content_type = response.headers.get_content_type()
             effective_url = response.geturl()
             data = response.read()
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
-        raise SeedRestoreError(f"request failed url={url}: {exc}") from exc
+    except urllib.error.HTTPError as exc:
+        status = int(exc.code)
+        raise SeedRestoreError(
+            outcome_code_for_http_status(status),
+            stage="http_read",
+            resource="archive_seed_resource",
+            http_status=status,
+        ) from exc
+    except urllib.error.URLError as exc:
+        code = (
+            OutcomeCode.TIMEOUT
+            if isinstance(exc.reason, (TimeoutError, socket.timeout))
+            else OutcomeCode.REQUEST_FAILED
+        )
+        raise SeedRestoreError(
+            code,
+            stage="http_read",
+            resource="archive_seed_resource",
+            detail=f"cause_type:{type(exc.reason).__name__}",
+        ) from exc
+    except (TimeoutError, socket.timeout) as exc:
+        raise SeedRestoreError(
+            OutcomeCode.TIMEOUT,
+            stage="http_read",
+            resource="archive_seed_resource",
+            detail=f"cause_type:{type(exc).__name__}",
+        ) from exc
     if status < 200 or status >= 300:
-        raise SeedRestoreError(f"unexpected HTTP status={status} url={url}")
+        raise SeedRestoreError(
+            outcome_code_for_http_status(status),
+            stage="http_read",
+            resource="archive_seed_resource",
+            http_status=status,
+        )
     if content_type not in {"application/json", "text/json"} and not content_type.endswith("+json"):
-        raise SeedRestoreError(f"unexpected Content-Type={content_type!r} url={url}")
+        raise SeedRestoreError(
+            OutcomeCode.CORRUPT,
+            stage="http_read",
+            resource="archive_seed_resource",
+            detail="invalid_content_type",
+        )
     if not data.strip():
-        raise SeedRestoreError(f"empty response url={url}")
-    return data, content_type, effective_url
+        raise SeedRestoreError(
+            OutcomeCode.CORRUPT,
+            stage="http_read",
+            resource="archive_seed_resource",
+            detail="empty_response",
+        )
+    return data, content_type, redact_url(effective_url)
 
 
 def _write_bytes(path: Path, data: bytes) -> None:
@@ -218,7 +323,6 @@ def _materialize_http_provider(
     files = 0
     archive_dir = destination / "archive"
     for item in selected:
-        errors: list[str] = []
         valid_candidates: list[tuple[bytes, str]] = []
         non_missing_error: SeedRestoreError | None = None
         for remote_path in _archive_candidate_paths(item):
@@ -226,27 +330,33 @@ def _materialize_http_provider(
             try:
                 candidate, _type, _effective = _http_read(url)
                 _validate_archive(candidate, item, url)
-                valid_candidates.append((candidate, url))
+                valid_candidates.append((candidate, redact_url(url)))
             except SeedRestoreError as exc:
-                errors.append(str(exc))
                 if not _is_missing_http_error(exc):
                     non_missing_error = exc
         if not valid_candidates:
+            if non_missing_error is not None:
+                raise non_missing_error
             raise SeedRestoreError(
-                f"ARCHIVE_MISSING: no valid archive JSON for date={item['date']} run_id={item['run_id']}: "
-                + " | ".join(errors)
+                OutcomeCode.MISSING,
+                stage="materialize_archive",
+                resource="archive_seed_archive",
+                date_key=item["date"],
+                run_id=item["run_id"],
             )
         if non_missing_error is not None:
-            raise SeedRestoreError(
-                f"archive alias validation failed for date={item['date']} run_id={item['run_id']}: "
-                + " | ".join(errors)
-            )
+            raise non_missing_error
         if len(valid_candidates) == 2:
             try:
                 require_byte_identical(valid_candidates[0][0], valid_candidates[1][0])
             except PublicContractError as exc:
                 raise SeedRestoreError(
-                    f"archive paths disagree for date={item['date']} run_id={item['run_id']}: {exc}"
+                    outcome_code_for_contract_error(exc.code),
+                    stage="validate_archive_alias",
+                    resource="archive_seed_archive_alias",
+                    detail=f"contract_code:{exc.code}",
+                    date_key=item["date"],
+                    run_id=item["run_id"],
                 ) from exc
         archive_bytes, source = valid_candidates[0]
         date = item["date"]
@@ -276,7 +386,11 @@ def _materialize_local_provider(
     source_dir = _resolve_local_data_dir(provider.location)
     index_path = source_dir / "index.json"
     if not index_path.is_file():
-        raise SeedRestoreError(f"local index missing: {index_path}")
+        raise SeedRestoreError(
+            OutcomeCode.MISSING,
+            stage="load_local_index",
+            resource="archive_seed_index",
+        )
     index = _decode_json(index_path.read_bytes(), str(index_path))
     index, selected = _validate_index(index, str(index_path), max_days)
     files = 0
@@ -286,7 +400,11 @@ def _materialize_local_provider(
         existing = [path for path in candidates if path.is_file()]
         if not existing:
             raise SeedRestoreError(
-                f"ARCHIVE_MISSING: local archive missing for date={item['date']} run_id={item['run_id']}"
+                OutcomeCode.MISSING,
+                stage="materialize_archive",
+                resource="archive_seed_archive",
+                date_key=item["date"],
+                run_id=item["run_id"],
             )
         archive_bytes_by_path = [(path.read_bytes(), path) for path in existing]
         for candidate_bytes, path in archive_bytes_by_path:
@@ -296,7 +414,12 @@ def _materialize_local_provider(
                 require_byte_identical(archive_bytes_by_path[0][0], archive_bytes_by_path[1][0])
             except PublicContractError as exc:
                 raise SeedRestoreError(
-                    f"local archive paths disagree for date={item['date']} run_id={item['run_id']}: {exc}"
+                    outcome_code_for_contract_error(exc.code),
+                    stage="validate_archive_alias",
+                    resource="archive_seed_archive_alias",
+                    detail=f"contract_code:{exc.code}",
+                    date_key=item["date"],
+                    run_id=item["run_id"],
                 ) from exc
         archive_bytes = archive_bytes_by_path[0][0]
         date = item["date"]
@@ -330,7 +453,12 @@ def _load_baseline(path: Path | None) -> dict[str, Any] | None:
         return None
     payload = _decode_json(path.read_bytes(), str(path))
     if not isinstance(payload, dict):
-        raise SeedRestoreError(f"baseline must be an object: {path}")
+        raise SeedRestoreError(
+            OutcomeCode.INVALID_SCHEMA,
+            stage="load_baseline",
+            resource="archive_seed_baseline",
+            detail="object_required",
+        )
     return payload
 
 
@@ -341,12 +469,22 @@ def _check_baseline(
 ) -> None:
     count = len(selected)
     if count == 0 and not allow_empty_history:
-        raise SeedRestoreError("empty archive history requires explicit --allow-empty-history")
+        raise SeedRestoreError(
+            OutcomeCode.LEGITIMATE_EMPTY,
+            stage="baseline_policy",
+            resource="archive_seed_history",
+            detail="explicit_allow_empty_required",
+        )
     if baseline is None:
         return
     previous = baseline.get("date_count")
     if isinstance(previous, int) and count < previous:
-        raise SeedRestoreError(f"archive date count regressed from baseline={previous} to restored={count}")
+        raise SeedRestoreError(
+            OutcomeCode.INVALID_SCHEMA,
+            stage="baseline_policy",
+            resource="archive_seed_baseline",
+            detail=f"date_count_regression:{previous}:{count}",
+        )
 
 
 def _promote_directory(staged: Path, out_dir: Path) -> None:
@@ -399,19 +537,20 @@ def _append_github_summary(summary: RestoreSummary) -> None:
         "## Archive seed restore",
         "",
         f"- Status: `{summary.status}`",
+        f"- Code: `{summary.code}`",
         f"- Provider: `{summary.provider or 'none'}`",
         f"- Provider kind: `{summary.provider_kind or 'none'}`",
         f"- Effective URL: `{summary.effective_url or 'n/a'}`",
         f"- Restored dates: `{summary.dates}`",
         f"- Restored files: `{summary.files}`",
         "",
-        "| Provider | Kind | Status | Dates | Files | Error |",
-        "|---|---|---:|---:|---:|---|",
+        "| Provider | Kind | Status | Code | Dates | Files | Error |",
+        "|---|---|---:|---|---:|---:|---|",
     ]
     for attempt in summary.attempts:
         error = (attempt.error or "").replace("|", "\\|")
         lines.append(
-            f"| {attempt.name} | {attempt.kind} | {attempt.status} | "
+            f"| {attempt.name} | {attempt.kind} | {attempt.status} | {attempt.code} | "
             f"{attempt.dates} | {attempt.files} | {error} |"
         )
     with open(raw, "a", encoding="utf-8", newline="\n") as handle:
@@ -431,8 +570,27 @@ def restore_static_archive_seed(
     try:
         baseline = _load_baseline(baseline_path)
     except SeedRestoreError as exc:
-        summary = RestoreSummary("fail", None, None, None, 0, 0, str(out_dir), attempts)
-        attempts.append(ProviderAttempt("baseline", "local", str(baseline_path), "fail", str(exc)))
+        attempts.append(
+            ProviderAttempt(
+                "baseline",
+                "local",
+                str(baseline_path),
+                "fail",
+                exc.code,
+                str(exc),
+            )
+        )
+        summary = RestoreSummary(
+            "fail",
+            exc.code,
+            None,
+            None,
+            None,
+            0,
+            0,
+            str(out_dir),
+            attempts,
+        )
         _write_summary(summary_path, summary)
         _append_github_summary(summary)
         return summary
@@ -451,8 +609,15 @@ def restore_static_archive_seed(
             attempt = ProviderAttempt(
                 provider.name,
                 provider.kind,
-                provider.location,
+                _safe_location(provider.kind, provider.location),
                 "ok",
+                (
+                    OutcomeCode.LEGITIMATE_EMPTY.value
+                    if not selected
+                    else OutcomeCode.FALLBACK_USED.value
+                    if index > 0
+                    else OutcomeCode.SUCCESS.value
+                ),
                 effective_url=effective_url,
                 dates=len(selected),
                 files=files,
@@ -461,6 +626,7 @@ def restore_static_archive_seed(
             status = "healthy" if index == 0 else "degraded"
             summary = RestoreSummary(
                 status,
+                attempt.code,
                 provider.name,
                 provider.kind,
                 effective_url,
@@ -477,18 +643,39 @@ def restore_static_archive_seed(
             )
             return summary
         except (OSError, SeedRestoreError) as exc:
+            code = exc.code if isinstance(exc, SeedRestoreError) else OutcomeCode.UNAVAILABLE.value
+            safe_error = str(exc) if isinstance(exc, SeedRestoreError) else (
+                f"code={code} stage=provider_restore resource=archive_seed cause_type={type(exc).__name__}"
+            )
             attempts.append(
-                ProviderAttempt(provider.name, provider.kind, provider.location, "fail", str(exc))
+                ProviderAttempt(
+                    provider.name,
+                    provider.kind,
+                    _safe_location(provider.kind, provider.location),
+                    "fail",
+                    code,
+                    safe_error,
+                )
             )
             print(
-                f"archive_seed provider={provider.name} status=failed error={exc}",
+                f"archive_seed provider={provider.name} status=failed {safe_error}",
                 file=sys.stderr,
             )
         finally:
             if staged.exists():
                 shutil.rmtree(staged)
 
-    summary = RestoreSummary("fail", None, None, None, 0, 0, str(out_dir), attempts)
+    summary = RestoreSummary(
+        "fail",
+        OutcomeCode.RECOVERY_EXHAUSTED.value,
+        None,
+        None,
+        None,
+        0,
+        0,
+        str(out_dir),
+        attempts,
+    )
     _write_summary(summary_path, summary)
     _append_github_summary(summary)
     print("archive_seed status=fail providers_exhausted=true", file=sys.stderr)

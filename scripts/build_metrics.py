@@ -77,18 +77,23 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+def _read_jsonl(path: Path, warnings: list[str] | None = None) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     out: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as f:
-        for line in f:
+        for line_number, line in enumerate(f, start=1):
             line = line.strip()
             if not line:
                 continue
             try:
                 payload = json.loads(line)
             except json.JSONDecodeError:
+                if warnings is not None:
+                    warnings.append(
+                        "build_metrics code=corrupt stage=read_steps "
+                        f"resource=steps_jsonl line={line_number}"
+                    )
                 continue
             if isinstance(payload, dict):
                 out.append(payload)
@@ -149,7 +154,7 @@ def _archive_issue_path(public_dir: Path, item: dict[str, Any]) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def collect_public_metrics(public_dir: Path) -> dict[str, Any]:
+def collect_public_metrics(public_dir: Path, warnings: list[str] | None = None) -> dict[str, Any]:
     public_dir = public_dir.resolve()
     metrics: dict[str, Any] = {
         "public_path": str(public_dir),
@@ -171,6 +176,10 @@ def collect_public_metrics(public_dir: Path) -> dict[str, Any]:
             metrics["today_album_count"] = _count_issue_picks(_read_json(today_path))
         except (OSError, json.JSONDecodeError):
             metrics["today_album_count"] = 0
+            if warnings is not None:
+                warnings.append(
+                    "build_metrics code=corrupt stage=read_public resource=today_json"
+                )
 
     index_path = data_dir / "index.json"
     if not index_path.exists():
@@ -179,8 +188,16 @@ def collect_public_metrics(public_dir: Path) -> dict[str, Any]:
     try:
         index = _read_json(index_path)
     except (OSError, json.JSONDecodeError):
+        if warnings is not None:
+            warnings.append(
+                "build_metrics code=corrupt stage=read_public resource=archive_index"
+            )
         return metrics
     if not isinstance(index, dict):
+        if warnings is not None:
+            warnings.append(
+                "build_metrics code=invalid_schema stage=read_public resource=archive_index"
+            )
         return metrics
 
     retention = index.get("archive_retention_days")
@@ -209,6 +226,11 @@ def collect_public_metrics(public_dir: Path) -> dict[str, Any]:
             archive_album_count += _count_issue_picks(_read_json(issue_path))
         except (OSError, json.JSONDecodeError):
             missing_days.append(date)
+            if warnings is not None:
+                warnings.append(
+                    "build_metrics code=corrupt stage=read_public "
+                    f"resource=archive date={date}"
+                )
 
     metrics["archive_day_count"] = len(seen_dates)
     metrics["archive_album_count"] = archive_album_count
@@ -224,7 +246,11 @@ def _reset_metrics_files(metrics_dir: Path) -> None:
             if path.is_file():
                 path.unlink()
         except OSError as exc:
-            print(f"build_metrics warning: could not reset {path}: {exc}", file=sys.stderr)
+            print(
+                "build_metrics code=unavailable stage=reset_metrics "
+                f"resource=metrics_file cause_type={type(exc).__name__}",
+                file=sys.stderr,
+            )
 
 
 def start_metrics(metrics_dir: Path) -> int:
@@ -255,7 +281,11 @@ def run_timed_step(metrics_dir: Path, name: str, command: list[str]) -> int:
         completed = subprocess.run(command, check=False)
         exit_code = int(completed.returncode)
     except FileNotFoundError as exc:
-        print(f"build_metrics command not found: {exc}", file=sys.stderr)
+        print(
+            "build_metrics code=unavailable stage=run_timed_step "
+            f"resource=command cause_type={type(exc).__name__}",
+            file=sys.stderr,
+        )
         exit_code = 127
     finally:
         duration_ms = int((time.perf_counter() - started) * 1000)
@@ -274,19 +304,29 @@ def run_timed_step(metrics_dir: Path, name: str, command: list[str]) -> int:
     return exit_code
 
 
-def _load_start(metrics_dir: Path) -> dict[str, Any] | None:
+def _load_start(metrics_dir: Path, warnings: list[str] | None = None) -> dict[str, Any] | None:
     start_path = metrics_dir / "start.json"
     if not start_path.exists():
         return None
     try:
         start = _read_json(start_path)
     except (OSError, json.JSONDecodeError):
+        if warnings is not None:
+            warnings.append(
+                "build_metrics code=corrupt stage=read_start resource=start_json"
+            )
         return None
-    return start if isinstance(start, dict) else None
+    if not isinstance(start, dict):
+        if warnings is not None:
+            warnings.append(
+                "build_metrics code=invalid_schema stage=read_start resource=start_json"
+            )
+        return None
+    return start
 
 
 def _load_total_duration(metrics_dir: Path, warnings: list[str]) -> int | None:
-    start = _load_start(metrics_dir)
+    start = _load_start(metrics_dir, warnings)
     if start is None:
         return None
     current = _current_run_identity()
@@ -364,7 +404,7 @@ def _markdown_summary(metrics: dict[str, Any]) -> str:
 
 def summarize(metrics_dir: Path, public_dir: Path, out: Path | None, summary_path: Path | None) -> int:
     warnings: list[str] = []
-    steps = _current_run_steps(_read_jsonl(metrics_dir / "steps.jsonl"), warnings)
+    steps = _current_run_steps(_read_jsonl(metrics_dir / "steps.jsonl", warnings), warnings)
     metrics = {
         "schema_version": METRICS_SCHEMA_VERSION,
         "generated_at": _now_iso(),
@@ -373,15 +413,23 @@ def summarize(metrics_dir: Path, public_dir: Path, out: Path | None, summary_pat
         "warnings": warnings,
         "total_duration_ms": _load_total_duration(metrics_dir, warnings),
         "steps": steps,
-        "public": collect_public_metrics(public_dir),
+        "public": collect_public_metrics(public_dir, warnings),
     }
-    if out is not None:
-        _write_json(out, metrics)
-    text = _markdown_summary(metrics)
-    if summary_path is not None:
-        summary_path.parent.mkdir(parents=True, exist_ok=True)
-        with summary_path.open("a", encoding="utf-8", newline="\n") as f:
-            f.write(text)
+    try:
+        if out is not None:
+            _write_json(out, metrics)
+        text = _markdown_summary(metrics)
+        if summary_path is not None:
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            with summary_path.open("a", encoding="utf-8", newline="\n") as f:
+                f.write(text)
+    except OSError as exc:
+        print(
+            "build_metrics code=unavailable stage=write_summary "
+            f"resource=summary_output cause_type={type(exc).__name__}",
+            file=sys.stderr,
+        )
+        return 1
     print(text, end="")
     return 0
 

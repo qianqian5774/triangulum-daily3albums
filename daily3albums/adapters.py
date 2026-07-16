@@ -8,17 +8,58 @@ from urllib.parse import urlencode, quote_plus
 import re
 import unicodedata
 
-from daily3albums.request_broker import RequestBroker, RequestFailed
+from daily3albums.request_broker import (
+    BrokerRequestError,
+    BrokerResponseError,
+    RequestBroker,
+    RequestFailed,
+)
+from daily3albums.runtime_outcomes import (
+    OutcomeCode,
+    ProviderResult,
+    RuntimeOutcome,
+    outcome_code_for_exception,
+    outcome_code_for_http_status,
+)
+
+
+def _provider_exception_outcome(
+    exc: BaseException,
+    *,
+    provider: str,
+    stage: str,
+    resource: str,
+) -> RuntimeOutcome:
+    status = getattr(exc, "status", None)
+    cached = getattr(exc, "cached", None)
+    return RuntimeOutcome(
+        outcome_code_for_exception(exc),
+        provider,
+        stage,
+        resource,
+        http_status=int(status) if isinstance(status, int) else None,
+        cached=bool(cached) if isinstance(cached, bool) else None,
+    )
 
 
 class ProviderApiError(RuntimeError):
-    def __init__(self, *, provider: str, stage: str, message: str, advice: str) -> None:
+    def __init__(
+        self,
+        *,
+        provider: str,
+        stage: str,
+        code: OutcomeCode,
+        advice: str,
+        provider_status: int | None = None,
+    ) -> None:
         self.provider = provider
         self.stage = stage
-        self.message = message
+        self.code = code.value
+        self.provider_status = provider_status
         self.advice = advice
+        status_field = f" provider_status={provider_status}" if provider_status is not None else ""
         super().__init__(
-            f"provider={provider} stage={stage} error={message} advice={advice}"
+            f"provider={provider} stage={stage} code={self.code}{status_field} advice={advice}"
         )
 
 
@@ -73,23 +114,52 @@ class CoverArtArchiveAdapter:
     def __init__(self, request_broker: RequestBroker) -> None:
         self.request_broker = request_broker
 
-    def fetch_cover(self, rg_mbid: str) -> CoverArtResult | None:
+    def fetch_cover_result(self, rg_mbid: str) -> ProviderResult[CoverArtResult | None]:
         rg_mbid = (rg_mbid or "").strip()
         if not rg_mbid:
-            return None
+            return ProviderResult(
+                None,
+                RuntimeOutcome(OutcomeCode.MISSING, "cover_art_archive", "cover_lookup", "release_group_mbid"),
+            )
 
         url = f"https://coverartarchive.org/release-group/{rg_mbid}"
         try:
             payload = self.request_broker.get_json(url, adapter_name="CoverArtArchiveAdapter")
-        except Exception:
-            return None
+        except (BrokerRequestError, BrokerResponseError, RequestFailed) as exc:
+            return ProviderResult(
+                None,
+                _provider_exception_outcome(
+                    exc,
+                    provider="cover_art_archive",
+                    stage="cover_lookup",
+                    resource="cover",
+                ),
+            )
 
+        if payload is None:
+            failure = self.request_broker.get_last_failure("CoverArtArchiveAdapter")
+            status = failure.get("status") if isinstance(failure, dict) else None
+            code = (
+                outcome_code_for_http_status(int(status))
+                if isinstance(status, int)
+                else OutcomeCode.PROVIDER_NOT_FOUND
+            )
+            return ProviderResult(
+                None,
+                RuntimeOutcome(code, "cover_art_archive", "cover_lookup", "cover", http_status=status),
+            )
         if not isinstance(payload, dict):
-            return None
+            return ProviderResult(
+                None,
+                RuntimeOutcome(OutcomeCode.CORRUPT, "cover_art_archive", "cover_parse", "cover"),
+            )
 
         images = payload.get("images")
         if not isinstance(images, list) or not images:
-            return CoverArtResult(False, None, None, None)
+            return ProviderResult(
+                CoverArtResult(False, None, None, None),
+                RuntimeOutcome(OutcomeCode.LEGITIMATE_EMPTY, "cover_art_archive", "cover_lookup", "cover"),
+            )
 
         def pick_image() -> dict[str, Any] | None:
             for item in images:
@@ -102,7 +172,10 @@ class CoverArtArchiveAdapter:
 
         chosen = pick_image()
         if not chosen:
-            return CoverArtResult(False, None, None, None)
+            return ProviderResult(
+                CoverArtResult(False, None, None, None),
+                RuntimeOutcome(OutcomeCode.LEGITIMATE_EMPTY, "cover_art_archive", "cover_lookup", "cover"),
+            )
 
         image_url = (chosen.get("image") or "").strip()
         thumbs = chosen.get("thumbnails") if isinstance(chosen.get("thumbnails"), dict) else {}
@@ -114,7 +187,12 @@ class CoverArtArchiveAdapter:
 
         release_mbid = (chosen.get("release") or "").strip() if isinstance(chosen.get("release"), str) else None
         has_cover = bool(optimized)
-        return CoverArtResult(has_cover, optimized, image_url or None, release_mbid)
+        result = CoverArtResult(has_cover, optimized, image_url or None, release_mbid)
+        code = OutcomeCode.SUCCESS if has_cover else OutcomeCode.LEGITIMATE_EMPTY
+        return ProviderResult(result, RuntimeOutcome(code, "cover_art_archive", "cover_lookup", "cover"))
+
+    def fetch_cover(self, rg_mbid: str) -> CoverArtResult | None:
+        return self.fetch_cover_result(rg_mbid).value
 
 
 def lastfm_tag_top_albums(
@@ -137,10 +215,16 @@ def lastfm_tag_top_albums(
 
     # Last.fm 错误会以 JSON 返回：{"error":..., "message":...}
     if isinstance(j, dict) and "error" in j:
+        provider_status = j.get("error")
+        try:
+            provider_status = int(provider_status)
+        except (TypeError, ValueError):
+            provider_status = None
         raise ProviderApiError(
             provider="Last.fm",
             stage="tag.getTopAlbums",
-            message=f"Last.fm error={j.get('error')} message={j.get('message')}",
+            code=(OutcomeCode.RATE_LIMITED if provider_status == 29 else OutcomeCode.REQUEST_FAILED),
+            provider_status=provider_status,
             advice="Check LASTFM_API_KEY, tag validity, Last.fm quota/rate limits, then retry.",
         )
 
@@ -458,21 +542,67 @@ def musicbrainz_get_release_group_details(
     mb_user_agent: str,
     rg_id: str,
 ) -> MbReleaseGroupDetails | None:
+    return musicbrainz_get_release_group_details_result(
+        broker,
+        mb_user_agent=mb_user_agent,
+        rg_id=rg_id,
+    ).value
+
+
+def musicbrainz_get_release_group_details_result(
+    broker: RequestBroker,
+    mb_user_agent: str,
+    rg_id: str,
+) -> ProviderResult[MbReleaseGroupDetails | None]:
     rg_id = (rg_id or "").strip()
     if not rg_id:
-        return None
+        return ProviderResult(
+            None,
+            RuntimeOutcome(OutcomeCode.MISSING, "musicbrainz", "release_group_detail", "release_group_mbid"),
+        )
 
     url = f"https://musicbrainz.org/ws/2/release-group/{rg_id}?fmt=json&inc=ratings+tags+url-rels"
     headers = {"User-Agent": mb_user_agent, "Accept": "application/json"}
     try:
         j = broker.get_json(url, headers=headers, adapter_name="MusicBrainzAdapter")
-    except Exception:
-        return None
+    except (BrokerRequestError, BrokerResponseError, RequestFailed) as exc:
+        return ProviderResult(
+            None,
+            _provider_exception_outcome(
+                exc,
+                provider="musicbrainz",
+                stage="release_group_detail",
+                resource="release_group",
+            ),
+        )
 
+    if j is None:
+        failure = broker.get_last_failure("MusicBrainzAdapter")
+        status = failure.get("status") if isinstance(failure, dict) else None
+        code = (
+            outcome_code_for_http_status(int(status))
+            if isinstance(status, int)
+            else OutcomeCode.PROVIDER_NOT_FOUND
+        )
+        return ProviderResult(
+            None,
+            RuntimeOutcome(code, "musicbrainz", "release_group_detail", "release_group", http_status=status),
+        )
     if not isinstance(j, dict):
-        return None
+        return ProviderResult(
+            None,
+            RuntimeOutcome(OutcomeCode.CORRUPT, "musicbrainz", "release_group_detail", "release_group"),
+        )
     details = _release_group_summary_from_payload(j, include_details=True)
-    return details if isinstance(details, MbReleaseGroupDetails) else None
+    if not isinstance(details, MbReleaseGroupDetails):
+        return ProviderResult(
+            None,
+            RuntimeOutcome(OutcomeCode.CORRUPT, "musicbrainz", "release_group_detail", "release_group"),
+        )
+    return ProviderResult(
+        details,
+        RuntimeOutcome(OutcomeCode.SUCCESS, "musicbrainz", "release_group_detail", "release_group"),
+    )
 
 
 def musicbrainz_get_release_group_debug(
@@ -890,7 +1020,7 @@ class DiscogsSearchItem:
     rank: int | None
 
 
-def discogs_database_search(
+def discogs_database_search_result(
     broker: RequestBroker,
     token: str,
     *,
@@ -899,7 +1029,7 @@ def discogs_database_search(
     per_page: int = 100,
     type_: str = "master",
     format_: str = "album",
-) -> list[DiscogsSearchItem]:
+) -> ProviderResult[list[DiscogsSearchItem]]:
     requested_page = max(1, int(page))
     page = requested_page
     per_page = min(100, max(1, int(per_page)))
@@ -938,6 +1068,7 @@ def discogs_database_search(
         "discogs_cached_negative_used": False,
         "discogs_page_cap_hit": cap_hit,
         "discogs_pages_fetched": 0,
+        "discogs_outcome_code": OutcomeCode.SUCCESS.value,
     }
     try:
         j = broker.get_json(url, headers=headers, params=params, adapter_name="DiscogsAdapter")
@@ -945,38 +1076,119 @@ def discogs_database_search(
         diagnostics["discogs_failed"] = True
         diagnostics["discogs_failed_status"] = int(e.status)
         diagnostics["discogs_cached_negative_used"] = bool(e.cached)
+        diagnostics["discogs_outcome_code"] = outcome_code_for_exception(e).value
         setattr(broker, "_discogs_last_diagnostics", diagnostics)
-        return []
-    except Exception:
+        return ProviderResult(
+            [],
+            _provider_exception_outcome(
+                e,
+                provider="discogs",
+                stage="database_search",
+                resource="candidate_page",
+            ),
+        )
+    except (BrokerRequestError, BrokerResponseError) as exc:
         diagnostics["discogs_failed"] = True
+        diagnostics["discogs_outcome_code"] = outcome_code_for_exception(exc).value
         setattr(broker, "_discogs_last_diagnostics", diagnostics)
-        return []
+        return ProviderResult(
+            [],
+            _provider_exception_outcome(
+                exc,
+                provider="discogs",
+                stage="database_search",
+                resource="candidate_page",
+            ),
+        )
 
     if j is None:
         fail = broker.get_last_failure("DiscogsAdapter") if hasattr(broker, "get_last_failure") else None
         diagnostics["discogs_failed"] = True
         diagnostics["discogs_failed_status"] = int(fail.get("status", 0)) if isinstance(fail, dict) and fail.get("status") is not None else None
         diagnostics["discogs_cached_negative_used"] = bool(fail.get("cached", False)) if isinstance(fail, dict) else False
+        status = diagnostics["discogs_failed_status"]
+        code = outcome_code_for_http_status(status) if isinstance(status, int) else OutcomeCode.PROVIDER_NOT_FOUND
+        diagnostics["discogs_outcome_code"] = code.value
         setattr(broker, "_discogs_last_diagnostics", diagnostics)
-        return []
+        return ProviderResult(
+            [],
+            RuntimeOutcome(
+                code,
+                "discogs",
+                "database_search",
+                "candidate_page",
+                http_status=status,
+                cached=diagnostics["discogs_cached_negative_used"],
+            ),
+        )
 
     diagnostics["discogs_pages_fetched"] = 1
-    setattr(broker, "_discogs_last_diagnostics", diagnostics)
     out: list[DiscogsSearchItem] = []
     if not isinstance(j, dict):
-        return []
-    for idx, it in enumerate(j.get("results", []) or [], start=1):
-        out.append(
-            DiscogsSearchItem(
-                title=str(it.get("title") or "").strip(),
-                year=(int(it["year"]) if isinstance(it.get("year"), int) else None),
-                cover_image=it.get("cover_image"),
-                master_id=(int(it["master_id"]) if it.get("master_id") is not None else None),
-                resource_url=it.get("resource_url"),
-                rank=idx,
-            )
+        diagnostics["discogs_failed"] = True
+        diagnostics["discogs_outcome_code"] = OutcomeCode.CORRUPT.value
+        setattr(broker, "_discogs_last_diagnostics", diagnostics)
+        return ProviderResult(
+            [],
+            RuntimeOutcome(OutcomeCode.CORRUPT, "discogs", "database_search", "candidate_page"),
         )
-    return out
+    results = j.get("results", [])
+    if not isinstance(results, list) or any(not isinstance(item, dict) for item in results):
+        diagnostics["discogs_failed"] = True
+        diagnostics["discogs_outcome_code"] = OutcomeCode.CORRUPT.value
+        setattr(broker, "_discogs_last_diagnostics", diagnostics)
+        return ProviderResult(
+            [],
+            RuntimeOutcome(OutcomeCode.CORRUPT, "discogs", "database_search", "candidate_page"),
+        )
+    try:
+        for idx, it in enumerate(results, start=1):
+            out.append(
+                DiscogsSearchItem(
+                    title=str(it.get("title") or "").strip(),
+                    year=(int(it["year"]) if isinstance(it.get("year"), int) else None),
+                    cover_image=it.get("cover_image"),
+                    master_id=(int(it["master_id"]) if it.get("master_id") is not None else None),
+                    resource_url=it.get("resource_url"),
+                    rank=idx,
+                )
+            )
+    except (TypeError, ValueError):
+        diagnostics["discogs_failed"] = True
+        diagnostics["discogs_outcome_code"] = OutcomeCode.CORRUPT.value
+        setattr(broker, "_discogs_last_diagnostics", diagnostics)
+        return ProviderResult(
+            [],
+            RuntimeOutcome(OutcomeCode.CORRUPT, "discogs", "database_search", "candidate_page"),
+        )
+    code = OutcomeCode.SUCCESS if out else OutcomeCode.LEGITIMATE_EMPTY
+    diagnostics["discogs_outcome_code"] = code.value
+    setattr(broker, "_discogs_last_diagnostics", diagnostics)
+    return ProviderResult(
+        out,
+        RuntimeOutcome(code, "discogs", "database_search", "candidate_page"),
+    )
+
+
+def discogs_database_search(
+    broker: RequestBroker,
+    token: str,
+    *,
+    q: str,
+    page: int = 1,
+    per_page: int = 100,
+    type_: str = "master",
+    format_: str = "album",
+) -> list[DiscogsSearchItem]:
+    return discogs_database_search_result(
+        broker,
+        token,
+        q=q,
+        page=page,
+        per_page=per_page,
+        type_=type_,
+        format_=format_,
+    ).value
 
 
 @dataclass
@@ -996,11 +1208,55 @@ def listenbrainz_sitewide_release_groups(
     offset: int = 0,
     range_: str = "all_time",
 ) -> list[ListenBrainzReleaseGroupStat]:
+    result = listenbrainz_sitewide_release_groups_result(
+        broker,
+        count=count,
+        offset=offset,
+        range_=range_,
+    )
+    setattr(broker, "_listenbrainz_sitewide_outcome", result.outcome)
+    return result.value
+
+
+def listenbrainz_sitewide_release_groups_result(
+    broker: RequestBroker,
+    *,
+    count: int = 200,
+    offset: int = 0,
+    range_: str = "all_time",
+) -> ProviderResult[list[ListenBrainzReleaseGroupStat]]:
     url = "https://api.listenbrainz.org/1/stats/sitewide/release-groups"
     params = {"count": count, "offset": offset, "range": range_}
-    j = broker.get_json(url, params=params, adapter_name="ListenBrainzAdapter")
+    try:
+        j = broker.get_json(url, params=params, adapter_name="ListenBrainzAdapter")
+    except (BrokerRequestError, BrokerResponseError, RequestFailed) as exc:
+        return ProviderResult(
+            [],
+            _provider_exception_outcome(
+                exc,
+                provider="listenbrainz",
+                stage="sitewide_release_groups",
+                resource="candidate_page",
+            ),
+        )
 
-    items = j.get("release_groups") or j.get("payload", {}).get("release_groups") or []
+    if not isinstance(j, dict):
+        return ProviderResult(
+            [],
+            RuntimeOutcome(OutcomeCode.CORRUPT, "listenbrainz", "sitewide_release_groups", "candidate_page"),
+        )
+    payload = j.get("payload")
+    if payload is not None and not isinstance(payload, dict):
+        return ProviderResult(
+            [],
+            RuntimeOutcome(OutcomeCode.CORRUPT, "listenbrainz", "sitewide_release_groups", "candidate_page"),
+        )
+    items = j.get("release_groups") or (payload or {}).get("release_groups") or []
+    if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+        return ProviderResult(
+            [],
+            RuntimeOutcome(OutcomeCode.CORRUPT, "listenbrainz", "sitewide_release_groups", "candidate_page"),
+        )
     out: list[ListenBrainzReleaseGroupStat] = []
     for i, it in enumerate(items, start=1):
         out.append(
@@ -1013,7 +1269,11 @@ def listenbrainz_sitewide_release_groups(
                 rank=i,
             )
         )
-    return out
+    code = OutcomeCode.SUCCESS if out else OutcomeCode.LEGITIMATE_EMPTY
+    return ProviderResult(
+        out,
+        RuntimeOutcome(code, "listenbrainz", "sitewide_release_groups", "candidate_page"),
+    )
 
 
 def listenbrainz_metadata_release_groups(
@@ -1022,6 +1282,54 @@ def listenbrainz_metadata_release_groups(
     *,
     inc: str = "artist tag release",
 ) -> dict[str, Any]:
+    result = listenbrainz_metadata_release_groups_result(
+        broker,
+        release_group_mbids,
+        inc=inc,
+    )
+    setattr(broker, "_listenbrainz_metadata_outcome", result.outcome)
+    return result.value
+
+
+def listenbrainz_metadata_release_groups_result(
+    broker: RequestBroker,
+    release_group_mbids: list[str],
+    *,
+    inc: str = "artist tag release",
+) -> ProviderResult[dict[str, Any]]:
     url = "https://api.listenbrainz.org/1/metadata/release_group/"
     params = {"release_group_mbids": ",".join(release_group_mbids), "inc": inc}
-    return broker.get_json(url, params=params, adapter_name="ListenBrainzAdapter")
+    try:
+        payload = broker.get_json(url, params=params, adapter_name="ListenBrainzAdapter")
+    except (BrokerRequestError, BrokerResponseError, RequestFailed) as exc:
+        return ProviderResult(
+            {},
+            _provider_exception_outcome(
+                exc,
+                provider="listenbrainz",
+                stage="release_group_metadata",
+                resource="release_group_metadata",
+            ),
+        )
+    if not isinstance(payload, dict):
+        return ProviderResult(
+            {},
+            RuntimeOutcome(OutcomeCode.CORRUPT, "listenbrainz", "release_group_metadata", "release_group_metadata"),
+        )
+    nested = payload.get("payload")
+    if nested is not None and not isinstance(nested, dict):
+        return ProviderResult(
+            {},
+            RuntimeOutcome(OutcomeCode.CORRUPT, "listenbrainz", "release_group_metadata", "release_group_metadata"),
+        )
+    groups = payload.get("release_groups") or (nested or {}).get("release_groups") or {}
+    if not isinstance(groups, dict):
+        return ProviderResult(
+            {},
+            RuntimeOutcome(OutcomeCode.CORRUPT, "listenbrainz", "release_group_metadata", "release_group_metadata"),
+        )
+    code = OutcomeCode.SUCCESS if groups else OutcomeCode.LEGITIMATE_EMPTY
+    return ProviderResult(
+        payload,
+        RuntimeOutcome(code, "listenbrainz", "release_group_metadata", "release_group_metadata"),
+    )

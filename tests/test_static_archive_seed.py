@@ -15,6 +15,7 @@ from scripts.restore_static_archive_seed import (
     _select_recent_unique_dates,
     restore_static_archive_seed,
 )
+from daily3albums.runtime_outcomes import OutcomeCode
 
 
 def _pick(slot: str, index: int) -> dict:
@@ -137,7 +138,12 @@ def test_failed_provider_falls_back_to_existing_local_seed(tmp_path, monkeypatch
     source = _write_seed(tmp_path / "source", [_issue("2026-06-25", "published")])
 
     def fail_http(_url: str):
-        raise restore.SeedRestoreError("HTTP 403 from Browser Integrity Check")
+        raise restore.SeedRestoreError(
+            OutcomeCode.REQUEST_FAILED,
+            stage="http_read",
+            resource="archive_seed_resource",
+            http_status=403,
+        )
 
     monkeypatch.setattr(restore, "_http_read", fail_http)
     summary = restore_static_archive_seed(
@@ -150,19 +156,20 @@ def test_failed_provider_falls_back_to_existing_local_seed(tmp_path, monkeypatch
     )
     assert summary.status == "degraded"
     assert summary.provider == "last-good"
+    assert summary.code == "fallback_used"
     assert summary.attempts[0].status == "fail"
-    assert "403" in (summary.attempts[0].error or "")
+    assert summary.attempts[0].code == "request_failed"
 
 
 @pytest.mark.parametrize(
-    ("index_bytes", "content_type", "error_fragment"),
+    ("index_bytes", "content_type", "expected_code"),
     [
-        (b"<html>challenge</html>", "text/html", "Content-Type"),
-        (b"not json", "application/json", "invalid JSON"),
+        (b"<html>challenge</html>", "text/html", "corrupt"),
+        (b"not json", "application/json", "corrupt"),
     ],
 )
 def test_invalid_http_index_does_not_replace_existing_seed(
-    tmp_path, monkeypatch, index_bytes, content_type, error_fragment
+    tmp_path, monkeypatch, index_bytes, content_type, expected_code
 ):
     out = tmp_path / "out" / "data"
     out.mkdir(parents=True)
@@ -171,7 +178,12 @@ def test_invalid_http_index_does_not_replace_existing_seed(
 
     def fake_http(_url: str):
         if content_type != "application/json":
-            raise restore.SeedRestoreError(f"unexpected Content-Type='{content_type}'")
+            raise restore.SeedRestoreError(
+                OutcomeCode.CORRUPT,
+                stage="http_read",
+                resource="archive_seed_resource",
+                detail="invalid_content_type",
+            )
         return index_bytes, content_type, "https://triangulumdaily.space/data/index.json"
 
     monkeypatch.setattr(restore, "_http_read", fake_http)
@@ -181,7 +193,7 @@ def test_invalid_http_index_does_not_replace_existing_seed(
         providers=[Provider("custom-domain", "http", "https://triangulumdaily.space/")],
     )
     assert summary.status == "fail"
-    assert error_fragment in (summary.attempts[0].error or "")
+    assert summary.attempts[0].code == expected_code
     assert marker.read_text(encoding="utf-8") == "preserve me"
 
 
@@ -197,7 +209,12 @@ def test_missing_archive_file_is_fatal_and_preserves_existing_seed(tmp_path, mon
     def fake_http(url: str):
         if url.endswith("data/index.json"):
             return index, "application/json", url
-        raise restore.SeedRestoreError("HTTP 404")
+        raise restore.SeedRestoreError(
+            OutcomeCode.PROVIDER_NOT_FOUND,
+            stage="http_read",
+            resource="archive_seed_resource",
+            http_status=404,
+        )
 
     monkeypatch.setattr(restore, "_http_read", fake_http)
     summary = restore_static_archive_seed(
@@ -206,7 +223,7 @@ def test_missing_archive_file_is_fatal_and_preserves_existing_seed(tmp_path, mon
         providers=[Provider("custom-domain", "http", "https://triangulumdaily.space/")],
     )
     assert summary.status == "fail"
-    assert "no valid archive JSON" in (summary.attempts[0].error or "")
+    assert summary.attempts[0].code == "missing"
     assert (out / "keep.txt").read_text(encoding="utf-8") == "old"
 
 
@@ -224,7 +241,8 @@ def test_baseline_blocks_date_count_regression(tmp_path):
         baseline_path=baseline,
     )
     assert summary.status == "fail"
-    assert "regressed" in (summary.attempts[0].error or "")
+    assert summary.attempts[0].code == "invalid_schema"
+    assert "date_count_regression" in (summary.attempts[0].error or "")
     assert (out / "keep.txt").read_text(encoding="utf-8") == "old"
 
 
@@ -246,7 +264,9 @@ def test_empty_history_requires_explicit_override(tmp_path):
         allow_empty_history=True,
     )
     assert denied.status == "fail"
+    assert denied.attempts[0].code == "legitimate_empty"
     assert allowed.status == "healthy"
+    assert allowed.code == "legitimate_empty"
 
 
 def test_http_read_sets_descriptive_user_agent(monkeypatch):
@@ -312,3 +332,119 @@ def test_cli_local_only_does_not_call_http(tmp_path, monkeypatch):
         ],
     )
     assert restore.main() == 0
+
+
+@pytest.mark.parametrize(
+    "failure_code",
+    [OutcomeCode.MISSING, OutcomeCode.REQUEST_FAILED, OutcomeCode.TIMEOUT],
+)
+def test_primary_failure_codes_fall_back_without_changing_policy(tmp_path, monkeypatch, failure_code):
+    source = _write_seed(tmp_path / "source", [_issue("2026-06-25", "published")])
+
+    def fail_primary(*_args, **_kwargs):
+        raise restore.SeedRestoreError(
+            failure_code,
+            stage="http_read",
+            resource="archive_seed_index",
+        )
+
+    monkeypatch.setattr(restore, "_materialize_http_provider", fail_primary)
+    summary = restore_static_archive_seed(
+        tmp_path / "out" / "data",
+        max_days=7,
+        providers=[
+            Provider("primary", "http", "https://example.test/?api_key=secret"),
+            Provider("last-good", "local", str(source)),
+        ],
+    )
+
+    assert summary.status == "degraded"
+    assert summary.code == "fallback_used"
+    assert summary.attempts[0].code == failure_code.value
+    assert "secret" not in summary.attempts[0].location
+
+
+def test_all_missing_providers_report_recovery_exhausted(tmp_path):
+    summary = restore_static_archive_seed(
+        tmp_path / "out" / "data",
+        max_days=7,
+        providers=[
+            Provider("missing-a", "local", str(tmp_path / "missing-a")),
+            Provider("missing-b", "local", str(tmp_path / "missing-b")),
+        ],
+    )
+
+    assert summary.status == "fail"
+    assert summary.code == "recovery_exhausted"
+    assert [attempt.code for attempt in summary.attempts] == ["missing", "missing"]
+
+
+def test_invalid_index_schema_has_stable_code(tmp_path):
+    source = tmp_path / "source" / "data"
+    source.mkdir(parents=True)
+    (source / "index.json").write_text(
+        json.dumps({"output_schema_version": "1.0", "items": "wrong"}),
+        encoding="utf-8",
+    )
+
+    summary = restore_static_archive_seed(
+        tmp_path / "out" / "data",
+        max_days=7,
+        providers=[Provider("invalid", "local", str(source))],
+    )
+
+    assert summary.attempts[0].code == "invalid_schema"
+    assert "contract_code:WRONG_TYPE" in (summary.attempts[0].error or "")
+
+
+def test_archive_identity_mismatch_has_stable_code(tmp_path):
+    source = _write_seed(tmp_path / "source", [_issue("2026-06-25", "published")])
+    archive = source / "archive" / "2026-06-25" / "published.json"
+    payload = json.loads(archive.read_text(encoding="utf-8"))
+    payload["run_id"] = "other"
+    archive.write_text(json.dumps(payload), encoding="utf-8")
+
+    summary = restore_static_archive_seed(
+        tmp_path / "out" / "data",
+        max_days=7,
+        providers=[Provider("identity", "local", str(source))],
+    )
+
+    assert summary.attempts[0].code == "identity_mismatch"
+
+
+def test_archive_alias_byte_mismatch_has_stable_code(tmp_path):
+    source = _write_seed(tmp_path / "source", [_issue("2026-06-25", "published")])
+    nested = source / "archive" / "2026-06-25" / "published.json"
+    alias = source / "archive" / "2026-06-25.json"
+    alias.write_bytes(nested.read_bytes() + b"\n")
+
+    summary = restore_static_archive_seed(
+        tmp_path / "out" / "data",
+        max_days=7,
+        providers=[Provider("alias", "local", str(source))],
+    )
+
+    assert summary.attempts[0].code == "archive_alias_mismatch"
+
+
+def test_staging_failure_preserves_existing_seed(tmp_path, monkeypatch):
+    source = _write_seed(tmp_path / "source", [_issue("2026-06-25", "published")])
+    out = tmp_path / "out" / "data"
+    out.mkdir(parents=True)
+    marker = out / "keep.txt"
+    marker.write_text("last-good", encoding="utf-8")
+
+    monkeypatch.setattr(
+        restore,
+        "_promote_directory",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("promotion failed")),
+    )
+    summary = restore_static_archive_seed(
+        out,
+        max_days=7,
+        providers=[Provider("local", "local", str(source))],
+    )
+
+    assert summary.attempts[0].code == "unavailable"
+    assert marker.read_text(encoding="utf-8") == "last-good"

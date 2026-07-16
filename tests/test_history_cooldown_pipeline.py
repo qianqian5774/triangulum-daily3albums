@@ -8,6 +8,9 @@ import pytest
 from daily3albums.constraints import HistoryLoadError, album_key_from_parts, load_history_index
 
 
+TARGET_RG = "00000000-0000-0000-0000-999999999999"
+
+
 def _pick(index: int, *, rg_mbid: str | None = None, album_key: str | None = None) -> dict:
     payload = {
         "title": f"Album {index}",
@@ -30,15 +33,20 @@ def _issue(date_key: str, run_id: str, *, target_in_slot: int = 2, fallback_targ
     for slot_id in range(3):
         picks = []
         for _ in range(3):
-            rg_mbid = f"rg-{date_key}-{next_index}"
+            rg_mbid = f"00000000-0000-0000-0000-{next_index + 1:012d}"
             album_key = None
             if slot_id == target_in_slot and len(picks) == 1:
                 if fallback_target:
                     rg_mbid = None
                     album_key = album_key_from_parts("", "Legacy Album", "Legacy Artist", 1999)
                 else:
-                    rg_mbid = "rg-target"
+                    rg_mbid = TARGET_RG
             picks.append(_pick(next_index, rg_mbid=rg_mbid, album_key=album_key))
+            picks[-1]["slot"] = ["Headliner", "Lineage", "DeepCut"][len(picks) - 1]
+            picks[-1]["cover"] = {
+                "has_cover": False,
+                "optimized_cover_url": "assets/placeholder.svg",
+            }
             if album_key:
                 picks[-1].update(
                     {
@@ -57,7 +65,7 @@ def _issue(date_key: str, run_id: str, *, target_in_slot: int = 2, fallback_targ
             }
         )
     return {
-        "output_schema_version": "1.0",
+        "output_schema_version": "1",
         "date": date_key,
         "run_id": run_id,
         "theme_of_day": "fixture",
@@ -112,8 +120,8 @@ def test_history_loader_reads_complete_slots_and_counts_alias_once(tmp_path: Pat
     assert history.dates == ("2026-07-11",)
     assert history.archive_count == 1
     assert history.picks_loaded == 9
-    assert history.album_last_seen["rg-target"] == "2026-07-11"
-    assert history.album_identity_kind["rg-target"] == "rg_mbid"
+    assert history.album_last_seen[TARGET_RG] == "2026-07-11"
+    assert history.album_identity_kind[TARGET_RG] == "rg_mbid"
     assert history.artist_last_seen["artist-7"] == "2026-07-11"
     assert history.style_last_seen["ambient"] == "2026-07-11"
 
@@ -137,7 +145,7 @@ def test_album_history_uses_bjt_natural_date_window(
 
     history = load_history_index(data_dir, "2026-07-12", max_lookback_days=7)
 
-    assert ("rg-target" in history.album_last_seen) is expected_loaded
+    assert (TARGET_RG in history.album_last_seen) is expected_loaded
 
 
 def test_history_loader_uses_stable_fallback_identity_for_legacy_pick(tmp_path: Path):
@@ -163,6 +171,8 @@ def test_history_loader_allows_explicit_empty_index(tmp_path: Path):
     assert history.source == "external_seed"
     assert history.archive_count == 0
     assert history.picks_loaded == 0
+    assert history.outcome is not None
+    assert history.outcome.code == "legitimate_empty"
 
 
 @pytest.mark.parametrize(
@@ -177,10 +187,24 @@ def test_history_loader_rejects_invalid_or_future_index_dates(tmp_path: Path, it
     data_dir.mkdir()
     (data_dir / "index.json").write_text(json.dumps({"items": items}), encoding="utf-8")
 
-    with pytest.raises(HistoryLoadError):
+    with pytest.raises(HistoryLoadError) as caught:
         load_history_index(data_dir, "2026-07-12", source="external_seed")
+    assert caught.value.code == "invalid_schema"
 
 
 def test_history_loader_does_not_treat_missing_external_seed_as_first_run(tmp_path: Path):
-    with pytest.raises(HistoryLoadError, match="source directory is missing"):
+    with pytest.raises(HistoryLoadError, match="code=missing") as caught:
         load_history_index(tmp_path / "missing", "2026-07-12", source="external_seed")
+    assert caught.value.code == "missing"
+
+
+def test_history_loader_classifies_corrupt_index_without_raw_parser_text(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "index.json").write_text("not json secret=do-not-copy", encoding="utf-8")
+
+    with pytest.raises(HistoryLoadError) as caught:
+        load_history_index(data_dir, "2026-07-12", source="external_seed")
+
+    assert caught.value.code == "corrupt"
+    assert "do-not-copy" not in str(caught.value)
