@@ -18,8 +18,14 @@ from daily3albums.adapters import (
     listenbrainz_sitewide_release_groups,
     musicbrainz_best_release_group_match_debug,
     musicbrainz_get_release_group,
+    musicbrainz_identity_similarity,
     musicbrainz_normalize_mbid_to_release_group,
     musicbrainz_normalize_mbid_to_release_group_debug,
+    musicbrainz_same_work,
+)
+from daily3albums.normalization_policy import (
+    NormalizationPolicy,
+    evaluate_normalization_trace,
 )
 from daily3albums.request_broker import BrokerRequestError, BrokerResponseError, RequestFailed
 from daily3albums.runtime_outcomes import OutcomeCode, outcome_code_for_exception
@@ -111,6 +117,10 @@ def _normalization_trace(
     source: str,
     best_confidence: float,
     second_best_confidence: float | None = None,
+    identity_title_similarity: float | None = None,
+    identity_artist_similarity: float | None = None,
+    runner_release_group_mbid: str | None = None,
+    runner_same_work: bool | None = None,
 ) -> dict[str, Any]:
     path_by_source = {
         "mbid:release-group": "direct_release_group_mbid",
@@ -133,6 +143,10 @@ def _normalization_trace(
         "has_second_best": second is not None,
         "ambiguity_gap": round(float(best_confidence) - second, 6) if second is not None else None,
         "shadow_comparison_applicable": is_text_search,
+        "identity_title_similarity": identity_title_similarity,
+        "identity_artist_similarity": identity_artist_similarity,
+        "runner_release_group_mbid": runner_release_group_mbid,
+        "runner_same_work": runner_same_work,
     }
 
 
@@ -201,6 +215,25 @@ def _attach_shadow_results(
     diagnostics["normalization_shadow"] = record
 
 
+def _attach_policy_result(
+    diagnostics: dict[str, Any],
+    *,
+    policy: NormalizationPolicy,
+) -> None:
+    trace = diagnostics.get("normalization_trace")
+    if not isinstance(trace, dict):
+        return
+    decision = evaluate_normalization_trace(trace, policy)
+    diagnostics["normalization_policy"] = {
+        "policy_version": policy.policy_version,
+        "authority": "config.normalizer",
+        **decision.as_dict(),
+    }
+    shadow = diagnostics.get("normalization_shadow")
+    if isinstance(shadow, dict):
+        shadow["policy"] = dict(diagnostics["normalization_policy"])
+
+
 def _normalize_candidate(
     broker,
     env,
@@ -267,7 +300,18 @@ def _normalize_candidate(
                 mbid=c.lastfm_mbid,
             )
         if rg is not None:
-            normalization_trace = _normalization_trace(source=src, best_confidence=1.0)
+            title_sim, artist_sim = musicbrainz_identity_similarity(
+                c.title,
+                c.artist,
+                rg.title,
+                rg.artist_credit,
+            )
+            normalization_trace = _normalization_trace(
+                source=src,
+                best_confidence=1.0,
+                identity_title_similarity=title_sim,
+                identity_artist_similarity=artist_sim,
+            )
             norm = NormalizedCandidate(
                 title=c.title,
                 artist=c.artist,
@@ -283,7 +327,18 @@ def _normalize_candidate(
     if c.rg_mbid_hint:
         rg = musicbrainz_get_release_group(broker, env.mb_user_agent, c.rg_mbid_hint)
         if rg is not None:
-            normalization_trace = _normalization_trace(source="hint:rg_mbid", best_confidence=1.0)
+            title_sim, artist_sim = musicbrainz_identity_similarity(
+                c.title,
+                c.artist,
+                rg.title,
+                rg.artist_credit,
+            )
+            normalization_trace = _normalization_trace(
+                source="hint:rg_mbid",
+                best_confidence=1.0,
+                identity_title_similarity=title_sim,
+                identity_artist_similarity=artist_sim,
+            )
             norm = NormalizedCandidate(
                 title=c.title,
                 artist=c.artist,
@@ -313,10 +368,24 @@ def _normalize_candidate(
         return None, _diag_payload()
 
     rg = match.rg
+    runner_up = getattr(match, "runner_up", None)
     normalization_trace = _normalization_trace(
         source=match.method,
         best_confidence=float(match.confidence),
         second_best_confidence=runner_up_conf,
+        identity_title_similarity=float(getattr(match, "title_sim", 1.0)),
+        identity_artist_similarity=float(getattr(match, "artist_sim", 1.0)),
+        runner_release_group_mbid=(runner_up.rg.id if runner_up is not None else None),
+        runner_same_work=(
+            musicbrainz_same_work(
+                getattr(rg, "title", ""),
+                getattr(rg, "artist_credit", ""),
+                getattr(runner_up.rg, "title", ""),
+                getattr(runner_up.rg, "artist_credit", ""),
+            )
+            if runner_up is not None
+            else None
+        ),
     )
     norm = NormalizedCandidate(
         title=c.title,
@@ -437,6 +506,7 @@ def run_dry_run(
     ambiguity_gap: float = 0.06,
     config_reference_min_confidence: float = 0.72,
     config_reference_ambiguity_gap: float = 0.08,
+    normalization_policy: NormalizationPolicy | None = None,
     mb_debug: bool = False,
     quarantine_out: str | None = None,
     prefilter_topn: int = 120,
@@ -451,6 +521,7 @@ def run_dry_run(
     discogs_per_page: int = 100,
     lastfm_only: bool = False,
 ) -> dict:
+    active_normalization_policy = normalization_policy or NormalizationPolicy.defaults()
     if not env.lastfm_api_key:
         raise ProviderApiError(
             provider="Last.fm",
@@ -698,6 +769,7 @@ def run_dry_run(
             config_min_confidence=float(config_reference_min_confidence),
             config_ambiguity_gap=float(config_reference_ambiguity_gap),
         )
+        _attach_policy_result(dbg, policy=active_normalization_policy)
         mb_search_queries_attempted_total += int(dbg.get("mb_search_queries_attempted", 0))
         mb_http_calls_total += int(dbg.get("mb_http_calls", 0))
         mb_queries_attempted_total += int(dbg.get("mb_queries_attempted", 0))

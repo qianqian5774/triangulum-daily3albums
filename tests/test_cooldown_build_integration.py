@@ -61,7 +61,14 @@ def _write_history(data_dir: Path, issues: list[dict], *, aliases: bool = True) 
     return _write_history_raw(data_dir, issues, aliases=aliases)
 
 
-def _scored(rg_mbid: str, artist_key: str, *, score: float = 100.0) -> Any:
+def _scored(
+    rg_mbid: str,
+    artist_key: str,
+    *,
+    score: float = 100.0,
+    normalization_tier: str = "strict",
+    normalization_reason: str = "fixture",
+) -> Any:
     canonical_mbid = _mbid(rg_mbid)
     return SimpleNamespace(
         c=SimpleNamespace(
@@ -81,6 +88,13 @@ def _scored(rg_mbid: str, artist_key: str, *, score: float = 100.0) -> Any:
         score=score,
         reason="fixture",
         debug={
+            "normalization_policy": {
+                "policy_version": "td02b-v1",
+                "authority": "config.normalizer",
+                "tier": normalization_tier,
+                "reason": normalization_reason,
+                "admitted": normalization_tier != "hard_reject",
+            },
             "normalization_shadow": {
                 "path": "musicbrainz_text_search",
                 "query_strategy": "strict",
@@ -111,6 +125,72 @@ def _scored(rg_mbid: str, artist_key: str, *, score: float = 100.0) -> Any:
             }
         },
     )
+
+
+def test_td02b_uses_borderline_only_for_strict_shortage_and_never_admits_hard_reject(
+    monkeypatch,
+    tmp_path: Path,
+):
+    repo_root = _prepare_repo(tmp_path)
+    seed_dir = tmp_path / "seed" / "data"
+    _write_history(seed_dir, [])
+    tags = ["tag-a", "tag-b", "tag-c"]
+
+    def factory(kwargs: dict[str, Any]) -> list[Any]:
+        tag = str(kwargs["tag"])
+        return [
+            _scored(
+                f"rg-hard-{tag}",
+                f"artist-hard-{tag}",
+                score=120,
+                normalization_tier="hard_reject",
+                normalization_reason="ambiguous_distinct_work",
+            ),
+            _scored(f"rg-strict-{tag}", f"artist-strict-{tag}", score=110),
+            _scored(
+                f"rg-border-a-{tag}",
+                f"artist-border-a-{tag}",
+                score=100,
+                normalization_tier="borderline",
+                normalization_reason="below_strict_confidence",
+            ),
+            _scored(
+                f"rg-border-b-{tag}",
+                f"artist-border-b-{tag}",
+                score=90,
+                normalization_tier="borderline",
+                normalization_reason="riskier_query_strategy:cleaned_loose",
+            ),
+        ]
+
+    broker, calls = _configure_build(monkeypatch, repo_root, seed_dir, tags, factory)
+    out_dir = tmp_path / "public"
+
+    assert _run_build(repo_root, out_dir) == 0
+    assert not [call for call in calls if call.get("lastfm_only")]
+    assert broker.requests == 0
+    observability = json.loads(
+        (out_dir / "data" / "recommendation-observability.json").read_text(encoding="utf-8")
+    )
+    assert observability["normalization_policy_enforced"] is True
+    for slot in observability["slots"]:
+        shadow = slot["normalization_shadow"]
+        assert shadow["status"] == "enforced"
+        assert shadow["tier_counts"] == {
+            "strict": 1,
+            "borderline": 2,
+            "hard_reject": 1,
+        }
+        assert shadow["strict_pool_insufficient"] is True
+        assert shadow["borderline_admitted"] == 2
+        assert shadow["hard_reject_count"] == 1
+        assert all(
+            row["policy_tier"] != "hard_reject"
+            for row in shadow["candidates"]
+            if row["in_final_picks"]
+        )
+        assert slot["fallback"]["stage"] == 0
+        assert slot["fallback"]["additional_requests"] == 0
 
 
 def _dry_result(candidates: list[Any], *, requested: int = 200, lastfm_pages: int = 1) -> dict:

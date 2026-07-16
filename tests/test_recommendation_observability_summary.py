@@ -159,6 +159,38 @@ def test_render_markdown_includes_required_sections():
     assert "MusicBrainz normalization" in text
 
 
+def test_render_markdown_reports_enforced_normalization_tiers():
+    payload = _sample_payload()
+    payload["normalization_policy_enforced"] = True
+    payload["normalization_shadow"].update(
+        {
+            "status": "enforced",
+            "enforced": True,
+            "authority": "config.normalizer",
+            "policy_version": "td02b-v1",
+        }
+    )
+    for slot in payload["slots"]:
+        slot["normalization_shadow"].update(
+            {
+                "status": "enforced",
+                "enforced": True,
+                "tier_counts": {"strict": 2, "borderline": 1, "hard_reject": 1},
+                "strict_eligible": 2,
+                "strict_pool_insufficient": True,
+                "borderline_admitted": 1,
+                "borderline_final_picks": 1,
+            }
+        )
+
+    text = render_markdown(payload)
+
+    assert "### Normalization policy enforcement" in text
+    assert "`config.normalizer` is the sole production authority" in text
+    assert "| 0 | 2 | 1 | 1 | 2 | 1 | 1 | yes |" in text
+    assert "Shadow thresholds are observed only" not in text
+
+
 def test_render_markdown_explains_reused_archive_mode():
     payload = _sample_payload()
     payload.update(

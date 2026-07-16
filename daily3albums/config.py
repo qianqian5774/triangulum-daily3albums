@@ -7,6 +7,8 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
+from daily3albums.normalization_policy import NormalizationPolicy
+
 
 @dataclass
 class Env:
@@ -59,6 +61,7 @@ class AppConfig:
     archive_retention_days: int
     dedupe_same_rg_days: int
     dedupe_same_artist_days: int
+    normalization_policy: NormalizationPolicy
 
 
 def load_config(repo_root: Path) -> AppConfig:
@@ -70,6 +73,7 @@ def load_config(repo_root: Path) -> AppConfig:
     lastfm_max_pages = int(candidate_lastfm_cfg.get("lastfm_max_pages", build_cfg.get("lastfm_max_pages", 6)))
     max_tag_tries_per_slot = int(build_cfg.get("max_tag_tries_per_slot", 8))
     normalizer_cfg = cfg.get("normalizer", {}) or {}
+    normalization_policy = NormalizationPolicy.from_mapping(normalizer_cfg)
     history_cfg = cfg.get("history", {}) or {}
     scoring_cfg = cfg.get("scoring", {}) or {}
     mb_max_queries_per_candidate = int(normalizer_cfg.get("mb_max_queries_per_candidate", 3))
@@ -111,4 +115,5 @@ def load_config(repo_root: Path) -> AppConfig:
         archive_retention_days=archive_retention_days,
         dedupe_same_rg_days=dedupe_same_rg_days,
         dedupe_same_artist_days=dedupe_same_artist_days,
+        normalization_policy=normalization_policy,
     )

@@ -396,6 +396,8 @@ class MbReleaseGroupSummary:
     artist_mbids: list[str]
     first_release_date: str | None
     primary_type: str | None
+    title: str = ""
+    artist_credit: str = ""
 
 
 @dataclass
@@ -480,6 +482,7 @@ def _release_group_summary_from_payload(payload: dict[str, Any], *, include_deta
         return None
 
     artist_mbids: list[str] = []
+    artist_names: list[str] = []
     ac = payload.get("artist-credit") or []
     if isinstance(ac, list):
         for x in ac:
@@ -490,6 +493,9 @@ def _release_group_summary_from_payload(payload: dict[str, Any], *, include_deta
                 art_id = art.get("id")
                 if isinstance(art_id, str) and art_id:
                     artist_mbids.append(art_id)
+                artist_name = art.get("name") or x.get("name")
+                if isinstance(artist_name, str) and artist_name.strip():
+                    artist_names.append(artist_name.strip())
 
     if not include_details:
         return MbReleaseGroupSummary(
@@ -497,6 +503,8 @@ def _release_group_summary_from_payload(payload: dict[str, Any], *, include_deta
             artist_mbids=artist_mbids,
             first_release_date=payload.get("first-release-date") or None,
             primary_type=payload.get("primary-type") or None,
+            title=str(payload.get("title") or "").strip(),
+            artist_credit=" / ".join(artist_names),
         )
 
     rating_value, rating_votes_count = _extract_mb_rating(payload)
@@ -505,6 +513,8 @@ def _release_group_summary_from_payload(payload: dict[str, Any], *, include_deta
         artist_mbids=artist_mbids,
         first_release_date=payload.get("first-release-date") or None,
         primary_type=payload.get("primary-type") or None,
+        title=str(payload.get("title") or "").strip(),
+        artist_credit=" / ".join(artist_names),
         rating_value=rating_value,
         rating_votes_count=rating_votes_count,
         tags=_extract_mb_tags(payload),
@@ -815,6 +825,37 @@ def _ratio(a: str, b: str) -> float:
     return SequenceMatcher(None, a2, b2).ratio()
 
 
+def musicbrainz_identity_similarity(
+    candidate_title: str,
+    candidate_artist: str,
+    matched_title: str,
+    matched_artist: str,
+) -> tuple[float, float]:
+    """Return the same stable title/artist identity similarities used by matching."""
+    return (
+        _ratio(_clean_title(candidate_title), _clean_title(matched_title)),
+        _ratio(_clean_artist(candidate_artist), _clean_artist(matched_artist)),
+    )
+
+
+def musicbrainz_same_work(
+    first_title: str,
+    first_artist: str,
+    second_title: str,
+    second_artist: str,
+) -> bool:
+    """Treat edition-only title variants by the same artist as the same work."""
+    first_key = (
+        _mb_norm_text(_clean_title(first_title)),
+        _mb_norm_text(_clean_artist(first_artist)),
+    )
+    second_key = (
+        _mb_norm_text(_clean_title(second_title)),
+        _mb_norm_text(_clean_artist(second_artist)),
+    )
+    return bool(all(first_key)) and first_key == second_key
+
+
 @dataclass
 class MbBestMatch:
     rg: MbReleaseGroup
@@ -824,6 +865,7 @@ class MbBestMatch:
     title_sim: float
     artist_sim: float
     note: str
+    runner_up: "MbBestMatch | None" = None
 
 
 def _score_release_group_candidate(
@@ -1005,7 +1047,9 @@ def musicbrainz_best_release_group_match_debug(
         dbg.append("final:none")
         return None, None, dbg
 
-    runner_up_conf = top2.confidence if (top2 is not None and top2.rg.id != top1.rg.id) else None
+    runner_up = top2 if (top2 is not None and top2.rg.id != top1.rg.id) else None
+    top1.runner_up = runner_up
+    runner_up_conf = runner_up.confidence if runner_up is not None else None
     dbg.append(f"final:conf={top1.confidence:.3f} runner={runner_up_conf if runner_up_conf is not None else 'none'} via={top1.method} note={top1.note}")
     return top1, runner_up_conf, dbg
 

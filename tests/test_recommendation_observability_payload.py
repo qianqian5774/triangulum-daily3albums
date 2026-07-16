@@ -49,8 +49,11 @@ def test_generated_observability_labels_candidate_funnel_mode(tmp_path: Path):
     assert payload["reused_archive_date"] is None
     assert payload["reused_archive_run_id"] is None
     assert payload["final_picks_source"] == "candidate_funnel"
-    assert payload["normalization_shadow"]["status"] == "observed_not_enforced"
-    assert payload["normalization_shadow"]["enforced"] is False
+    assert payload["normalization_policy_enforced"] is True
+    assert payload["normalization_shadow"]["status"] == "enforced"
+    assert payload["normalization_shadow"]["enforced"] is True
+    assert payload["normalization_shadow"]["authority"] == "config.normalizer"
+    assert payload["normalization_shadow"]["policy_version"] == "td02b-v1"
     assert payload["normalization_shadow"]["production_sample_eligible"] is True
 
 
@@ -67,6 +70,7 @@ def test_archive_lock_observability_labels_reused_published_archive(tmp_path: Pa
     assert payload["reused_archive_date"] == "2026-06-27"
     assert payload["reused_archive_run_id"] == "published-run"
     assert payload["final_picks_source"] == "published_archive_seed"
+    assert payload["normalization_policy_enforced"] is False
     assert payload["normalization_shadow"]["status"] == "not_available_reused_published_archive"
     assert payload["normalization_shadow"]["production_sample_eligible"] is False
     assert payload["archive_lock"] == {

@@ -184,6 +184,33 @@ def _render_normalization_shadow(payload: dict[str, Any], slots: list[dict[str, 
         return []
 
     status = metadata.get("status") if isinstance(metadata, dict) else None
+    if status == "enforced":
+        lines = [
+            "",
+            "### Normalization policy enforcement",
+            "",
+            "`config.normalizer` is the sole production authority. Hard rejects are excluded; borderline candidates are admitted only when the strict eligible pool has fewer than three candidates.",
+            "",
+            "| Slot | Strict | Borderline | Hard reject | Strict eligible | Borderline admitted | Borderline final picks | Strict shortage |",
+            "|---:|---:|---:|---:|---:|---:|---:|---|",
+        ]
+        for slot_id, shadow in slot_shadows:
+            tiers = shadow.get("tier_counts") if isinstance(shadow, dict) else None
+            tiers = tiers if isinstance(tiers, dict) else {}
+            lines.append(
+                "| {slot} | {strict} | {borderline} | {hard} | {eligible} | {admitted} | {final} | {shortage} |".format(
+                    slot=_cell(slot_id),
+                    strict=_cell(tiers.get("strict", 0)),
+                    borderline=_cell(tiers.get("borderline", 0)),
+                    hard=_cell(tiers.get("hard_reject", 0)),
+                    eligible=_cell(shadow.get("strict_eligible", 0)),
+                    admitted=_cell(shadow.get("borderline_admitted", 0)),
+                    final=_cell(shadow.get("borderline_final_picks", 0)),
+                    shortage=_yes_no(shadow.get("strict_pool_insufficient")),
+                )
+            )
+        return lines
+
     lines = ["", "### Normalization shadow observation", ""]
     if status == "not_available_reused_published_archive":
         lines.extend(
@@ -248,7 +275,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "",
         f"- Date: `{_cell(payload.get('date'))}`",
         f"- Run: `{_cell(payload.get('run_id'))}`",
-        "- These metrics are observability only; recommendation weights and final-pick selection logic are not changed by them.",
+        (
+            "- TD-02B normalization policy is enforced before the existing scoring/sampling and cooldown fallback layers."
+            if payload.get("normalization_policy_enforced") is True
+            else "- These metrics are observability only; recommendation weights and final-pick selection logic are not changed by them."
+        ),
     ]
     lines.extend(_render_generation_mode(payload))
     lines.extend(_render_normalization_shadow(payload, slots))
