@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.recommendation_observability_summary import main, render_markdown
+from daily3albums.runtime_outcomes import OutcomeCode
+from scripts import recommendation_observability_summary as summary
+from scripts.recommendation_observability_summary import main, render_markdown, render_result
 
 
 def _sample_payload() -> dict:
@@ -247,3 +249,66 @@ def test_main_writes_github_summary_file(tmp_path: Path):
 
     assert rc == 0
     assert "Recommendation Observability" in summary_path.read_text(encoding="utf-8")
+
+
+def test_main_classifies_missing_artifact_without_changing_soft_github_policy(tmp_path: Path, capsys):
+    missing = tmp_path / "missing.json"
+    summary_path = tmp_path / "summary.md"
+
+    assert main(["--path", str(missing)]) == 1
+    assert main(
+        ["--path", str(missing), "--github-summary", "--summary-file", str(summary_path)]
+    ) == 0
+    assert "Not available" in summary_path.read_text(encoding="utf-8")
+    assert "was not found" in capsys.readouterr().out
+
+
+def test_legacy_and_empty_artifacts_are_compatible_outcomes():
+    legacy = _sample_payload()
+    for key in ("generation_mode", "normalization_shadow", "final_pick_metadata_coverage"):
+        legacy.pop(key, None)
+
+    assert render_result(legacy).outcome.code == OutcomeCode.UNAVAILABLE
+    assert render_result({}).outcome.code == OutcomeCode.LEGITIMATE_EMPTY
+    assert render_result({}).value is not None
+
+
+def test_main_classifies_corrupt_and_invalid_artifacts(tmp_path: Path, capsys):
+    corrupt = tmp_path / "corrupt.json"
+    invalid = tmp_path / "invalid.json"
+    corrupt.write_text("not json", encoding="utf-8")
+    invalid.write_text(json.dumps({"slots": {"wrong": True}}), encoding="utf-8")
+
+    assert main(["--path", str(corrupt)]) == 1
+    assert "code=corrupt" in capsys.readouterr().err
+    assert main(["--path", str(invalid)]) == 1
+    assert "code=invalid_schema" in capsys.readouterr().err
+
+
+def test_main_classifies_summary_output_unavailable(tmp_path: Path, capsys):
+    payload_path = tmp_path / "recommendation-observability.json"
+    unavailable = tmp_path / "summary-directory"
+    payload_path.write_text(json.dumps(_sample_payload()), encoding="utf-8")
+    unavailable.mkdir()
+
+    rc = main(
+        ["--path", str(payload_path), "--github-summary", "--summary-file", str(unavailable)]
+    )
+
+    assert rc == 1
+    assert "code=unavailable" in capsys.readouterr().err
+
+
+def test_main_classifies_render_failure_without_raw_exception(tmp_path: Path, monkeypatch, capsys):
+    payload_path = tmp_path / "recommendation-observability.json"
+    payload_path.write_text(json.dumps(_sample_payload()), encoding="utf-8")
+    monkeypatch.setattr(
+        summary,
+        "render_markdown",
+        lambda _payload: (_ for _ in ()).throw(RuntimeError("raw secret should not render")),
+    )
+
+    assert main(["--path", str(payload_path)]) == 1
+    error = capsys.readouterr().err
+    assert "code=render_failed" in error
+    assert "raw secret" not in error

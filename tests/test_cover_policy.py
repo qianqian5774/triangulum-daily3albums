@@ -24,6 +24,40 @@ def test_cover_policy_allows_placeholder_when_no_cover_source_available():
     assert item["cover"]["original_cover_url"] is None
 
 
+def test_cover_policy_uses_candidate_cover_without_replacing_selected_pick():
+    scored = SimpleNamespace(
+        c=SimpleNamespace(
+            title="Selected Album",
+            artist="Selected Artist",
+            image_url="https://images.example/selected.jpg",
+        ),
+        n=SimpleNamespace(
+            mb_release_group_id="rg-selected",
+            first_release_date="2001-01-01",
+            primary_type="Album",
+            artist_mbids=["artist-selected"],
+            confidence=0.91,
+        ),
+        score=10.0,
+        reason="fixture",
+    )
+
+    item = _pick_to_issue_item(
+        tag="fixture",
+        slot="Headliner",
+        s=scored,
+        cover_result=None,
+        mb_details=None,
+        wikipedia_overview=None,
+    )
+
+    assert item["title"] == "Selected Album"
+    assert item["artist_credit"] == "Selected Artist"
+    assert item["cover"]["optimized_cover_url"] == "https://images.example/selected.jpg"
+    assert item["musicbrainz"]["overview"] is None
+    assert item["musicbrainz"]["rating"] is None
+
+
 def test_pick_item_includes_musicbrainz_details_when_available():
     scored = SimpleNamespace(
         c=SimpleNamespace(title="Album", artist="Artist", image_url=""),

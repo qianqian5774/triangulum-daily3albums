@@ -17,15 +17,21 @@ from typing import Any
 from urllib.parse import urlparse
 
 from daily3albums.config import load_env, load_config
-from daily3albums.request_broker import BrokerRequestError, RequestBroker, RequestFailed
+from daily3albums.request_broker import (
+    BrokerRequestError,
+    BrokerResponseError,
+    RequestBroker,
+    RequestFailed,
+)
 from daily3albums.adapters import (
     CoverArtArchiveAdapter,
     CoverArtResult,
     ProviderApiError,
     lastfm_tag_top_albums,
-    musicbrainz_get_release_group_details,
+    musicbrainz_get_release_group_details_result,
     musicbrainz_search_release_group,
 )
+from daily3albums.runtime_outcomes import OutcomeCode, ProviderResult, RuntimeOutcome
 from daily3albums.constraints import (
     CooldownPolicy,
     HistoryIndex,
@@ -747,12 +753,11 @@ def _provider_from_external_error(exc: BaseException) -> str:
         return exc.provider
 
     adapter = str(getattr(exc, "adapter_name", "") or "")
-    text = str(exc)
     url = str(getattr(exc, "url", "") or "")
-    haystack = f"{adapter} {text} {url}"
-    if "LastFmAdapter" in haystack or "ws.audioscrobbler.com" in haystack or "LASTFM_API_KEY" in haystack:
+    haystack = f"{adapter} {url}"
+    if "LastFmAdapter" in haystack or "ws.audioscrobbler.com" in haystack:
         return "Last.fm"
-    if "MusicBrainzAdapter" in haystack or "musicbrainz.org" in haystack or "MB_USER_AGENT" in haystack:
+    if "MusicBrainzAdapter" in haystack or "musicbrainz.org" in haystack:
         return "MusicBrainz"
     return "external_api"
 
@@ -760,11 +765,8 @@ def _provider_from_external_error(exc: BaseException) -> str:
 def _stage_from_external_error(exc: BaseException, provider: str, default_stage: str) -> str:
     if isinstance(exc, ProviderApiError):
         return exc.stage
-    text = str(exc)
-    if "Bad JSON" in text:
+    if getattr(exc, "code", None) == OutcomeCode.CORRUPT.value:
         return "parse_json"
-    if "LASTFM_API_KEY" in text or "MB_USER_AGENT" in text:
-        return "config_check"
     if provider == "Last.fm":
         return "lastfm_top_albums"
     if provider == "MusicBrainz":
@@ -772,18 +774,11 @@ def _stage_from_external_error(exc: BaseException, provider: str, default_stage:
     return default_stage
 
 
-def _is_known_external_failure(exc: BaseException) -> bool:
-    if isinstance(exc, (ProviderApiError, BrokerRequestError, RequestFailed)):
-        return True
-    if not isinstance(exc, RuntimeError):
-        return False
-    text = str(exc)
-    return (
-        "Bad JSON from " in text
-        or "LASTFM_API_KEY" in text
-        or "MB_USER_AGENT" in text
-        or "Last.fm error=" in text
-    )
+def _code_from_external_error(exc: BaseException) -> str:
+    code = getattr(exc, "code", None)
+    if isinstance(code, str) and code:
+        return code
+    return OutcomeCode.REQUEST_FAILED.value
 
 
 def _advice_for_external_failure(provider: str, stage: str) -> str:
@@ -814,10 +809,17 @@ def _format_external_api_failure(
         f"slot={slot_id}",
         f"tag={json.dumps(tag, ensure_ascii=False)}",
         f"stage={resolved_stage}",
+        f"code={_code_from_external_error(exc)}",
     ]
     if fetch_limit is not None:
         parts.append(f"fetch_limit={fetch_limit}")
-    parts.append(f"error={_single_line(exc)}")
+    status = getattr(exc, "status", None)
+    if isinstance(status, int):
+        parts.append(f"http_status={status}")
+    provider_status = getattr(exc, "provider_status", None)
+    if isinstance(provider_status, int):
+        parts.append(f"provider_status={provider_status}")
+    parts.append(f"cause_type={getattr(exc, 'cause_type', type(exc).__name__)}")
     parts.append(f"advice={_advice_for_external_failure(provider, resolved_stage)}")
     return " ".join(parts)
 
@@ -924,30 +926,74 @@ def _wikipedia_overview_from_url(
     user_agent: str,
     log_line: callable,
 ) -> dict[str, Any] | None:
+    return _wikipedia_overview_result(broker, wiki_url, user_agent, log_line).value
+
+
+def _wikipedia_overview_result(
+    broker: RequestBroker,
+    wiki_url: str | None,
+    user_agent: str,
+    log_line: callable,
+) -> ProviderResult[dict[str, Any] | None]:
     wiki_url = (wiki_url or "").strip()
     if not wiki_url:
-        return None
+        return ProviderResult(
+            None,
+            RuntimeOutcome(OutcomeCode.MISSING, "wikipedia", "relation_lookup", "wikipedia_relation"),
+        )
     parsed = urlparse(wiki_url)
     host = parsed.netloc.lower()
     if "wikipedia.org" not in host or "/wiki/" not in parsed.path:
-        return None
+        return ProviderResult(
+            None,
+            RuntimeOutcome(OutcomeCode.INVALID_SCHEMA, "wikipedia", "relation_lookup", "wikipedia_relation"),
+        )
     title_path = parsed.path.split("/wiki/", 1)[1].strip("/")
     if not title_path:
-        return None
+        return ProviderResult(
+            None,
+            RuntimeOutcome(OutcomeCode.INVALID_SCHEMA, "wikipedia", "relation_lookup", "wikipedia_relation"),
+        )
 
     api_url = f"https://{host}/api/rest_v1/page/summary/{title_path}"
     headers = {"User-Agent": user_agent, "Accept": "application/json"}
     try:
         payload = broker.get_json(api_url, headers=headers, adapter_name="WikipediaAdapter")
-    except Exception as exc:
-        log_line(f"wikipedia_overview status=miss url={wiki_url} error={type(exc).__name__}")
-        return None
+    except (BrokerRequestError, BrokerResponseError, RequestFailed, ProviderApiError) as exc:
+        code = _code_from_external_error(exc)
+        outcome = RuntimeOutcome(
+            OutcomeCode(code),
+            "wikipedia",
+            "summary_lookup",
+            "wikipedia_summary",
+            http_status=getattr(exc, "status", None),
+        )
+        log_line(f"wikipedia_overview {outcome.format_safe()} cause_type={type(exc).__name__}")
+        return ProviderResult(None, outcome)
+    if payload is None:
+        failure = broker.get_last_failure("WikipediaAdapter")
+        status = failure.get("status") if isinstance(failure, dict) else None
+        code = (
+            OutcomeCode(str(failure.get("code")))
+            if isinstance(failure, dict) and failure.get("code")
+            else OutcomeCode.PROVIDER_NOT_FOUND
+        )
+        return ProviderResult(
+            None,
+            RuntimeOutcome(code, "wikipedia", "summary_lookup", "wikipedia_summary", http_status=status),
+        )
     if not isinstance(payload, dict):
-        return None
+        return ProviderResult(
+            None,
+            RuntimeOutcome(OutcomeCode.CORRUPT, "wikipedia", "summary_parse", "wikipedia_summary"),
+        )
 
     extract = str(payload.get("extract") or "").strip()
     if not extract:
-        return None
+        return ProviderResult(
+            None,
+            RuntimeOutcome(OutcomeCode.MISSING, "wikipedia", "summary_lookup", "wikipedia_summary"),
+        )
     content_urls = payload.get("content_urls")
     source_url = wiki_url
     if isinstance(content_urls, dict):
@@ -955,12 +1001,15 @@ def _wikipedia_overview_from_url(
         if isinstance(desktop, dict) and isinstance(desktop.get("page"), str):
             source_url = desktop["page"]
 
-    return {
-        "text": extract,
-        "source": "wikipedia",
-        "source_url": source_url,
-        "license_url": WIKIPEDIA_CC_BY_SA_URL,
-    }
+    return ProviderResult(
+        {
+            "text": extract,
+            "source": "wikipedia",
+            "source_url": source_url,
+            "license_url": WIKIPEDIA_CC_BY_SA_URL,
+        },
+        RuntimeOutcome(OutcomeCode.SUCCESS, "wikipedia", "summary_lookup", "wikipedia_summary"),
+    )
 
 
 def _pick_to_issue_item(
@@ -2061,9 +2110,7 @@ def cmd_build(
                         discogs_max_pages=discogs_max_pages,
                         discogs_per_page=discogs_per_page,
                     )
-                except (ProviderApiError, BrokerRequestError, RequestFailed, RuntimeError) as exc:
-                    if not _is_known_external_failure(exc):
-                        raise
+                except (ProviderApiError, BrokerRequestError, BrokerResponseError, RequestFailed) as exc:
                     error_message = _format_external_api_failure(
                         slot_id=slot_id,
                         tag=slot_tag,
@@ -2254,9 +2301,7 @@ def cmd_build(
                             selected_eligible = eligible
                             fallback_stage = 1
                             stage1_meta["selected"] = True
-                except (ProviderApiError, BrokerRequestError, RequestFailed, RuntimeError) as exc:
-                    if not _is_known_external_failure(exc):
-                        raise
+                except (ProviderApiError, BrokerRequestError, BrokerResponseError, RequestFailed) as exc:
                     additional_requests = max(
                         0,
                         _request_count(broker.get_stats_snapshot()) - requests_before,
@@ -2599,25 +2644,60 @@ def cmd_build(
                 if rg_id:
                     observability_payload["enrichment"]["cover_attempted"] += 1
                     observability_payload["enrichment"]["musicbrainz_detail_attempted"] += 1
-                cover_result = cover_adapter.fetch_cover(rg_id) if rg_id else None
+                cover_fetch = (
+                    cover_adapter.fetch_cover_result(rg_id)
+                    if rg_id
+                    else ProviderResult(
+                        None,
+                        RuntimeOutcome(OutcomeCode.MISSING, "cover_art_archive", "cover_lookup", "release_group_mbid"),
+                    )
+                )
+                cover_result = cover_fetch.value
+                log_line(
+                    f"enrichment slot={slot_payload.get('slot_id')} role={slot_name} "
+                    f"{cover_fetch.outcome.format_safe()}"
+                )
                 if cover_result and cover_result.has_cover:
                     observability_payload["enrichment"]["cover_success"] += 1
-                mb_details = musicbrainz_get_release_group_details(
-                    broker,
-                    mb_user_agent=env.mb_user_agent,
-                    rg_id=rg_id,
-                ) if rg_id else None
+                detail_fetch = (
+                    musicbrainz_get_release_group_details_result(
+                        broker,
+                        mb_user_agent=env.mb_user_agent,
+                        rg_id=rg_id,
+                    )
+                    if rg_id
+                    else ProviderResult(
+                        None,
+                        RuntimeOutcome(OutcomeCode.MISSING, "musicbrainz", "release_group_detail", "release_group_mbid"),
+                    )
+                )
+                mb_details = detail_fetch.value
+                log_line(
+                    f"enrichment slot={slot_payload.get('slot_id')} role={slot_name} "
+                    f"{detail_fetch.outcome.format_safe()}"
+                )
                 if mb_details:
                     observability_payload["enrichment"]["musicbrainz_detail_success"] += 1
                 wikipedia_url = getattr(mb_details, "wikipedia_url", None) if mb_details else None
                 if wikipedia_url:
                     observability_payload["enrichment"]["wikipedia_overview_attempted"] += 1
-                wikipedia_overview = _wikipedia_overview_from_url(
-                    broker,
-                    wikipedia_url,
-                    env.mb_user_agent,
-                    log_line,
-                ) if mb_details else None
+                if mb_details:
+                    wikipedia_fetch = _wikipedia_overview_result(
+                        broker,
+                        wikipedia_url,
+                        env.mb_user_agent,
+                        log_line,
+                    )
+                else:
+                    wikipedia_fetch = ProviderResult(
+                        None,
+                        RuntimeOutcome(OutcomeCode.UNAVAILABLE, "wikipedia", "relation_lookup", "musicbrainz_detail"),
+                    )
+                wikipedia_overview = wikipedia_fetch.value
+                log_line(
+                    f"enrichment slot={slot_payload.get('slot_id')} role={slot_name} "
+                    f"{wikipedia_fetch.outcome.format_safe()}"
+                )
                 if wikipedia_overview:
                     observability_payload["enrichment"]["wikipedia_overview_success"] += 1
                 item = _pick_to_issue_item(
@@ -2631,6 +2711,19 @@ def cmd_build(
                 )
                 item["style_key"] = slot_payload.get("theme_key")
                 item["theme_key"] = slot_payload.get("theme_key")
+                if not (cover_result and cover_result.has_cover):
+                    candidate_image = str(getattr(getattr(s, "c", None), "image_url", "") or "").strip()
+                    fallback = "candidate_cover" if candidate_image else "placeholder"
+                    log_line(
+                        f"enrichment slot={slot_payload.get('slot_id')} role={slot_name} "
+                        + RuntimeOutcome(
+                            OutcomeCode.FALLBACK_USED,
+                            "cover_policy",
+                            "cover_fallback",
+                            "cover",
+                            fallback=fallback,
+                        ).format_safe()
+                    )
                 slot_payload["picks"].append(item)
                 if slot_observability is not None:
                     slot_observability["final_picks"].append(_observability_final_pick(item, s))
@@ -2721,6 +2814,12 @@ def cmd_build(
             print(f"BUILD ERROR: archive artifact validation failed: {exc}")
             return 2
         if issue.get("run_id") != generated_run_id:
+            archive_reuse_outcome = RuntimeOutcome(
+                OutcomeCode.PUBLISHED_ARCHIVE_REUSED,
+                "archive_writer",
+                "archive_lock",
+                "published_archive",
+            )
             print(
                 "ARCHIVE IMMUTABILITY: reused published archive "
                 f"date={issue.get('date')} published_run_id={issue.get('run_id')} "
@@ -2728,6 +2827,7 @@ def cmd_build(
             )
             log_line(
                 "archive_immutability status=reused_published_date "
+                f"{archive_reuse_outcome.format_safe()} "
                 f"date={issue.get('date')} published_run_id={issue.get('run_id')} "
                 f"discarded_generated_run_id={generated_run_id}"
             )

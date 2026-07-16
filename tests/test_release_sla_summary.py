@@ -64,3 +64,20 @@ def test_manual_run_records_margin_without_false_sla_warning(capsys):
     assert rc == 0
     assert '"status": "observed"' in output
     assert "::warning" not in output
+
+
+def test_release_summary_classifies_missing_output_without_changing_exit_policy(monkeypatch, capsys):
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+    rc = main(
+        [
+            "--started-at",
+            "2026-07-11T06:10:00+08:00",
+            "--finished-at",
+            "2026-07-11T06:20:00+08:00",
+            "--github-summary",
+        ]
+    )
+
+    assert rc == 0
+    assert "code=unavailable" in capsys.readouterr().out

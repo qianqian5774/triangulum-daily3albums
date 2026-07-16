@@ -8,6 +8,19 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from daily3albums.public_contract import (
+    PublicContractError,
+    require_byte_identical,
+    validate_archive,
+    validate_archive_identity,
+    validate_index,
+)
+from daily3albums.runtime_outcomes import (
+    OutcomeCode,
+    RuntimeOutcome,
+    outcome_code_for_contract_error,
+)
+
 
 ARTIST_COOLDOWN_DAYS = 7
 THEME_COOLDOWN_DAYS = 3
@@ -16,7 +29,29 @@ STAGE3_DAILY_PICK_CAP = 1
 
 
 class HistoryLoadError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        code: OutcomeCode,
+        *,
+        source: str,
+        resource: str,
+        detail: str | None = None,
+        date_key: str | None = None,
+        run_id: str | None = None,
+    ) -> None:
+        self.code = code.value
+        self.source = source
+        self.resource = resource
+        self.date_key = date_key
+        self.run_id = run_id
+        fields = [f"code={self.code}", f"source={source}", f"resource={resource}"]
+        if date_key:
+            fields.append(f"date={date_key}")
+        if run_id:
+            fields.append(f"run_id={run_id}")
+        if detail:
+            fields.append(f"detail={detail}")
+        super().__init__(" ".join(fields))
 
 
 @dataclass(frozen=True)
@@ -39,6 +74,7 @@ class HistoryIndex:
     archive_count: int = 0
     picks_loaded: int = 0
     source: str = "empty"
+    outcome: RuntimeOutcome | None = None
 
     def album_identity_counts(self) -> dict[str, int]:
         counts = {"rg_mbid": 0, "fallback": 0}
@@ -96,16 +132,27 @@ def _empty_history(source: str) -> HistoryIndex:
         artist_last_seen={},
         style_last_seen={},
         source=source,
+        outcome=RuntimeOutcome(OutcomeCode.LEGITIMATE_EMPTY, "history", "history_load", "history"),
     )
 
 
-def _read_json_object(path: Path, label: str) -> dict[str, Any]:
+def _read_json_object(path: Path, label: str, source: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    except Exception as exc:
-        raise HistoryLoadError(f"history {label} JSON is invalid: {path} ({exc})") from exc
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HistoryLoadError(
+            OutcomeCode.CORRUPT,
+            source=source,
+            resource=label,
+            detail="json_decode_failed",
+        ) from exc
     if not isinstance(payload, dict):
-        raise HistoryLoadError(f"history {label} must be an object: {path}")
+        raise HistoryLoadError(
+            OutcomeCode.INVALID_SCHEMA,
+            source=source,
+            resource=label,
+            detail="object_required",
+        )
     return payload
 
 
@@ -134,32 +181,46 @@ def load_history_index(
     if data_dir is None:
         return _empty_history("empty")
     if not data_dir.exists() or not data_dir.is_dir():
-        raise HistoryLoadError(f"history source directory is missing: source={source} path={data_dir}")
+        raise HistoryLoadError(OutcomeCode.MISSING, source=source, resource="history_directory")
 
     index_path = data_dir / "index.json"
     if not index_path.exists():
-        raise HistoryLoadError(f"history index is missing: source={source} path={index_path}")
-    index = _read_json_object(index_path, "index")
-    items = index.get("items")
-    if not isinstance(items, list):
-        raise HistoryLoadError(f"history index items must be a list: {index_path}")
+        raise HistoryLoadError(OutcomeCode.MISSING, source=source, resource="history_index")
+    index = _read_json_object(index_path, "history_index", source)
+    try:
+        index = validate_index(index)
+    except PublicContractError as exc:
+        raise HistoryLoadError(
+            outcome_code_for_contract_error(exc.code),
+            source=source,
+            resource="history_index",
+            detail=f"contract_code:{exc.code}",
+        ) from exc
+    items = index["items"]
 
     current = date.fromisoformat(current_date_key)
     selected_by_date: dict[str, dict[str, Any]] = {}
     for raw_item in items:
-        if not isinstance(raw_item, dict):
-            raise HistoryLoadError(f"history index item must be an object: {index_path}")
         day = raw_item.get("date")
         run_id = raw_item.get("run_id")
-        if not isinstance(day, str) or not isinstance(run_id, str) or not run_id.strip():
-            raise HistoryLoadError(f"history index item requires date/run_id: {index_path}")
         try:
             archive_date = date.fromisoformat(day)
         except ValueError as exc:
-            raise HistoryLoadError(f"history index contains invalid date: {day!r}") from exc
+            raise HistoryLoadError(
+                OutcomeCode.INVALID_SCHEMA,
+                source=source,
+                resource="history_index",
+                detail="invalid_date",
+            ) from exc
         delta_days = (current - archive_date).days
         if delta_days < 0:
-            raise HistoryLoadError(f"history index contains future date: {day}")
+            raise HistoryLoadError(
+                OutcomeCode.INVALID_SCHEMA,
+                source=source,
+                resource="history_index",
+                detail="future_date",
+                date_key=day,
+            )
         if delta_days == 0 or delta_days > max_lookback_days:
             continue
         previous = selected_by_date.get(day)
@@ -173,30 +234,78 @@ def load_history_index(
         candidates = [path for path in _archive_paths(data_dir, item) if path.exists()]
         if not candidates:
             raise HistoryLoadError(
-                f"history archive is missing: date={day} run_id={item.get('run_id')} source={source}"
+                OutcomeCode.MISSING,
+                source=source,
+                resource="history_archive",
+                date_key=day,
+                run_id=item.get("run_id"),
             )
-        if len(candidates) > 1 and candidates[0].read_bytes() != candidates[1].read_bytes():
+        if len(candidates) > 1:
+            try:
+                require_byte_identical(candidates[0].read_bytes(), candidates[1].read_bytes())
+            except PublicContractError as exc:
+                raise HistoryLoadError(
+                    outcome_code_for_contract_error(exc.code),
+                    source=source,
+                    resource="history_archive_alias",
+                    detail=f"contract_code:{exc.code}",
+                    date_key=day,
+                    run_id=item.get("run_id"),
+                ) from exc
+        payload = _read_json_object(candidates[0], "history_archive", source)
+        try:
+            payload, _profile = validate_archive(payload)
+            validate_archive_identity(payload, date=day, run_id=item.get("run_id"))
+        except PublicContractError as exc:
             raise HistoryLoadError(
-                f"history archive aliases differ: date={day} run_id={item.get('run_id')} source={source}"
-            )
-        payload = _read_json_object(candidates[0], "archive")
-        if payload.get("date") != day or payload.get("run_id") != item.get("run_id"):
-            raise HistoryLoadError(
-                f"history archive identity mismatch: date={day} run_id={item.get('run_id')} source={source}"
-            )
+                outcome_code_for_contract_error(exc.code),
+                source=source,
+                resource="history_archive",
+                detail=f"contract_code:{exc.code}",
+                date_key=day,
+                run_id=item.get("run_id"),
+            ) from exc
         slots = payload.get("slots")
         if not isinstance(slots, list):
-            raise HistoryLoadError(f"history archive slots must be a list: {candidates[0]}")
+            raise HistoryLoadError(
+                OutcomeCode.INVALID_SCHEMA,
+                source=source,
+                resource="history_archive",
+                detail="slots_required_for_history",
+                date_key=day,
+                run_id=item.get("run_id"),
+            )
         for slot in slots:
             if not isinstance(slot, dict):
-                raise HistoryLoadError(f"history archive slot must be an object: {candidates[0]}")
+                raise HistoryLoadError(
+                    OutcomeCode.INVALID_SCHEMA,
+                    source=source,
+                    resource="history_archive",
+                    detail="slot_object_required",
+                    date_key=day,
+                    run_id=item.get("run_id"),
+                )
             slot_theme_key = theme_key_from_tag(slot.get("theme_key") or slot.get("theme") or "")
             picks = slot.get("picks")
             if not isinstance(picks, list):
-                raise HistoryLoadError(f"history archive slot picks must be a list: {candidates[0]}")
+                raise HistoryLoadError(
+                    OutcomeCode.INVALID_SCHEMA,
+                    source=source,
+                    resource="history_archive",
+                    detail="slot_picks_required",
+                    date_key=day,
+                    run_id=item.get("run_id"),
+                )
             for pick in picks:
                 if not isinstance(pick, dict):
-                    raise HistoryLoadError(f"history archive pick must be an object: {candidates[0]}")
+                    raise HistoryLoadError(
+                        OutcomeCode.INVALID_SCHEMA,
+                        source=source,
+                        resource="history_archive",
+                        detail="pick_object_required",
+                        date_key=day,
+                        run_id=item.get("run_id"),
+                    )
                 picks_loaded += 1
                 rg_mbid = str(pick.get("rg_mbid") or "").strip()
                 fallback_key = str(pick.get("album_key") or "").strip()
@@ -233,6 +342,12 @@ def load_history_index(
         archive_count=len(dates),
         picks_loaded=picks_loaded,
         source=source,
+        outcome=RuntimeOutcome(
+            OutcomeCode.SUCCESS if dates else OutcomeCode.LEGITIMATE_EMPTY,
+            "history",
+            "history_load",
+            "history",
+        ),
     )
 
 

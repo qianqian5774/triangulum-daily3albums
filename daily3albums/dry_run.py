@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 from daily3albums.adapters import (
     MbReleaseGroupSummary,
+    ProviderApiError,
     discogs_database_search,
     lastfm_tag_top_albums,
     listenbrainz_metadata_release_groups,
@@ -20,6 +21,8 @@ from daily3albums.adapters import (
     musicbrainz_normalize_mbid_to_release_group,
     musicbrainz_normalize_mbid_to_release_group_debug,
 )
+from daily3albums.request_broker import BrokerRequestError, BrokerResponseError, RequestFailed
+from daily3albums.runtime_outcomes import OutcomeCode, outcome_code_for_exception
 
 
 @dataclass
@@ -449,9 +452,19 @@ def run_dry_run(
     lastfm_only: bool = False,
 ) -> dict:
     if not env.lastfm_api_key:
-        raise RuntimeError("Missing env LASTFM_API_KEY")
+        raise ProviderApiError(
+            provider="Last.fm",
+            stage="config_check",
+            code=OutcomeCode.NOT_CONFIGURED,
+            advice="Configure LASTFM_API_KEY, then retry.",
+        )
     if not env.mb_user_agent:
-        raise RuntimeError("Missing env MB_USER_AGENT")
+        raise ProviderApiError(
+            provider="MusicBrainz",
+            stage="config_check",
+            code=OutcomeCode.NOT_CONFIGURED,
+            advice="Configure MB_USER_AGENT, then retry.",
+        )
 
     h = int(hashlib.sha256(seed_key.encode("utf-8")).hexdigest()[:8], 16)
     page_start = max(1, int(lastfm_page_start))
@@ -498,6 +511,13 @@ def run_dry_run(
         "discogs_failed": False,
         "discogs_failed_status": None,
         "discogs_cached_negative_used": False,
+        "discogs_outcome_code": (
+            OutcomeCode.DISABLED.value
+            if lastfm_only or not discogs_enabled
+            else OutcomeCode.NOT_CONFIGURED.value
+            if not env.discogs_token
+            else OutcomeCode.UNAVAILABLE.value
+        ),
     }
 
     if env.discogs_token and discogs_enabled and not lastfm_only:
@@ -526,26 +546,63 @@ def run_dry_run(
                 if it.rank:
                     c.source_ranks["discogs"] = it.rank
                 raw.append(c)
-        except Exception:
+        except (BrokerRequestError, BrokerResponseError, RequestFailed, ProviderApiError) as exc:
             discogs_diag["discogs_failed"] = True
+            discogs_diag["discogs_outcome_code"] = outcome_code_for_exception(exc).value
 
     listenbrainz_diag = {
         "listenbrainz_attempted": not lastfm_only,
         "listenbrainz_failed": False,
         "listenbrainz_candidates": 0,
+        "listenbrainz_outcome_code": (
+            OutcomeCode.DISABLED.value if lastfm_only else OutcomeCode.UNAVAILABLE.value
+        ),
     }
     if not lastfm_only:
         try:
-            lbs = listenbrainz_sitewide_release_groups(broker, count=lb_count, offset=lb_offset, range_="all_time")
+            setattr(broker, "_listenbrainz_sitewide_outcome", None)
+            lbs = listenbrainz_sitewide_release_groups(
+                broker,
+                count=lb_count,
+                offset=lb_offset,
+                range_="all_time",
+            )
+            sitewide_outcome = getattr(broker, "_listenbrainz_sitewide_outcome", None)
+            sitewide_code = (
+                sitewide_outcome.code
+                if hasattr(sitewide_outcome, "code")
+                else OutcomeCode.SUCCESS if lbs else OutcomeCode.LEGITIMATE_EMPTY
+            )
+            listenbrainz_diag["listenbrainz_outcome_code"] = sitewide_code.value
+            if sitewide_code not in {OutcomeCode.SUCCESS, OutcomeCode.LEGITIMATE_EMPTY}:
+                listenbrainz_diag["listenbrainz_failed"] = True
+                lbs = []
             mbids = [x.release_group_mbid for x in lbs if x.release_group_mbid]
             meta: dict[str, Any] = {}
+            metadata_failed = False
             for i in range(0, len(mbids), 25):
                 part = mbids[i : i + 25]
-                j = listenbrainz_metadata_release_groups(broker, part, inc="artist tag release")
+                setattr(broker, "_listenbrainz_metadata_outcome", None)
+                j = listenbrainz_metadata_release_groups(
+                    broker,
+                    part,
+                    inc="artist tag release",
+                )
+                metadata_outcome = getattr(broker, "_listenbrainz_metadata_outcome", None)
+                metadata_code = (
+                    metadata_outcome.code
+                    if hasattr(metadata_outcome, "code")
+                    else OutcomeCode.SUCCESS if j else OutcomeCode.LEGITIMATE_EMPTY
+                )
+                listenbrainz_diag["listenbrainz_outcome_code"] = metadata_code.value
+                if metadata_code not in {OutcomeCode.SUCCESS, OutcomeCode.LEGITIMATE_EMPTY}:
+                    listenbrainz_diag["listenbrainz_failed"] = True
+                    metadata_failed = True
+                    break
                 meta.update(j.get("release_groups") or j.get("payload", {}).get("release_groups") or {})
 
             tag_l = tag.lower().strip()
-            for st in lbs:
+            for st in [] if metadata_failed else lbs:
                 rgid = st.release_group_mbid
                 m = meta.get(rgid) if isinstance(meta, dict) else None
                 if not m:
@@ -572,8 +629,15 @@ def run_dry_run(
                     c.artist_mbid_hint = st.artist_mbid
                 raw.append(c)
                 listenbrainz_diag["listenbrainz_candidates"] += 1
-        except Exception:
+            if not listenbrainz_diag["listenbrainz_failed"]:
+                listenbrainz_diag["listenbrainz_outcome_code"] = (
+                    OutcomeCode.SUCCESS.value
+                    if listenbrainz_diag["listenbrainz_candidates"]
+                    else OutcomeCode.LEGITIMATE_EMPTY.value
+                )
+        except (BrokerRequestError, BrokerResponseError, RequestFailed, ProviderApiError) as exc:
             listenbrainz_diag["listenbrainz_failed"] = True
+            listenbrainz_diag["listenbrainz_outcome_code"] = outcome_code_for_exception(exc).value
 
     merged = _merge_candidates(raw)
     raw_count = len(raw)

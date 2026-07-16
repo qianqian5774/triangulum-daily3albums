@@ -10,5 +10,6 @@
   "https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=fixture&api_key=fixture-key&format=json&limit=50&page=5": "lastfm_topalbums_fixture.json",
   "https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=fixture&api_key=fixture-key&format=json&limit=50&page=6": "lastfm_topalbums_fixture.json",
   "https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=fixture&api_key=fixture-key&format=json&limit=50&page=7": "lastfm_topalbums_fixture.json",
-  "https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=fixture&api_key=fixture-key&format=json&limit=50&page=8": "lastfm_topalbums_fixture.json"
+  "https://ws.audioscrobbler.com/2.0/?method=tag.getTopAlbums&tag=fixture&api_key=fixture-key&format=json&limit=50&page=8": "lastfm_topalbums_fixture.json",
+  "https://api.listenbrainz.org/1/stats/sitewide/release-groups?count=50&offset=49&range=all_time": "listenbrainz_sitewide_empty.json"
 }

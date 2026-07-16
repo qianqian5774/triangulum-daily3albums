@@ -12,7 +12,7 @@ from typing import Any, Callable
 from daily3albums import cli
 from scripts import self_check
 
-from test_history_cooldown_pipeline import _issue, _write_history as _write_history_raw
+from test_history_cooldown_pipeline import TARGET_RG, _issue, _write_history as _write_history_raw
 
 
 class FakeBroker:
@@ -204,9 +204,13 @@ def _configure_build(
         )
 
     monkeypatch.setattr(cli, "run_dry_run", fake_run_dry_run)
-    monkeypatch.setattr(cli.CoverArtArchiveAdapter, "fetch_cover", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli, "musicbrainz_get_release_group_details", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli, "_wikipedia_overview_from_url", lambda *_args, **_kwargs: None)
+    missing = cli.ProviderResult(
+        None,
+        cli.RuntimeOutcome(cli.OutcomeCode.MISSING, "fixture", "enrichment", "metadata"),
+    )
+    monkeypatch.setattr(cli.CoverArtArchiveAdapter, "fetch_cover_result", lambda *_args, **_kwargs: missing)
+    monkeypatch.setattr(cli, "musicbrainz_get_release_group_details_result", lambda *_args, **_kwargs: missing)
+    monkeypatch.setattr(cli, "_wikipedia_overview_result", lambda *_args, **_kwargs: missing)
     return broker, calls
 
 
@@ -274,7 +278,7 @@ def test_clean_runner_loads_external_seed_before_selection_and_uses_full_history
     def factory(kwargs: dict[str, Any]) -> list[Any]:
         tag = str(kwargs["tag"])
         return [
-            _scored("rg-target", f"album-conflict-artist-{tag}", score=110),
+            _scored(TARGET_RG, f"album-conflict-artist-{tag}", score=110),
             _scored(f"rg-artist-conflict-{tag}", "artist-7", score=109),
             _scored(f"rg-safe-{tag}-1", f"artist-safe-{tag}-1", score=108),
             _scored(f"rg-safe-{tag}-2", f"artist-safe-{tag}-2", score=107),

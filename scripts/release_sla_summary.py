@@ -113,14 +113,15 @@ def render_markdown(result: ReleaseSla) -> str:
     )
 
 
-def _append_summary(markdown: str, explicit_path: str | None) -> None:
+def _append_summary(markdown: str, explicit_path: str | None) -> bool:
     raw = explicit_path or os.getenv("GITHUB_STEP_SUMMARY", "").strip()
     if not raw:
-        return
+        return False
     path = Path(raw)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(markdown)
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -136,19 +137,38 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     finished_at = args.finished_at or datetime.now().astimezone().isoformat(timespec="seconds")
-    result = evaluate_release_sla(
-        args.started_at,
-        finished_at,
-        timezone=args.timezone,
-        target_time=args.target_time,
-        deploy_outcome=args.deploy_outcome,
-        event_name=args.event_name,
-    )
+    try:
+        result = evaluate_release_sla(
+            args.started_at,
+            finished_at,
+            timezone=args.timezone,
+            target_time=args.target_time,
+            deploy_outcome=args.deploy_outcome,
+            event_name=args.event_name,
+        )
+    except (TypeError, ValueError) as exc:
+        print(
+            "release_sla_summary code=invalid_schema stage=evaluate_sla "
+            f"resource=release_timestamps cause_type={type(exc).__name__}"
+        )
+        return 1
     markdown = render_markdown(result)
     print(json.dumps(asdict(result), ensure_ascii=False, sort_keys=True))
     print(markdown)
     if args.github_summary or args.summary_file:
-        _append_summary(markdown, args.summary_file or None)
+        try:
+            appended = _append_summary(markdown, args.summary_file or None)
+        except OSError as exc:
+            print(
+                "release_sla_summary code=unavailable stage=write_summary "
+                f"resource=github_summary cause_type={type(exc).__name__}"
+            )
+            return 1
+        if not appended:
+            print(
+                "release_sla_summary code=unavailable stage=write_summary "
+                "resource=github_summary"
+            )
     if result.status == "late":
         late_minutes = abs(result.margin_seconds) // 60
         print(

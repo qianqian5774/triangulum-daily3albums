@@ -160,7 +160,13 @@ def test_archive_bundle_fixture_matrix(tmp_path: Path, case: dict[str, Any], con
         return
     with pytest.raises(Exception) as caught:
         invoke()
-    assert case["error_code"] in str(caught.value)
+    expected_code = case["error_code"]
+    if consumer == "seed_restore":
+        expected_code = {
+            "ARCHIVE_MISSING": "code=missing",
+            "INVALID_JSON": "code=corrupt",
+        }.get(expected_code, expected_code)
+    assert expected_code in str(caught.value)
 
 
 def test_current_writer_fixture_round_trips_without_mutation(tmp_path: Path):

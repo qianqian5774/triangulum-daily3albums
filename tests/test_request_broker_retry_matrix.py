@@ -3,7 +3,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from daily3albums.request_broker import RequestBroker, RequestFailed
+from daily3albums.request_broker import (
+    BrokerRequestError,
+    BrokerResponseError,
+    RequestBroker,
+    RequestFailed,
+)
 
 
 class _Resp:
@@ -45,6 +50,7 @@ def test_broker_nonfatal_404_returns_none(monkeypatch, tmp_path: Path):
 
     out = broker.get("https://api.discogs.com/database/search?q=x", adapter_name="DiscogsAdapter")
     assert out is None
+    assert broker.get_last_failure("DiscogsAdapter")["code"] == "provider_not_found"
     broker.close()
 
 
@@ -63,8 +69,32 @@ def test_broker_timeout_retries(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(broker.client, "get", fake_get)
     monkeypatch.setattr("daily3albums.request_broker.time.sleep", lambda *_args, **_kwargs: None)
 
-    with pytest.raises(Exception):
+    with pytest.raises(BrokerRequestError) as caught:
         broker.get("https://example.com/a", adapter_name="A")
 
     assert calls["n"] == 2
+    assert caught.value.code == "timeout"
+    broker.close()
+
+
+def test_broker_redacts_query_and_raw_exception_text(tmp_path: Path, monkeypatch):
+    policies = {
+        "hosts": {"example.com": {"rate_limit_rps": 1000, "ttl_default": "1h", "negative_cache_ttl": "1h"}},
+        "adapter_policies": {"A": {"max_retries": 0}},
+    }
+    broker = RequestBroker(repo_root=tmp_path, endpoint_policies=policies)
+    monkeypatch.setattr(broker.client, "get", lambda *_args, **_kwargs: _Resp(200, b"not-json"))
+
+    with pytest.raises(BrokerResponseError) as caught:
+        broker.get_json(
+            "https://example.com/data?api_key=super-secret&token=also-secret&q=ambient",
+            adapter_name="A",
+        )
+
+    message = str(caught.value)
+    assert caught.value.code == "corrupt"
+    assert "super-secret" not in message
+    assert "also-secret" not in message
+    assert "not-json" not in message
+    assert "api_key=%2A%2A%2A" in message
     broker.close()

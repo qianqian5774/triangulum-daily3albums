@@ -124,3 +124,20 @@ def test_summarize_ignores_stale_rows_from_another_github_run(tmp_path: Path, mo
         "Ignored 1 stale build metric step row(s) because they do not match "
         "GITHUB_RUN_ID=new-run GITHUB_RUN_ATTEMPT=2."
     ]
+
+
+def test_summarize_classifies_corrupt_rows_and_unavailable_output(tmp_path: Path, capsys):
+    metrics_dir = tmp_path / "metrics"
+    public = tmp_path / "public"
+    metrics_dir.mkdir()
+    (metrics_dir / "steps.jsonl").write_text("not-json\n", encoding="utf-8")
+    out = tmp_path / "build-metrics.json"
+
+    assert summarize(metrics_dir, public, out, None) == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert any("code=corrupt" in warning for warning in payload["warnings"])
+
+    unavailable = tmp_path / "output-directory"
+    unavailable.mkdir()
+    assert summarize(metrics_dir, public, unavailable, None) == 1
+    assert "code=unavailable" in capsys.readouterr().err
