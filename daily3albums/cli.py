@@ -657,61 +657,6 @@ def _softmax_weights(scores: list[float], temperature: float = 10.0) -> list[flo
     return [s / total for s in exp_scores]
 
 
-def _weighted_sample(
-    items: list[Any],
-    count: int,
-    rng: random.Random,
-    recent_ids: set[str],
-    cooling_penalty: float | None,
-    temperature: float = 10.0,
-) -> tuple[list[Any], int]:
-    unique_items: list[tuple[Any, float, bool]] = []
-    seen_rg: set[str] = set()
-    cooling_hits = 0
-    for item in items:
-        rg_id = getattr(getattr(item, "n", None), "mb_release_group_id", "") or ""
-        if not rg_id or rg_id in seen_rg:
-            continue
-        seen_rg.add(rg_id)
-        is_recent = rg_id in recent_ids
-        if is_recent:
-            cooling_hits += 1
-        score = float(getattr(item, "score", 0.0))
-        unique_items.append((item, score, is_recent))
-
-    scores = [s for _, s, _ in unique_items]
-    weights = _softmax_weights(scores, temperature=temperature)
-
-    if cooling_penalty is not None:
-        adjusted = []
-        for (item, score, is_recent), weight in zip(unique_items, weights):
-            if is_recent:
-                weight *= max(cooling_penalty, 0.0)
-            adjusted.append((item, weight))
-    else:
-        adjusted = [(item, weight) for (item, _score, _), weight in zip(unique_items, weights)]
-
-    picks: list[Any] = []
-    candidates = adjusted[:]
-    while candidates and len(picks) < count:
-        total = sum(weight for _, weight in candidates)
-        if total <= 0:
-            break
-        r = rng.random() * total
-        upto = 0.0
-        chosen_idx = None
-        for idx, (_item, weight) in enumerate(candidates):
-            upto += weight
-            if upto >= r:
-                chosen_idx = idx
-                break
-        if chosen_idx is None:
-            break
-        item, _weight = candidates.pop(chosen_idx)
-        picks.append(item)
-    return picks, cooling_hits
-
-
 def _normalize_artist_credit(value: str) -> str:
     text = (value or "").strip().lower()
     text = re.sub(r"\s+(feat\.|featuring|ft\.)\s+.*$", "", text)
@@ -1313,20 +1258,6 @@ def _builtin_min_index_html() -> str:
 </body>
 </html>
 """
-
-
-def _ensure_nonblank_index_html(out_public_dir: Path, web_dir: Path) -> None:
-    """
-    Strategy:
-      - Copy web/ to out dir if web exists.
-      - If out/index.html is missing or empty, write a built-in minimal index.html to out dir.
-    This avoids "200 but blank page" failure mode.
-    """
-    out_index = out_public_dir / "index.html"
-    if out_index.exists() and out_index.stat().st_size > 0:
-        return
-    # if web/index.html exists but got copied as empty, also protect
-    _write_text_utf8(out_index, _builtin_min_index_html())
 
 
 # ----------------------------

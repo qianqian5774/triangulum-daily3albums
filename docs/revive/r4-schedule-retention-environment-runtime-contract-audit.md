@@ -151,6 +151,25 @@ PR CI status at this audit revision: pending. CI green remains the Ready/merge g
 
 ## Production acceptance
 
-`R4 production acceptance: pending`.
+`R4 production acceptance: completed`.
 
-A later natural Pages run on a `main` SHA containing R4 may confirm Node 24 CI/Pages execution, fixed BJT schedule behavior, retention=7 restore/write/index continuity and unchanged public artifacts. It must not be manually triggered to manufacture acceptance, and its result remains separate from R1, R3 and TD-02 shadow sample accounting.
+Scheduled Pages run `29538888750` provides the independent production
+evidence:
+
+- event `schedule` ran on a `main` commit containing R4;
+- the job environment used `TZ=Asia/Shanghai`, Python `3.11.15` and Node
+  `24.18.0`, all inside the declared project contracts;
+- the custom-domain archive provider restored and validated seven dates and
+  fourteen run-specific/alias files before candidate generation;
+- the generated current artifact kept `archive_retention_days=7`, seven
+  unique index dates, complete 3×3 output and matching current archive aliases;
+- UI build, Python/UI tests, static generation, self-check, Pages artifact
+  upload and deploy all succeeded;
+- release SLA summary classified the natural run as `on_time`, with build
+  start and deploy finish expressed in Asia/Shanghai relative to the 08:00
+  target.
+
+The deployed UI was then read in a browser at BJT 16:05. It reported the
+`16:00–23:59` product window, the current BJT date, and the expected third
+slot content. No host-timezone or runtime-contract drift was observed. This
+closes R4 only; it does not substitute for R3, R5 or normalization acceptance.

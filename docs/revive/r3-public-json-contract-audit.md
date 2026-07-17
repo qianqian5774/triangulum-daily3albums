@@ -211,3 +211,34 @@ The completed R3 change passed:
 - `git diff --check`.
 
 Natural Pages execution is not a merge prerequisite. After merge, R3 production acceptance remains pending until a natural Pages run on a `main` SHA containing R3 confirms writer, self-check, deploy, current/legacy archive reads and historical byte protection. That acceptance remains separate from R1/TD-02 shadow sample accounting.
+
+## Production acceptance closure
+
+`R3 production acceptance: completed`.
+
+The scheduled Pages run `29538888750` executed on `main` commit
+`f295482777de1d2007f4ba3b1edcab4b54b6a37f` and completed its build,
+self-check, Pages artifact upload and deploy jobs successfully. The retained
+Pages artifact was downloaded and inspected directly before expiry:
+
+- `today.json` uses current `output_schema_version="1.0"`, date
+  `2026-07-17`, run id `2026-07-17_slots_4da1da`, three ordered slots and
+  exactly three picks per slot;
+- `index.json` contains seven unique retained dates, declares retention `7`,
+  and points the current date at the same run id;
+- the current run-specific archive and date alias have the same SHA-256
+  (`F79AC850CF5802F26D0C12AA878947F2E38BE587C33F376DC232C9AB73DC05F9`);
+- `scripts/self_check.py` passes against the downloaded production artifact;
+- the actual TypeScript `parseTodayIssue`, `parseArchiveIndex` and
+  `parseArchiveIssue` functions parse the downloaded production payloads
+  without compatibility fallback;
+- the production payload is current contract throughout and does not depend
+  on legacy `today.json` parsing.
+
+The natural workflow also ran the full Python and UI contract suites on the
+production runner, retaining legacy archive fixture coverage without widening
+legacy compatibility to Today. A successful writer run after loading seven
+validated historical dates, followed by self-check and deploy, exercises the
+existing retained-history and alias-byte protection gates. This acceptance
+does not change the R3 contract or claim that every invalid/legacy fixture was
+encountered in deployed production data.
