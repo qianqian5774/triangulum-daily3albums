@@ -1,6 +1,13 @@
 from types import SimpleNamespace
 
-from daily3albums.cli import _pick_to_issue_item
+from daily3albums.cli import _cover_cache_version, _pick_to_issue_item
+
+
+def test_cover_cache_version_is_stable_for_equivalent_http_and_https_sources():
+    assert _cover_cache_version("http://covers.example/album.jpg") == _cover_cache_version(
+        "https://covers.example/album.jpg"
+    )
+    assert _cover_cache_version("") is None
 
 
 def test_cover_policy_allows_placeholder_when_no_cover_source_available():

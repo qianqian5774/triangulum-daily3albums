@@ -44,6 +44,7 @@ from daily3albums.constraints import (
     validate_today_constraints,
     within_cooldown,
 )
+from daily3albums.cover_assets import materialize_static_cover_assets
 from daily3albums.dry_run import run_dry_run
 from daily3albums.normalization_policy import (
     BORDERLINE,
@@ -1151,6 +1152,16 @@ def _pick_to_issue_item(
         "score": float(getattr(s, "score", 0.0)),
         "reason": getattr(s, "reason", ""),
     }
+
+
+def _cover_cache_version(cover_url: str | None) -> str | None:
+    """Return a stable cache key that changes only when the cover source changes."""
+
+    normalized = (cover_url or "").strip()
+    if not normalized:
+        return None
+    normalized = re.sub(r"^http://", "https://", normalized, flags=re.IGNORECASE)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
 
 def _write_text_utf8(path: Path, text: str) -> None:
@@ -2745,7 +2756,6 @@ def cmd_build(
             normalization_policy=normalization_policy,
         )
 
-        cover_version = issue["generation"].get("started_at")
         for slot_payload in slots_payload:
             scored_items = slot_payload.pop("scored_items", [])
             slot_observability = slot_payload.get("observability") if isinstance(slot_payload.get("observability"), dict) else None
@@ -2814,7 +2824,11 @@ def cmd_build(
                     tag=slot_payload.get("theme") or effective_theme,
                     slot=slot_name,
                     s=s,
-                    cover_version=cover_version,
+                    cover_version=_cover_cache_version(
+                        cover_result.optimized_cover_url
+                        if cover_result and cover_result.has_cover
+                        else str(getattr(getattr(s, "c", None), "image_url", "") or "")
+                    ),
                     cover_result=cover_result,
                     mb_details=mb_details,
                     wikipedia_overview=wikipedia_overview,
@@ -2949,6 +2963,17 @@ def cmd_build(
         observability_path = out_public_dir / "data" / "recommendation-observability.json"
         atomic_write_json(observability_path, observability_payload)
         paths["recommendation_observability"] = observability_path
+
+        cover_assets = materialize_static_cover_assets(
+            out_public_dir,
+            cache_dir=repo_root / ".state" / "cover-assets",
+        )
+        paths["cover_manifest"] = cover_assets.manifest_path
+        log_line(
+            "cover_assets status=complete "
+            f"total={cover_assets.total_urls} cached={cover_assets.cache_hits} "
+            f"fetched={cover_assets.fetched} failed={cover_assets.failed}"
+        )
 
         if diagnostics:
             print("\n== Diagnostics Summary ==")

@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { resolveCoverUrl } from "./covers";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("resolveCoverUrl", () => {
   it("returns null for empty", () => {
@@ -40,5 +42,17 @@ describe("resolveCoverUrl", () => {
     const out = resolveCoverUrl("assets/covers/a.webp?x=1", "k5");
     expect(out).toContain("x=1");
     expect(out).toContain("v=k5");
+  });
+
+  it("prefers the deployment-local asset mapped from a remote cover URL", () => {
+    vi.stubGlobal("__TRIANGULUM_STATIC_COVERS__", {
+      "https://coverartarchive.org/a.jpg": "assets/covers/aabbcc.jpg"
+    });
+
+    const out = resolveCoverUrl("http://coverartarchive.org/a.jpg", "cover-version");
+
+    expect(out).toContain("assets/covers/aabbcc.jpg");
+    expect(out).toContain("v=cover-version");
+    expect(out).not.toContain("coverartarchive.org");
   });
 });

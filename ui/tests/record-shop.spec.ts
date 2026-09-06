@@ -1,7 +1,19 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 const date = "2026-07-13";
 const historyDate = "2026-01-19";
+const RECORD_SHOP_COVER_BODY = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nQAAAABJRU5ErkJggg==",
+  "base64"
+);
+
+async function fulfillRecordShopCover(route: Route) {
+  await route.fulfill({
+    status: 200,
+    contentType: "image/png",
+    body: RECORD_SHOP_COVER_BODY
+  });
+}
 
 async function openShopAt(page: Page, time: string) {
   await page.goto(`/#/?debug=1&debug_time=${date}T${time}`);
@@ -221,6 +233,44 @@ test("inventory reads published title, artist, role, and cover fallback fields",
   await expect(treatment).toContainText("Nine Inch Nails");
   await expect(treatment.locator(".gallery-art__cover")).toHaveAttribute("src", /assets\/placeholder\.svg/);
   await expect(treatment).toContainText("PUBLISHED STATIC ISSUE");
+});
+
+test("record shop Treatment reads the deployment-local cover manifest before remote artwork", async ({ page }) => {
+  const sources = [
+    "https://upload.wikimedia.org/wikipedia/en/8/8c/Nine_Inch_Nails_-_The_Downward_Spiral.png",
+    "https://upload.wikimedia.org/wikipedia/en/7/7c/Unknown_pleasures.jpg",
+    "https://upload.wikimedia.org/wikipedia/en/5/54/Kraftwerk_The_Man-Machine.png"
+  ];
+  let remoteRequests = 0;
+  let localRequests = 0;
+
+  await page.route("**/assets/cover-manifest.js", (route) => route.fulfill({
+    contentType: "application/javascript",
+    body: `window.__TRIANGULUM_STATIC_COVERS__ = Object.freeze(${JSON.stringify(
+      Object.fromEntries(sources.map((source) => [source, "assets/covers/record-shop-cover.png"]))
+    )});`
+  }));
+  await page.route("**/assets/covers/record-shop-cover.png*", async (route) => {
+    localRequests += 1;
+    await fulfillRecordShopCover(route);
+  });
+  await page.route("https://upload.wikimedia.org/**", (route) => {
+    remoteRequests += 1;
+    return route.abort("blockedbyclient");
+  });
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openShopAt(page, "16:00:00");
+  await enterGallery(page);
+  await revealInventory(page);
+
+  await page.locator(".record-shop__spine").first().click();
+  const cover = page.getByRole("dialog").locator(".gallery-art__cover");
+  await expect(cover).toHaveAttribute("src", /assets\/covers\/record-shop-cover\.png/);
+  await expect.poll(() => cover.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  expect(localRequests).toBeGreaterThan(0);
+  expect(remoteRequests).toBe(0);
 });
 
 test("the device panel closes, reopens, and responds to Escape", async ({ page }) => {
