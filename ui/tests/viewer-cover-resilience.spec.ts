@@ -163,6 +163,36 @@ test("blocked Cover Art Archive does not block Viewer content or Escape", async 
   expectNoRuntimeErrors(signals);
 });
 
+test("deployment-local cover manifest prevents Cover Art Archive requests", async ({ page }) => {
+  const localCoverPath = "assets/covers/manifest-cover.png";
+  const manifest = Object.fromEntries(
+    Array.from({ length: 9 }, (_, index) => [
+      `https://coverartarchive.org/test/cover-${index}.png`,
+      localCoverPath
+    ])
+  );
+  let localCoverRequests = 0;
+
+  await page.route("**/assets/cover-manifest.js", (route) => route.fulfill({
+    contentType: "application/javascript",
+    body: `window.__TRIANGULUM_STATIC_COVERS__ = Object.freeze(${JSON.stringify(manifest)});`
+  }));
+  await page.route("**/assets/covers/manifest-cover.png*", async (route) => {
+    localCoverRequests += 1;
+    await fulfillImage(route);
+  });
+  await page.route(COVER_PATTERN, (route) => route.abort("blockedbyclient"));
+  const signals = await setupPage(page);
+
+  await openViewer(page);
+
+  await expect(page.getByTestId("viewer-cover-frame")).toHaveAttribute("data-cover-status", "ready");
+  await expect(page.getByTestId("viewer-cover-image")).toHaveAttribute("src", /assets\/covers\/manifest-cover\.png/);
+  expect(localCoverRequests).toBeGreaterThan(0);
+  expect(signals.failedCoverRequests).toEqual([]);
+  expectNoRuntimeErrors(signals);
+});
+
 test("pending cover times out to a stable placeholder without layout shift", async ({ page }) => {
   let releasePending!: () => void;
   const pending = new Promise<void>((resolve) => {
