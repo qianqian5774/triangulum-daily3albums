@@ -1,23 +1,22 @@
-# Recommendation System
+# Recommendation system
 
-本文说明当前专辑推荐实现。它面向后续算法维护，不是产品宣传文案。
+本文说明当前推荐实现及其公开产物如何被 UI 消费。它不是产品宣传文案，也不授权调整 scoring、normalization、temperature、cooldown、tag pool 或角色分配；此类事实仍以当前源码、配置和测试为准。
 
-## Daily Structure
+## Daily structure and published consumption
 
-当前每天生成 9 张专辑：
+每天生成 9 张专辑：3 个 BJT slot，每个 slot 3 张。当前产品时钟为：
 
-- 3 个 BJT slot
-- 每个 slot 3 张专辑
-- 北京时间 06:00、12:00、18:00 解锁
+| Slot | BJT window | Current issue visibility |
+| --- | --- | ---: |
+| 0 | 08:00–12:29 | 3 picks |
+| 1 | 12:30–15:59 | 6 picks total |
+| 2 | 16:00–23:59 | 9 picks total |
 
-当前窗口：
+00:00–07:59 是正常 Offline State。`today.json` 始终携带完整 3 个 slots；浏览器只按 BJT 时钟显示当前可用的 0／3／6／9 张。Archive issue 是已发布的完整 issue，不受当天解锁门控。
 
-- slot 0：06:00-11:59
-- slot 1：12:00-17:59
-- slot 2：18:00-23:59
+Record Shop 通过 `toRecordShopDay()` 将同一份严格解析后的公开 issue 转为场景展示数据：Today 使用 `today.json` 和现有 current → last-good → archive recovery；History 使用 `index.json` 和 archive JSON；Treatment Viewer 使用用户选择的同一 pick。它不维护 preview/mock catalog，也不在浏览器端补选、评分或生成推荐。
 
-`today.json` 包含完整 3 个 slots。top-level `picks` 是 build-time 当前 slot 的 picks。前端会读取完整 slots，并按浏览器当前 BJT 状态控制 Today Page 可见内容。Archive Page 渲染历史 slots，不受当天解锁门控影响。
-
+公开封面 metadata 属于 pick 合同的一部分。生产构建会将可取得的封面 materialize 为同源 `assets/covers/` 并生成映射；浏览器优先使用该映射，失败时使用既有本地 placeholder 路径。这个资源策略不改变推荐选择。
 ## Theme, Genre, And Tag
 
 当前 build 主流程以 `config/config.yaml` 中的 `tag_pool` 作为每个 slot 的主要主题池。每个 slot 用 `date_key:slot_id` hash 到 tag pool 起点，再最多尝试 `build.max_tag_tries_per_slot` 个 tag，当前配置为 8。
@@ -80,7 +79,7 @@ MusicBrainz 当前不是普通候选来源，而是核心识别层。
 - MusicBrainz link 和 YouTube search link
 - mapping confidence、score 和 reason
 
-字段允许缺失。MusicBrainz rating 缺失时写 `null`，UI 显示 missing metadata。Wikipedia overview 缺失时写 `null`，UI 显示 empty overview。封面按 Cover Art Archive、候选图片、`assets/placeholder.svg` 退回。
+字段允许缺失。MusicBrainz rating 缺失时写 `null`，UI 显示 missing metadata。Wikipedia overview 缺失时写 `null`，UI 显示 empty overview。封面在构建期按 Cover Art Archive 或候选图片来源补全 metadata；生产输出会优先 materialize 为同源静态资源，浏览器再使用本地 placeholder 退回。
 
 ## Filtering Rules
 

@@ -1,3 +1,5 @@
+> **Historical / superseded:** this dated P2.1 audit records a previous code state and proposed follow-up work. It is not the current debt register; verify present source before using any finding.
+
 # Triangulum Daily P2.1 Technical Debt Audit
 
 ## 1. Executive conclusion

@@ -1,51 +1,38 @@
-# Daily3Albums Runbook
+# Triangulum Daily runbook
 
-## Active validation entry points
+This runbook describes current operational entry points. It does not replace the source, workflow, or Foundation documentation.
 
-Doctor 已退役，不再生成 `doctor/REPORT*` 或 `doctor/runs/`，也不再作为健康依据。根据改动范围选择以下真实入口：
+## Validation entry points
 
-| 验证目标 | 命令或证据 |
+| Goal | Command or evidence |
 | --- | --- |
-| Python 行为 | `python -m pytest` |
-| UI 行为 | `npm --prefix ui test` |
-| UI production bundle | `npm --prefix ui run build` |
-| 完整静态产物 | `daily3albums build --verbose --out _build/public` |
-| 公开 JSON 与站点产物一致性 | `python scripts/self_check.py --path _build/public` |
-| 真实浏览器 smoke | `npm --prefix ui run browser:smoke`，要求已有 `_build/public` |
-| 独立性能基线 | `npm --prefix ui run performance:audit`，见仓库根目录 `PERFORMANCE.md` |
-| 每日生产链路 | GitHub Actions 的 `Build and Deploy Pages (Daily)` |
-| 构建指标 | workflow 中的 `scripts/build_metrics.py` summary |
-| 推荐漏斗 | workflow 中的 `scripts/recommendation_observability_summary.py` summary |
+| Python behavior | python -m pytest |
+| UI behavior | npm --prefix ui test |
+| Production UI bundle | npm --prefix ui run build |
+| Complete static artifact | daily3albums build --verbose --out _build/public |
+| Public artifact consistency | python scripts/self_check.py --path _build/public |
+| Real-browser smoke | npm --prefix ui run browser:smoke |
+| Record Shop browser path | npm --prefix ui run browser:record-shop |
+| Performance evidence | npm --prefix ui run performance:audit |
+| Daily production path | GitHub Actions: Build and Deploy Pages (Daily) |
 
-机器专用的 executable 路径和浏览器 channel 以本地 `AGENTS.local.md` 为准。Doctor 的历史设计和能力迁移表见 [legacy/doctor.md](legacy/doctor.md)。
+Use the machine-specific executables and browser channel described by AGENTS.local.md. Doctor is retired; it is not a health, build, or release command.
 
-## Custom domain cutover
+## Normal release
 
-Use [custom-domain-cutover.md](runbooks/custom-domain-cutover.md) for the `triangulumdaily.space` GitHub Pages and Porkbun handoff.
+1. Merge reviewed code through the normal main branch process.
+2. When an immediate publication is required, manually dispatch Build and Deploy Pages (Daily).
+3. Confirm the workflow completed its test, archive-seed restore, build, self-check, Pages-upload, and deploy jobs.
+4. Inspect the deployed site and its same-origin static data: data/today.json, data/index.json, archive JSON, and the Record Shop at the root URL.
 
-## Where to find logs
+Do not use fixtures, a dev seed, manually constructed issue JSON, or an archive-rewrite flag to make a production release appear current. A same-date published archive may be reused by the normal workflow.
 
-- GitHub Actions runs: **Actions → Build and Deploy Pages**
-- Click the latest run to inspect the build job logs and artifact steps.
+## Archive and cache handling
 
-## Re-run the workflow
+The workflow restores validated published archive history before selection and retains a safe local seed when a refresh fails. Do not delete state caches as a routine cure for an archive problem. First inspect the failing archive-seed step, its validation summary, and the published data it attempted to restore.
 
-1. Open **Actions → Build and Deploy Pages**.
-2. Select a failed run.
-3. Click **Re-run jobs → Re-run all jobs**.
+## Incident recovery
 
-## Clear / refresh cache
+For a code regression, prepare a reviewed revert or focused repair through the normal Git process, then run the normal Pages workflow. Do not reset shared main history, bypass contract/self-check gates, or publish generated files by hand.
 
-The pipeline caches `.state/` for dedupe and rate limits.
-
-To refresh it:
-
-1. Go to **Actions → Caches** in the repository.
-2. Delete the cache keys starting with `state-`.
-3. Re-run the workflow to rebuild a clean cache.
-
-## Roll back to last known-good deployment
-
-1. Identify the last successful commit in **Actions** or **Pages → Deployments**.
-2. Reset `main` (or create a revert commit) to that SHA.
-3. Re-run **Build and Deploy Pages** to publish the known-good build.
+The canonical public URL is https://triangulumdaily.space/. Domain-specific checks are in [runbooks/custom-domain-cutover.md](runbooks/custom-domain-cutover.md).
