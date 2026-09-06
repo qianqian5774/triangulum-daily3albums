@@ -112,7 +112,7 @@ export function Hud({
 
         <nav className="hud-actions" aria-label="Primary">
           <Link
-            to="/"
+            to="/today"
             className={`ui-button ${isArchive ? "border-panel-700/80 text-clinical-white/70" : "border-signal-accent/70 text-signal-accent"}`}
           >
             {tx("nav.today")}

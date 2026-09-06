@@ -1,0 +1,275 @@
+/* Full polish pass. Surfaces share a charcoal-indigo enamel edge, warm paper,
+   clear brass hardware and a controlled coral signal. Geometry stays in the base CSS. */
+:root {
+  --shop-graphite: #232735;
+  --shop-ink: #24283a;
+  --shop-ivory: #f4eee2;
+  --shop-birch: #c89e70;
+  --shop-coral: #c4543f;
+  --shop-amber: #ddb064;
+  --shop-field: #e2dce1;
+  --shop-line: #7e8190;
+  --shop-type: "Space Grotesk", "Triangulum Noto Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --shop-number: "IBM Plex Mono", "Triangulum Sarasa Mono SC", "Sarasa Mono SC", "Microsoft YaHei UI", monospace;
+}
+
+.entry-diorama, .record-shop, .record-shop-controls, .entry-info, .gallery-treatment { font-family: var(--shop-type); }
+.entry-diorama__info, .record-shop-controls button, .gallery-treatment__copy { font-family: var(--shop-type); }
+.entry-diorama__heading span, .entry-diorama__hint, .entry-diorama__status,
+.entry-diorama__view-button, .entry-diorama__views-label, .entry-diorama__zoom,
+.record-shop__interior-hud, .record-shop__screen, .record-shop__date-menu,
+.record-shop__device-panel, .record-shop__utility, .record-shop-debug { font-family: var(--shop-number); font-synthesis: none; }
+
+.entry-diorama__heading {
+  top: 2rem; left: 2.5rem; padding: 0 0 .75rem; border: 0;
+  background: transparent; color: var(--shop-ink); box-shadow: none;
+  backdrop-filter: none; text-shadow: none;
+}
+.entry-diorama__heading p { display: flex; align-items: center; gap: .8rem; font: 700 clamp(1.1rem, 1.65vw, 1.7rem)/1.15 var(--shop-type); letter-spacing: .08em; }
+.entry-diorama__heading p::before, .record-shop__hud-brand strong::before {
+  content: ""; display: inline-block; width: .42em; height: .42em; flex: none;
+  border-radius: 50%; background: var(--shop-coral);
+  box-shadow: .58em 0 var(--shop-coral), .29em -.5em var(--shop-coral);
+  margin-right: .55em;
+}
+.entry-diorama__heading span { display: block; margin-top: .65rem; color: #585d71; font-size: .72rem; font-weight: 500; letter-spacing: .06em; }
+.entry-diorama[data-theme="night"] .entry-diorama__heading { background: transparent; color: #eee5cf; text-shadow: none; }
+.entry-diorama[data-theme="night"] .entry-diorama__heading span { color: #c4bed0; }
+.entry-diorama__hint { top: 6.3rem; left: 2.5rem; padding: 0; background: none; color: #4e5368; font-weight: 600; font-size: .75rem; letter-spacing: .04em; backdrop-filter: none; }
+.entry-diorama__info { top: 6.1rem; right: 2rem; background: none; padding: 0; gap: 1.25rem; backdrop-filter: none; }
+.entry-diorama__info button { padding: .4rem 0; color: #44495e; border-bottom-color: #9693a0; font-weight: 600; letter-spacing: .04em; }
+.entry-diorama__status { left: 2.5rem; bottom: 6.2rem; padding: .5rem .8rem; color: #34384b; background: #f4eee2; border: 1px solid #c8bdba; border-radius: 3px; font-size: .7rem; letter-spacing: .045em; }
+.entry-diorama__views, .entry-diorama__zoom {
+  border: 1px solid #565a6b; border-radius: 5px; background: #272b3b;
+  box-shadow: inset 0 1px #6f7280, 0 3px 0 #171a25, 0 8px 20px #24202c24;
+  backdrop-filter: none;
+}
+.entry-diorama__views { bottom: 1.5rem; right: 2rem; padding: .55rem; gap: .35rem; }
+.entry-diorama__views-label { padding: .2rem .1rem .35rem; color: #e8dfd2; letter-spacing: .06em; font-weight: 500; }
+.entry-diorama__views-label small { font-size: .62rem; }
+.entry-diorama__view-button { min-height: 2.3rem; border-radius: 2px; border-color: #8c8792; background: #f4eee2; color: #2b2e40; font-size: .7rem; font-weight: 600; letter-spacing: .05em; box-shadow: 0 1px 0 #151824; }
+.entry-diorama__view-button[aria-pressed="true"], .entry-diorama__view-button[aria-pressed="true"]:hover { background: #c35f43; border-color: #e3ab83; color: #fff1db; }
+.entry-diorama__zoom { left: 2.5rem; bottom: 1.5rem; gap: .15rem; padding: .3rem; }
+.entry-diorama__zoom button, .entry-diorama__zoom output { min-height: 2.25rem; border: 0; border-radius: 2px; background: #eee6da; color: #2a2d3e; font-weight: 600; }
+.entry-diorama__zoom output { background: transparent; color: #f0e8d5; font-family: var(--shop-number); }
+.entry-diorama__zoom button:hover { background: #f9ecd3; }
+.entry-diorama[data-theme="night"] .entry-diorama__status { background: #292c3c; border-color: #737386; color: #eee4d4; }
+
+.record-shop-controls { gap: .5rem; }
+.record-shop-controls__language, .record-shop-controls__sound, .record-shop-debug__toggle,
+.record-shop__utility button {
+  border: 1px solid #656879; border-radius: 3px; background: #272b3b;
+  color: #f4eee2; box-shadow: inset 0 1px #747684, 0 2px 0 #191c28; backdrop-filter: none;
+}
+.record-shop-controls button { font-weight: 600; letter-spacing: .04em; }
+.record-shop-controls__language { padding: .15rem; }
+.record-shop-controls__language button { border-radius: 2px; }
+.record-shop-controls__language button[aria-pressed="true"] { border-color: transparent; background: #f1e8da; color: #24283a; }
+.record-shop-controls button:hover, .record-shop__utility button:hover { background: #393d50; color: #fff4e4; border-color: #dfb66f; }
+.record-shop-controls__language button[aria-pressed="true"]:hover { background: #fff1dc; color: #24283a; }
+.record-shop__utility button { font-size: .75rem; font-weight: 600; letter-spacing: .035em; }
+
+.record-shop { background: #202330; }
+.record-shop__stage { background: #202330; box-shadow: none; }
+.record-shop__environment { object-fit: fill; }
+.record-shop__screen-mask {
+  -webkit-mask: var(--record-shop-glass-mask) 0 0 / 100% 100% no-repeat;
+  mask: var(--record-shop-glass-mask) 0 0 / 100% 100% no-repeat;
+}
+.record-shop__screen-backlight {
+  opacity: .76;
+  -webkit-mask: var(--record-shop-aperture-mask) 0 0 / 100% 100% no-repeat;
+  mask: var(--record-shop-aperture-mask) 0 0 / 100% 100% no-repeat;
+}
+.record-shop__screen {
+  top: 49.25%; left: 41.85%; width: 16.05%; height: 14.5%;
+  isolation: isolate; padding: .45%; border: 0; border-radius: .18rem;
+  background: linear-gradient(155deg, #3b465f 0%, #222a3b 22%, #151a27 82%);
+  box-shadow: inset 0 0 0 1px #b4a77b55, inset 0 0 15px #060914c4, 0 0 10px #d7b16b26;
+  color: #f2e5c8; gap: .38rem; line-height: 1.18;
+}
+.record-shop__screen::before, .record-shop__screen::after { position: absolute; z-index: -1; pointer-events: none; content: ""; }
+.record-shop__screen::before { inset: 0; background: linear-gradient(115deg, #f5ddaf20 0 12%, transparent 24% 72%, #7888af1e 100%); }
+.record-shop__screen::after { top: .18rem; right: .35rem; left: .35rem; height: 1px; background: #efd7a349; box-shadow: 0 1px #101522; }
+.record-shop__screen > span { color: #d6d7e2; font-size: clamp(.56rem, .61vw, .75rem); font-weight: 500; letter-spacing: .14em; }
+.record-shop__screen > strong { max-width: 98%; font-size: clamp(.8rem, .93vw, 1.1rem); font-weight: 600; letter-spacing: .025em; }
+.record-shop__screen > small { color: #cfd0dc; font-size: clamp(.58rem, .57vw, .72rem); letter-spacing: .025em; }
+.record-shop__screen > * { transform: translateY(.36rem); }
+.record-shop__screen > button, .record-shop__screen-actions button { border: 1px solid #e7ad79; border-radius: 2px; background: #c4543f; min-height: 1.9rem; color: #fff1dc; box-shadow: 0 2px #131620; font-size: .69rem; letter-spacing: .06em; }
+.record-shop__screen > button:hover { background: #cf6849; }
+.record-shop[data-device-state="offline"] .record-shop__screen { background: #1b202c; box-shadow: inset 0 0 12px #0b0e16; color: #b9b6c0; }
+
+/* The body remains behind the counter. The near rim is a second, narrow crop of
+   the real counter artwork, so fingertips meet a physical front edge instead of
+   floating above one flattened image. The light gels reuse each PNG's own alpha
+   as a mask: a static, cheap ambient correction rather than a new character asset. */
+.record-shop__attendant,
+.record-shop__hands { filter: saturate(.84) contrast(.94) brightness(.99); }
+.record-shop__attendant { z-index: 5; }
+.record-shop__counter { z-index: 6; }
+.record-shop__counter-contact {
+  position: absolute;
+  z-index: 7;
+  top: 55.25%;
+  left: 69.2%;
+  width: 24.8%;
+  height: 6.45%;
+  pointer-events: none;
+  background:
+    radial-gradient(27% 46% at 24% 42%, #38251958 0%, #38251926 42%, transparent 77%),
+    radial-gradient(26% 44% at 84% 48%, #38251954 0%, #38251922 44%, transparent 78%),
+    linear-gradient(180deg, transparent 0 22%, #38251916 48%, transparent 78%);
+  opacity: .66;
+  mix-blend-mode: multiply;
+}
+.record-shop__hand-shadow { z-index: 7; opacity: .92; mix-blend-mode: multiply; }
+.record-shop__hands { z-index: 8; }
+.record-shop__figure-light {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background:
+    radial-gradient(34% 36% at 82% 35%, #ffe5bf34 0%, #ffe5bf12 48%, transparent 76%),
+    linear-gradient(180deg, transparent 0 43%, #17203513 68%, #1720352b 100%);
+  opacity: .7;
+  mix-blend-mode: soft-light;
+  -webkit-mask: var(--record-shop-figure-mask) 0 0 / 100% 100% no-repeat;
+  mask: var(--record-shop-figure-mask) 0 0 / 100% 100% no-repeat;
+}
+.record-shop__figure-light--hands { z-index: 8; }
+.record-shop__counter-rim {
+  z-index: 9;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0 57.7%, #000 58.02%, #000 58.56%, transparent 58.94% 100%);
+  mask-image: linear-gradient(to bottom, transparent 0 57.7%, #000 58.02%, #000 58.56%, transparent 58.94% 100%);
+}
+.record-shop[data-environment="night"] .record-shop__attendant,
+.record-shop[data-environment="night"] .record-shop__hands { filter: saturate(.87) contrast(.97) brightness(.955); }
+.record-shop[data-environment="night"] .record-shop__counter-contact { opacity: .5; }
+.record-shop[data-environment="night"] .record-shop__hand-shadow { opacity: .76; }
+.record-shop[data-environment="night"] .record-shop__figure-light {
+  background:
+    radial-gradient(30% 34% at 82% 33%, #f2c88d24 0%, #f2c88d0d 48%, transparent 76%),
+    linear-gradient(180deg, transparent 0 40%, #07101e26 70%, #07101e40 100%);
+  opacity: .62;
+}
+
+/* One suspended enamel object, including rods, foot mounts and controls. */
+.record-shop__interior-hud { left: 6.3%; width: 34.5%; --suspension: clamp(1.75rem, 3.15vw, 3.5rem); color: #24283a; font-weight: 600; letter-spacing: .035em; filter: drop-shadow(.2rem .65rem .4rem #11131c4a); }
+.record-shop__hud-rod { background: linear-gradient(90deg,#242735,#8a8790 32%,#444757 60%); border-color: #343746; box-shadow: .16rem .1rem .15rem #15172250; }
+.record-shop__hud-rod > span { background: #494c5d; border-color: #292c3b; }
+.record-shop__hud-bezel { padding: .5rem; border: 1px solid #191c28; border-radius: 5px; background: linear-gradient(#5d6070,#383b4b 12%,#24283a 95%,#171a26); box-shadow: inset 0 1px #8a8991, inset 0 0 0 3px #353848, 0 3px #141722; }
+.record-shop__hud-bezel::before { inset: .35rem; border: 1px solid #b6aa92; border-radius: 2px; box-shadow: none; }
+.record-shop__hud-bezel::after { display: none; }
+.record-shop__hud-glass { padding: .75rem 1rem .65rem; gap: .65rem; border: 1px solid #bcb1a3; border-radius: 2px; background: #eee7d9; box-shadow: inset 0 2px 3px #25202b24; font-size: clamp(.76rem, 2.15cqw, .88rem); }
+.record-shop__hud-brand { padding-bottom: .4rem; border-bottom: 1px solid #c3b9ad; }
+.record-shop__hud-brand strong { display: flex; align-items: center; color: #24283a; font: 600 clamp(.8rem, 1vw, 1.15rem)/1.15 var(--shop-number); letter-spacing: .10em; text-shadow: none; }
+.record-shop__hud-brand strong::before { font-size: .8em; margin-right: 1.2em; }
+.record-shop__hud-lamp { background: #b85638; border-color: #805741; box-shadow: 0 0 0 2px #d1c9af; }
+.record-shop__hud-lamp[data-status="OFFLINE"] { background: #84818b; }
+.record-shop__hud-readout { grid-template-columns: 1.15fr .9fr 1fr; min-height: 2.55rem; gap: .4rem; }
+.record-shop__hud-date { border: 1px solid #9994a0; border-radius: 2px; background: #ddd6d3; padding: .35rem .6rem; color: #24283a; }
+.record-shop__hud-date:hover, .record-shop__hud-date[aria-expanded="true"] { border-color: #b14e3b; background: #f8e8ca; color: #24283a; }
+.record-shop__hud-date span, .record-shop__hud-status small, .record-shop__hud-time small { color: #626374; font-size: .82em; letter-spacing: .015em; }
+.record-shop__hud-date b, .record-shop__hud-status b, .record-shop__hud-time b { color: #24283a; font-size: 1.08em; font-weight: 600; line-height: 1.3; }
+.record-shop__hud-date b, .record-shop__hud-time b { font-family: var(--shop-number); }
+.record-shop__hud-date i { color: #a75137; }
+.record-shop__hud-status { border-left-color: #c3b9ad; }
+.record-shop__hud-status b { color: #a34b32; }
+.record-shop__hud-progress { padding-top: .5rem; border-top-color: #c3b9ad; }
+.record-shop__hud-note { color: #545669; font-size: .82em; line-height: 1.35; }
+.record-shop__hud-windows { gap: 1.1rem; margin-top: .5rem; }
+.record-shop__hud-windows span { color: #777483; font: .72em var(--shop-number); }
+.record-shop__hud-windows span::before { width: .75em; height: .27em; background: #b8aead; }
+.record-shop__hud-windows span[data-unlocked="true"] { color: #383b4c; }
+.record-shop__hud-windows span[data-unlocked="true"]::before { background: #b75438; box-shadow: none; }
+.record-shop__date-menu { background: #f2e9d8; border: 2px solid #3d4051; border-radius: 3px; color: #24283a; box-shadow: .2rem .5rem 1rem #12152055; }
+.record-shop__date-menu button[aria-selected="true"] { background: #343748; color: #f8e8ca; }
+.record-shop__date-menu button:hover { background: #ded5d0; color: #24283a; }
+
+/* The inventory is the enlarged face of the device. */
+.record-shop__device-panel { top: 33%; left: 18.5%; width: 59%; height: 56.5%; border: 7px solid #2b2e3e; border-radius: 7px; background: #f0e7d6; box-shadow: inset 0 0 0 1px #b9aea4, 0 4px 0 #151824, 0 1.2rem 2rem #11141e66; color: #24283a; }
+.record-shop__device-panel > header { margin: 0; padding: .5rem 1.1rem; border: 0; border-bottom: 1px solid #a7a0aa; border-radius: 0; background: #ded7d2; letter-spacing: .06em; }
+.record-shop__device-panel > header strong { font-size: .9rem; }
+.record-shop__device-panel > header span { color: #656678; }
+.record-shop__panel-close { border: 1px solid #918c99 !important; border-radius: 2px !important; background: #f0e7d6 !important; color: #24283a !important; }
+.record-shop__record-track { background: linear-gradient(#303345,#242735); border-block: 1px solid #171a26; margin: .7rem .85rem 0; padding: 1rem 8% .7rem; gap: 2.1rem; }
+.record-shop__record-track::after { background: #af8d68; height: .5rem; bottom: 0; }
+.record-shop .record-shop__spine { border: 1px solid #dfccb080; border-radius: 1px; box-shadow: 4px 3px 0 #121520, inset 2px 0 #fff5d326; }
+.record-shop__record-caption { padding-block: .75rem; }
+.record-shop__record-caption span { color: #ab5139; font-family: var(--shop-number); }
+.record-shop__record-caption small { color: #626477; }
+.record-shop__device-panel > footer { border-top: 1px solid #bbb0a8; background: #ded7d2; }
+.record-shop__device-panel > footer > span { color: #646677; }
+.record-shop__device-panel > footer button { border-color: #938e9b; border-radius: 2px; background: #f4ead9; color: #292c3d; }
+.record-shop__device-panel--complete button { background: #b75438; border-radius: 2px; }
+.record-shop__device-panel--complete h2 { font-family: var(--shop-type); font-weight: 600; letter-spacing: .02em; }
+.record-shop__device-panel--complete p { color: #5d5e70; }
+.entry-info__sheet, .gallery-treatment__sheet { border: 5px solid #303344; border-radius: 5px; background: #f1e8d8; color: #292c3d; box-shadow: 0 4px 0 #171a26, 0 1rem 3rem #15182355; }
+.entry-info__sheet > header { border-bottom: 1px solid #b4aaa4; background: #dfd7d0; color: #303345; }
+.entry-info__sheet > header button { color: #383b4e; border-color: #918c99; }
+.entry-info__content h2, .gallery-treatment__copy h1 { font-family: var(--shop-type); font-weight: 600; letter-spacing: -.025em; }
+.entry-info__backdrop, .gallery-treatment__backdrop { background: #171927b8; backdrop-filter: none; }
+.gallery-treatment__copy h2 { color: #5c5e72; }
+.gallery-art { border-color: #e1d5b7; }
+.entry-diorama__threshold, .record-shop::after { background: #202330; }
+
+@media (max-width: 1100px) and (min-width: 721px) {
+  .record-shop__interior-hud { width: 43%; left: 4%; }
+  .record-shop__hud-glass { padding: .5rem .65rem; gap: .4rem; }
+  .record-shop__screen { gap: .12rem; }
+  .record-shop__screen > span { font-size: .48rem; }
+  .record-shop__screen > strong { font-size: .67rem; }
+  .record-shop__screen > small { font-size: .48rem; }
+  .record-shop__screen > button { min-height: 1.5rem; font-size: .6rem; }
+  .record-shop__device-panel { top: 34%; left: 15%; width: 68%; height: 60%; }
+}
+@media (max-width: 720px) {
+  .entry-diorama__heading { top: 4.1rem; left: 1rem; }
+  .entry-diorama__heading p { font-size: 1.08rem; }
+  .entry-diorama__heading span { font-size: .66rem; }
+  .entry-diorama__hint { top: 8.3rem; left: 1rem; font-size: .72rem; }
+  .entry-diorama__info { top: 10rem; right: 1rem; }
+  .entry-diorama__info button { font-size: .72rem; }
+  .entry-diorama__views { bottom: .65rem; left: .65rem; right: .65rem; padding: .35rem; gap: .25rem; }
+  .entry-diorama__view-button { min-height: 2.6rem; padding: .35rem .1rem; font-size: .63rem; }
+  .entry-diorama__views-label small { font-size: .55rem; }
+  .entry-diorama__zoom { left: .65rem; bottom: 5.3rem; }
+  .entry-diorama__status { left: .65rem; right: auto; bottom: 9rem; font-size: .66rem; }
+  .record-shop__interior-hud { top: 3.2rem; left: .55rem; width: calc(100vw - 1.1rem); --suspension: .9rem; }
+  .record-shop__hud-glass { padding: .5rem .65rem; gap: .45rem; }
+  .record-shop__hud-brand strong { font-size: .82rem; }
+  .record-shop__hud-readout { min-height: 2.45rem; }
+  .record-shop__hud-note { font-size: .7rem; }
+  .record-shop__hud-progress { padding-top: .35rem; }
+  .record-shop__hud-windows { margin-top: .4rem; }
+  .record-shop__screen-mask { background: #252838; border: 1px solid #b7ad9f; border-radius: 4px; }
+  .record-shop__screen { position: static; width: 100%; height: auto; padding: .5rem; border: 0; gap: .4rem .6rem; border-radius: 2px; }
+  .record-shop__screen > * { transform: none; }
+  .record-shop__screen > span { font-size: .62rem; }
+  .record-shop__screen > strong { font-size: .8rem; }
+  .record-shop__screen > small { font-size: .67rem; }
+  .record-shop__screen > button { min-height: 2.45rem; font-size: .75rem; }
+  .record-shop__device-panel { top: 16rem; right: .55rem; bottom: 3.5rem; left: .55rem; width: auto; height: auto; border-width: 4px; }
+  .record-shop__device-panel > header { padding: .35rem .65rem; min-height: 2.65rem; }
+  .record-shop__device-panel > header strong { font-size: .78rem; }
+  .record-shop__record-track { margin: .5rem .45rem 0; gap: 1.6rem; padding-inline: 9%; }
+  .record-shop__record-caption { font-size: .72rem; padding: .5rem; }
+  .record-shop__device-panel--complete > div { align-content: center; }
+  .gallery-treatment__sheet { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) and (max-height: 540px) {
+  .entry-diorama__heading { top: 3rem; }
+  .entry-diorama__hint { top: 5.3rem; }
+  .entry-diorama__info { top: 3rem; }
+  .entry-diorama__status { bottom: 8rem; }
+  .record-shop__interior-hud { top: 2.6rem; --suspension: .45rem; }
+  .record-shop__hud-readout { min-height: 1.75rem; }
+  .record-shop__hud-glass { padding: .3rem .5rem; gap: .2rem; }
+  .record-shop__hud-brand { padding-bottom: .2rem; }
+  .record-shop__device-panel { top: 3rem; bottom: 3rem; }
+  .record-shop__record-caption { padding: .15rem .5rem; }
+}

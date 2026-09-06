@@ -9,7 +9,7 @@ async function ensureOutputDir() {
 }
 
 async function visitToday(page: Page, view: string) {
-  await page.goto(`/#/?view=${view}`);
+  await page.goto(`/#/today?view=${view}`);
   await page.waitForSelector('[data-testid="album-card-0"]', { state: "visible" });
 }
 

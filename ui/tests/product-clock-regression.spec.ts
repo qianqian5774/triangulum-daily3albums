@@ -10,7 +10,7 @@ async function buildDate(page: Page) {
 
 test("shared debug clock remains stable across Today, Archive, and Time Lab boundaries", async ({ page }) => {
   const date = await buildDate(page);
-  await page.goto(`/#/?debug=1&debug_time=${date}T07:59:59`);
+  await page.goto(`/#/today?debug=1&debug_time=${date}T07:59:59`);
 
   const hud = page.getByTestId("hud");
   await expect(hud).toContainText("07:59:59");
@@ -24,7 +24,7 @@ test("shared debug clock remains stable across Today, Archive, and Time Lab boun
   await expect(hud).toContainText("DEBUG TIME ACTIVE");
 
   await page.getByRole("link", { name: "Today", exact: true }).click();
-  await expect(page).toHaveURL(/#\//);
+  await expect(page).toHaveURL(/#\/today/);
   await page.getByRole("button", { name: "08:00", exact: true }).click();
   await expect(hud).toContainText("08:00:00");
   await expect(page.getByTestId("album-card-0")).toBeVisible();

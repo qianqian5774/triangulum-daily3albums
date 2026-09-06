@@ -66,21 +66,10 @@ const instrumentation = () => {
     });
   };
 
-  const hook = {
-    supportsFiber: true,
-    inject() {
-      return 1;
-    },
-    onCommitFiberRoot() {
-      state.reactCommits += 1;
-    },
-    onCommitFiberUnmount() {},
-    checkDCE() {}
-  };
-  Object.defineProperty(window, "__REACT_DEVTOOLS_GLOBAL_HOOK__", {
-    configurable: true,
-    value: hook
-  });
+  // Do not install a partial React DevTools hook here. Vite's React preamble
+  // and the renderer expect more of that contract than a commit callback, so
+  // a synthetic hook can prevent the audited page from mounting at all.
+  // With no real DevTools hook present, the optional commit count stays zero.
 
   const observe = (type, callback, options = { type, buffered: true }) => {
     try {
@@ -299,7 +288,21 @@ async function waitForSurface(page, surface) {
   if (surface === "archive") {
     await page.getByRole("heading", { name: "Recent archive" }).waitFor({ state: "visible", timeout: 30000 });
   } else {
-    await page.getByTestId("album-card-0").waitFor({ state: "visible", timeout: 30000 });
+    // React may not have mounted either route by DOMContentLoaded. Wait for
+    // both supported surfaces instead of making a one-time count decision.
+    // The entry diorama is the formal home surface; the card remains only as
+    // a compatibility fallback for generated legacy snapshots.
+    const entryDiorama = page.locator(".entry-diorama");
+    const legacyCard = page.getByTestId("album-card-0");
+    const entryReady = entryDiorama.waitFor({ state: "visible", timeout: 30000 }).then(() => "entry").catch(() => null);
+    const legacyReady = legacyCard.waitFor({ state: "visible", timeout: 30000 }).then(() => "legacy").catch(() => null);
+    const arrived = await Promise.race([entryReady, legacyReady]);
+    if (!arrived) throw new Error("Neither the formal entry diorama nor the legacy Today surface became visible.");
+    if (arrived === "entry") {
+      await entryDiorama.waitFor({ state: "visible", timeout: 30000 });
+      await entryDiorama.locator("canvas").waitFor({ state: "attached", timeout: 30000 });
+      return;
+    }
   }
 }
 

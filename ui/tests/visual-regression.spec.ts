@@ -54,13 +54,13 @@ test("capture deterministic R5 visual surfaces", async ({ page }) => {
   await setupDeterministicData(page);
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  await page.goto(`/#/?debug=1&debug_time=${issue.date}T07:59:59`);
+  await page.goto(`/#/today?debug=1&debug_time=${issue.date}T07:59:59`);
   await expect(page.getByRole("heading", { name: "SYSTEM OFFLINE" })).toBeVisible();
   await expect(page.getByText("Album 4", { exact: true })).toBeVisible();
   await settleVisualState(page);
   await capture(page, "offline.png");
 
-  await page.goto(`/#/?debug=1&debug_time=${issue.date}T16:00:00`);
+  await page.goto(`/#/today?debug=1&debug_time=${issue.date}T16:00:00`);
   await expect(page.getByTestId("album-card-0")).toBeVisible();
   await settleVisualState(page);
   await capture(page, "today.png");

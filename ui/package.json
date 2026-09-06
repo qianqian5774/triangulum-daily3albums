@@ -15,18 +15,21 @@
     "browser:product-clock": "playwright test tests/product-clock-regression.spec.ts",
     "browser:today-state": "playwright test tests/today-state-regression.spec.ts",
     "browser:viewer-cover": "playwright test tests/viewer-cover-resilience.spec.ts",
+    "browser:record-shop": "playwright test tests/record-shop.spec.ts",
     "browser:visual": "playwright test tests/visual-regression.spec.ts",
     "screenshots": "playwright test tests/screenshots.spec.ts",
     "performance:audit": "node scripts/performance-audit.mjs"
   },
   "dependencies": {
+    "@types/three": "^0.185.4",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.24",
     "html2canvas": "^1.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.4",
-    "tailwind-merge": "^2.5.4"
+    "tailwind-merge": "^2.5.4",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",

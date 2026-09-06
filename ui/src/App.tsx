@@ -1,9 +1,17 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Hud } from "./components/Hud";
 import { NoiseOverlay } from "./components/NoiseOverlay";
 import { ProjectInfoDialog } from "./components/ProjectInfoDialog";
 import { ArchiveRoute } from "./routes/Archive";
+import { RecordShopRoute } from "./routes/RecordShop";
 import { TodayRoute } from "./routes/Today";
 import {
   formatBjtTime,
@@ -49,6 +57,7 @@ function createDefaultHud(tx: (key: string) => string, marqueeFallback: string[]
 }
 
 function AppShell() {
+  const location = useLocation();
   const tx = useT();
   const localizedCopy = useLocalizedCopy();
   const { bjtNow, nowSlotId, nowState, visualTheme } = useProductClock();
@@ -59,6 +68,7 @@ function AppShell() {
   const [displayVisualTheme, setDisplayVisualTheme] = useState<VisualTheme>(visualTheme);
   const [themeTransition, setThemeTransition] = useState<VisualTheme | null>(null);
   const themeTransitionTimerRef = useRef<number | null>(null);
+  const recordShopActive = location.pathname === "/" || location.pathname === "/record-shop";
 
   const updateHud = useCallback((next: Partial<HudState>) => {
     setHud((prev) => ({ ...prev, ...next }));
@@ -124,34 +134,51 @@ function AppShell() {
       <div
         className="theme-shell min-h-screen text-clinical-white"
         data-theme={displayVisualTheme}
-        data-transition-active={themeTransition ? "signal-glitch" : undefined}
+        data-transition-active={
+          !recordShopActive && themeTransition ? "signal-glitch" : undefined
+        }
       >
-        {themeTransition ? (
+        {!recordShopActive && themeTransition ? (
           <div
             className={`theme-transition-overlay theme-transition-${themeTransition}`}
             aria-hidden="true"
           />
         ) : null}
-        <Hud
-          status={hud.status}
-          marqueeItems={hud.marqueeItems}
-          bjtTime={hud.bjtTime}
-          windowLabel={hud.windowLabel}
-          nextUnlockLabel={hud.nextUnlockLabel}
-          countdownLabel={hud.countdownLabel}
-          statusMessage={hud.statusMessage}
-          debugActive={hud.debugActive}
-          onOpenAbout={() => setAboutOpen(true)}
-        />
-        <main className="app-main mx-auto flex w-full max-w-[90rem] flex-col gap-10 px-4 pb-10 md:px-6">
+        {!recordShopActive ? (
+          <Hud
+            status={hud.status}
+            marqueeItems={hud.marqueeItems}
+            bjtTime={hud.bjtTime}
+            windowLabel={hud.windowLabel}
+            nextUnlockLabel={hud.nextUnlockLabel}
+            countdownLabel={hud.countdownLabel}
+            statusMessage={hud.statusMessage}
+            debugActive={hud.debugActive}
+            onOpenAbout={() => setAboutOpen(true)}
+          />
+        ) : null}
+        <main
+          aria-label={recordShopActive ? "Triangulum Daily record shop" : undefined}
+          className={
+            recordShopActive
+              ? "app-main app-main-record-shop"
+              : "app-main mx-auto flex w-full max-w-[90rem] flex-col gap-10 px-4 pb-10 md:px-6"
+          }
+        >
           <Routes>
-            <Route path="/" element={<TodayRoute />} />
+            <Route path="/" element={<RecordShopRoute />} />
+            <Route path="/today" element={<TodayRoute />} />
             <Route path="/archive" element={<ArchiveRoute />} />
+            <Route path="/record-shop" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
-        <ProjectInfoDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
-        <NoiseOverlay />
+        {!recordShopActive ? (
+          <>
+            <ProjectInfoDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+            <NoiseOverlay />
+          </>
+        ) : null}
       </div>
     </HudContext.Provider>
   );
