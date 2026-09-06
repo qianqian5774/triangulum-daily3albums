@@ -46,6 +46,7 @@ interface InteriorGalleryProps {
 // Keep the decoded source images alive through returns to the exterior. The
 // scene uses its approved physical layers, not a flattened character composite.
 const interiorLoads = new Map<boolean, { images: HTMLImageElement[]; ready: Promise<void> }>();
+const RECORD_SHOP_COVER_TIMEOUT_MS = 5000;
 export function preloadInterior(isNight: boolean) {
   const cached = interiorLoads.get(isNight);
   if (cached) return cached.ready;
@@ -74,22 +75,49 @@ export function preloadInterior(isNight: boolean) {
   return ready;
 }
 
+function AlbumCoverImage({ source, fallbackCover, alt }: { source: string; fallbackCover: string; alt: string }) {
+  const [imageSource, setImageSource] = useState(source);
+  const timeoutRef = useRef<number | null>(null);
+  const clearCoverTimeout = () => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    clearCoverTimeout();
+    setImageSource(source);
+    if (source !== fallbackCover) {
+      timeoutRef.current = window.setTimeout(() => {
+        timeoutRef.current = null;
+        setImageSource((current) => current === source ? fallbackCover : current);
+      }, RECORD_SHOP_COVER_TIMEOUT_MS);
+    }
+    return clearCoverTimeout;
+  }, [fallbackCover, source]);
+
+  return (
+    <img
+      className="gallery-art__cover"
+      src={imageSource}
+      alt={alt}
+      onLoad={clearCoverTimeout}
+      onError={() => {
+        clearCoverTimeout();
+        setImageSource(fallbackCover);
+      }}
+    />
+  );
+}
+
 function AlbumArtwork({ record, compact = false }: { record: RecordShopRecord; compact?: boolean }) {
   const fallbackCover = resolvePublicPath("assets/placeholder.svg");
   const coverUrl = resolveCoverUrl(record.cover.optimized_cover_url, record.cover.cover_version) ?? fallbackCover;
   return (
     <div className="gallery-art" data-compact={compact || undefined} data-cover={record.cover.has_cover ? "available" : "fallback"} aria-hidden={compact || undefined}>
       <img className="gallery-art__fallback" src={fallbackCover} alt="" aria-hidden="true" />
-      <img
-        className="gallery-art__cover"
-        src={coverUrl}
-        alt={compact ? "" : `${record.title} — ${record.artist}`}
-        onError={(event) => {
-          if (event.currentTarget.dataset.fallbackApplied) return;
-          event.currentTarget.dataset.fallbackApplied = "true";
-          event.currentTarget.src = fallbackCover;
-        }}
-      />
+      <AlbumCoverImage source={coverUrl} fallbackCover={fallbackCover} alt={compact ? "" : `${record.title} — ${record.artist}`} />
       <b>{record.spineLabel}</b>
     </div>
   );
