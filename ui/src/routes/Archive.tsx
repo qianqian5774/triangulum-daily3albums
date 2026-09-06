@@ -152,7 +152,7 @@ export function ArchiveRoute() {
           ) : null}
         </div>
         <Link
-          to="/"
+          to="/today"
           className="ui-button border-panel-700/80 text-clinical-white/70 hover:border-signal-accent/60 hover:text-signal-accent"
         >
           {tx("archive.openToday")}

@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: dark;
+  --app-font: "Space Grotesk", "Triangulum Noto Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono-font: "IBM Plex Mono", "Triangulum Sarasa Mono SC", "Sarasa Mono SC", "Microsoft YaHei UI", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --ui-font-scale: 1.38;
   --hud-height: 168px;
   --art-accent: #A8C700;
@@ -152,6 +154,20 @@ body::before {
 
 .app-main {
   padding-top: calc(var(--hud-height, 168px) + 2rem);
+}
+
+.app-main-record-shop {
+  display: block;
+  width: 100%;
+  max-width: none;
+  min-height: 100svh;
+  padding: 0 !important;
+}
+
+@media (max-width: 760px) {
+  .app-main-record-shop {
+    min-height: 0;
+  }
 }
 
 .hud-shell {
@@ -2054,7 +2070,7 @@ html[data-theme="day"] .slotcard-metadata {
   padding: 64px;
   color: var(--share-text);
   background: var(--share-bg);
-  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--app-font);
 }
 
 .share-card-canvas[data-share-theme="day"] {

@@ -40,7 +40,7 @@ test("stale Today recovers through archive fallback and preserves overlay naviga
     route.fulfill({ status: 200, contentType: "image/png", body: imageBody })
   );
 
-  await page.goto(`/#/?debug=1&debug_time=${currentIssue.date}T16:00:00`);
+  await page.goto(`/#/today?debug=1&debug_time=${currentIssue.date}T16:00:00`);
   await expect(page.getByText("ESTABLISHING LINK...", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("album-card-0")).toBeVisible();
   const callsBeforeRetry = todayCalls;
@@ -89,7 +89,7 @@ test("failed Today uses current last-good data before archive fallback", async (
     route.fulfill({ status: 200, contentType: "image/png", body: imageBody })
   );
 
-  await page.goto(`/#/?debug=1&debug_time=${currentIssue.date}T16:00:00`);
+  await page.goto(`/#/today?debug=1&debug_time=${currentIssue.date}T16:00:00`);
   await expect(page.getByText("ESTABLISHING LINK...", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("album-card-0")).toBeVisible();
   await expect(page.getByText(currentIssue.slots[2].picks[0].title, { exact: true })).toBeVisible();
@@ -115,7 +115,7 @@ test("Offline State restores the locked archive surface", async ({ page }) => {
     route.fulfill({ status: 200, contentType: "image/png", body: imageBody })
   );
 
-  await page.goto(`/#/?debug=1&debug_time=${currentIssue.date}T07:59:59`);
+  await page.goto(`/#/today?debug=1&debug_time=${currentIssue.date}T07:59:59`);
   await expect(page.getByRole("heading", { name: "SYSTEM OFFLINE" })).toBeVisible();
   await expect(page.getByText("Yesterday's intake (archived)", { exact: true })).toBeVisible();
   await expect(page.getByText("Album 4", { exact: true })).toBeVisible();

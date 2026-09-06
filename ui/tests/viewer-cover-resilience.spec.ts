@@ -98,7 +98,7 @@ async function setupPage(page: Page): Promise<BrowserSignals> {
     }
   });
   await page.route("**/data/today.json*", (route) => route.fulfill({ json: issue }));
-  await page.goto(`/#/?debug=1&debug_time=${AUDIT_DATE}T16:00:00`);
+  await page.goto(`/#/today?debug=1&debug_time=${AUDIT_DATE}T16:00:00`);
   await page.getByTestId("album-card-0").waitFor({ state: "visible" });
   return signals;
 }

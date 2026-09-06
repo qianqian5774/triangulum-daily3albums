@@ -29,7 +29,13 @@ interface ProductClockValue {
 const ProductClockContext = createContext<ProductClockValue | null>(null);
 
 function loadInitialDebugTime() {
-  return loadDebugTime();
+  if (typeof window === "undefined") return null;
+  // Resolve a URL preset before the first render. Otherwise a debug link can
+  // briefly adopt the real clock, start loading the wrong themed interior,
+  // then switch and fetch a second full scene on mount.
+  const urlDebugTime = readDebugTimeParam(window.location.search, window.location.hash);
+  const parsed = urlDebugTime ? parseDebugTime(urlDebugTime) : null;
+  return parsed ? formatDebugTime(parsed) : loadDebugTime();
 }
 
 export function ProductClockProvider({ children }: { children: ReactNode }) {

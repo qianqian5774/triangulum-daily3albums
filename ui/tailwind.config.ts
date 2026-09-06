@@ -14,8 +14,8 @@ export default {
         "panel-700": "#1A1A1A"
       },
       fontFamily: {
-        display: ["Inter", "Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
-        mono: ["JetBrains Mono", "Space Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
+        display: ["Space Grotesk", "Triangulum Noto Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "sans-serif"],
+        mono: ["IBM Plex Mono", "Triangulum Sarasa Mono SC", "Sarasa Mono SC", "Microsoft YaHei UI", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
       },
       letterSpacing: {
         tightish: "-0.02em",
