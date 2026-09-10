@@ -261,7 +261,7 @@ P2.3 可按职责把 global foundations、theme adapter、layout、overlay 和 f
 | `_now_date_in_tz()` | 只有定义 | build用 `_beijing_now()` | 无 test引用 | High | P3 删除 |
 | `_ensure_nonblank_index_html()` | 只有定义 | build未调用 | 无 test调用 | High | P3 删除；同时评估 builtin fallback |
 | `ui/public/brand/slot-window-set-vertical.svg` | 仅被未消费 CSS variable引用 | DOM/CSS不使用 variable | tests不验证 | Medium-High | 标记 stale asset；与未来视觉任务分离清理 |
-| root `docs/art-direction.md` / `art-assets-spec.md` | active-looking标题与明确旧视觉方向 | 不影响 runtime | 不在 legacy/revive/snapshot | Medium | 不删除；先给文档状态/authority分类，避免与“未来视觉未定”冲突 |
+| 当时的根目录视觉方向说明 | active-looking 标题与明确旧视觉方向 | 不影响 runtime | 此审计之后已被归档／删除 | Medium | 后续文档同步已完成分类与清理；本条仅保留审计时的判断脉络，不可恢复为当前 authority |
 
 `docs/archive/REVIEW_REPORT.md` 中已修复或过时的 finding 位于明确 archive 区域，不计 active debt。`docs/revive/`、`docs/legacy/` 和 foundation snapshots 同理。
 
