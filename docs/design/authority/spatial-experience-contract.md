@@ -13,8 +13,8 @@ relate. It specifies product behavior, not a particular implementation tool.
   notes, state order, HUD behavior, shot intent and FRAME 04–14 interior flow.
 - Only the former FRAME 01–03 exterior imagery and shop-materialization sequence
   are replaced. Their current visual realization is the persistent 3D Entry
-  Diorama with finite approved camera views and a real entrance door.
-- The Public Record Gallery production set elaborates the storyboard's FRAME
+  Diorama with six named preset views, bounded inspection, and a real entrance door.
+- The Record Shop interior production set elaborates the storyboard's FRAME
   04–14 interior appearance; it does not replace the storyboard's interaction
   definitions.
 
@@ -37,7 +37,7 @@ relate. It specifies product behavior, not a particular implementation tool.
 ## Door transition
 
 - Activating the entrance door moves from the exterior arrival state into the
-  Public Record Gallery interior state.
+  Record Shop interior state.
 - The transition communicates crossing the threshold; it does not imply that
   the exterior shell must reproduce the interior concept floor plan one-for-one.
 - During the transition, controls belonging only to exterior model inspection
@@ -51,7 +51,7 @@ relate. It specifies product behavior, not a particular implementation tool.
 - The interior is governed by the FRAME 04–14 visual production set, not by a
   free-roaming three-dimensional camera.
 - Screen, device, inventory, history, reading and HUD changes are composited
-  state transitions over the approved Public Record Gallery environment.
+  state transitions over the approved Record Shop interior environment.
 - The latest attendant authority is used throughout; the former interior
   attendant is archived and has no authority status.
 

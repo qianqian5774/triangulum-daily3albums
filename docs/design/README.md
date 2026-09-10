@@ -2,7 +2,7 @@
 
 Status: **CURRENT**
 
-This directory holds the version-controlled design contract for the deployed Record Shop. It is intentionally limited to the documents required to understand the current spatial model, interaction semantics, and visual acceptance boundary.
+This directory holds the formal design contract for the deployed Record Shop. Its current Markdown authority documents are version-controlled. It is intentionally limited to the documents required to understand the current spatial model, interaction semantics, and visual acceptance boundary.
 
 ## Reading order
 

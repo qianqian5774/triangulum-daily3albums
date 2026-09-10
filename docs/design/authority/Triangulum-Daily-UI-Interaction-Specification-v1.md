@@ -11,11 +11,11 @@
 
 标准链路为：
 
-`Today Page 店外 Entry Diorama → 选择有限相机视角 → 激活实体大门 → 店内 Offline/Ready → Daily OPEN → Shuffle → Continue → 水平唱片浏览 → Treatment Viewer → 返回原浏览位置 → HUD 最近日期 → 返回 Today`
+`Record Shop 店外 Entry Diorama → 选择有限相机视角 → 激活实体大门 → 店内 Offline/Ready → Daily OPEN → Shuffle → Continue → 水平唱片浏览 → Treatment Viewer → 返回原浏览位置 → HUD 最近日期 → 返回店外`
 
 补充边界：
 
-- Today Page 承载店外与店内的连续体验。
+- Record Shop 承载店外与店内的连续体验。
 - Archive Page 仍是站点保留的静态历史表面，不被解释成另一间房；店内 HUD 的最近日期切换是同一店内的快速历史浏览。
 - Treatment Viewer 是覆盖层，不是独立详情路由。
 - 进入店内与唱片解锁是两个独立条件。用户可在 08:00 BJT 前进入店内，但装置保持 Offline。

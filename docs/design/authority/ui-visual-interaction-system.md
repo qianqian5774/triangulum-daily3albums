@@ -10,7 +10,7 @@
 
 发生冲突时，按以下顺序处理：
 
-1. [`authority/`](./README.md) 及其内部 manifest 决定已批准资产和空间关系。
+1. [`authority/`](./README.md) 与当前实现共同提供已批准资产和空间关系的可核对证据。
 2. 本文决定这些资产如何构成正式视觉系统。
 3. [`Triangulum-Daily-UI-Interaction-Specification-v1.md`](./Triangulum-Daily-UI-Interaction-Specification-v1.md) 决定状态、输入、时间和迁移。
 4. [`ui-redesign-concept-v1.md`](./ui-redesign-concept-v1.md) 解释产品意图，不覆盖前述可执行规范。
@@ -22,7 +22,7 @@
 Triangulum Daily 是一个由两个连续空间状态组成的网页唱片店：
 
 - **店外：**持久存在的 Entry Diorama，以真实三维模型呈现；六个 preset view 提供构图锚点，指针或触控可在受限范围内检查同一模型。
-- **店内：**Public Record Gallery，以已批准 FRAME 04–14 的分层合成画面呈现；装置、唱片、HUD 和阅读界面在同一店内世界中改变状态。
+- **店内：**Record Shop interior，以已批准 FRAME 04–14 的分层合成画面呈现；装置、唱片、HUD 和阅读界面在同一店内世界中改变状态。
 - **边界：**店外实体大门是进入店内的唯一标准入口。进入不是新页面视觉风格的切换，而是跨过同一家店的门槛。
 
 店外模型不要求一比一复制店内平面图。两者通过店名、黑框玻璃入口、唱片库存、中央 CRT／试听装置、珊瑚红吧台、白桦木／石墨黑材质和同一店员建立身份连续性。
@@ -80,7 +80,7 @@ Triangulum Daily 是一个由两个连续空间状态组成的网页唱片店：
 
 不存在的构件不应仅为了“丰富细节”被添加；每件物体都必须有用途、位置和尺度解释。
 
-## 5. 店内 Public Record Gallery 系统
+## 5. Record Shop interior 系统
 
 ### 5.1 固定空间
 

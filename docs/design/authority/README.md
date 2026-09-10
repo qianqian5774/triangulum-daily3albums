@@ -2,7 +2,7 @@
 
 Status: **CURRENT**
 
-This directory defines the current product experience and visual acceptance boundary for Triangulum Daily. It does not override runtime data, public JSON, BJT clock behavior, or the GitHub Pages architecture; those remain governed by current source, tests, workflow, and Foundation documentation.
+This directory defines the current product experience and visual acceptance boundary for Triangulum Daily. It does not override runtime data, public JSON, BJT clock behavior, or the GitHub Pages architecture; those remain governed by current source, tests, workflow, and Foundation documentation. The local `_internal/authority-manifest.json` records asset-provenance checks only; it does not define runtime behavior or replace these source-verified documents.
 
 ## Documents
 

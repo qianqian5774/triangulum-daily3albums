@@ -16,7 +16,7 @@ Triangulum Daily 每个自然日发布 9 张完整专辑，分三次解锁。产
 空间链由两部分组成：
 
 - 持久存在、以六个 preset view 为构图锚点并支持受限自由观察与缩放的三维 Entry Diorama；
-- 点击实体大门后进入的 Public Record Gallery 店内。
+- 点击实体大门后进入的 Record Shop interior。
 
 店外和店内是同一家店的连续身份，但不是互相强迫复制的平面图。店外负责到达、建筑存在感和门槛；店内负责设备、唱片浏览、阅读和最近历史日期。
 
@@ -32,13 +32,13 @@ Triangulum Daily 每个自然日发布 9 张完整专辑，分三次解锁。产
 
 ### Entry Diorama
 
-是 Today Page 的到达状态。它不是开场动画、普通街道或可无限漫游的游戏场景。建筑从一开始就存在；六个 preset view 提供稳定构图，指针或触控只可在受限范围内检查同一建筑。
+是 Record Shop 的到达状态。它不是开场动画、普通街道或可无限漫游的游戏场景。建筑从一开始就存在；六个 preset view 提供稳定构图，指针或触控只可在受限范围内检查同一建筑。
 
 ### 实体大门
 
 是店外与店内的唯一规范边界。门必须在视觉上真实、在交互上明确、在无障碍层面可命名。
 
-### Public Record Gallery
+### Record Shop interior
 
 是店内主空间。中央装置承担 Daily OPEN、Shuffle、水平库存和唱片打开；HUD 承担日期、BJT 时间、设备与库存状态；Treatment Viewer 承担深度阅读。
 
