@@ -1,3 +1,5 @@
+> **Historical / superseded:** this review describes a prior implementation state. Validate current source before treating a finding as open.
+
 # A) Severity-ordered findings (P0/P1/P2/P3)
 
 ## P1 — Unverified `rg_mbid_hint` can produce false-positive normalization (wrong album IDs)

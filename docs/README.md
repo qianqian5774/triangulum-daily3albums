@@ -1,10 +1,19 @@
-# Documentation
+# Documentation map
 
-本目录用于区分长期稳定的项目文档和历史工作记录。
+## Current authority
 
-- [foundation](./foundation/) 是项目权威说明层，覆盖架构、数据/API 边界、推荐逻辑、构建发布链路和 UI 术语。
-- [revive](./revive/) 是历史审计、复健记录和临时任务记录区域。它可以作为背景材料，但不是权威文档层。
-- [legacy](./legacy/) 保存已退役机制的历史说明，不是当前操作入口。
-- [runbook.md](./runbook.md) 是日常维护操作手册。
+- [Foundation](./foundation/): durable source-verified facts about the static architecture, public data, product terminology, release flow, and recommendation output.
+- [Design](./design/): formal current design authority for the Entry Diorama, Record Shop interior, interaction model, and approved production assets.
+- [Runbook](./runbook.md): current validation, release, and operational entry points.
+- [Performance architecture](../PERFORMANCE.md): durable runtime practices and how to collect new evidence.
 
-如果文档与当前源码、配置、测试或 workflow 不一致，以当前源码和配置为准。确认实现后再更新权威文档。
+The production source, configuration, tests, workflows, and inspected Pages deployment remain the final authority. Update current documents when those facts change.
+
+## Historical material
+
+- [Archive](./archive/): superseded plans and completed review reports.
+- [Revive](./revive/): dated audits, migration notes, application drafts, and recovery records.
+- [Legacy](./legacy/): retired subsystems and retained measurement evidence.
+- Local design archives: rejected directions and exploration outputs, kept only as local provenance material and never as current authority.
+
+Historical documents are evidence, not implementation instructions. Do not derive new product behavior from them without checking current source.
