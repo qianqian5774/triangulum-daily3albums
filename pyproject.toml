@@ -4,38 +4,20 @@ version = "0.1.0"
 description = "Triangulum Daily: nine daily album recommendations across three release windows"
 requires-python = ">=3.11"
 
-# 运行项目本体所需的“基础依赖”
 dependencies = [
   "httpx>=0.27.0",
   "PyYAML>=6.0.1",
   "python-dotenv>=1.0.1",
-  "rapidfuzz>=3.9.0",
-  "boto3>=1.34.0",
 ]
 
-# 命令行入口
 [project.scripts]
 daily3albums = "daily3albums.cli:main"
 
-# 可选依赖：按用途分组
-# 用法：
-#   pip install -e ".[test]"  # 安装 Python tests 所需依赖
-#   pip install -e ".[dev]"   # 安装开发者常用依赖
 [project.optional-dependencies]
-
-# Python tests。浏览器检查由 ui/ 的 Playwright 依赖独立负责。
 test = [
   "pytest>=8.0.0",
 ]
 
-# 开发套餐：tests + lint/type-check 工具。
-dev = [
-  "daily3albums[test]",
-  "ruff>=0.6.0",
-  "mypy>=1.10.0",
-]
-
-# setuptools：自动发现包（比手写 packages=["daily3albums"] 更稳，子包也能打进去）
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["daily3albums*"]
@@ -44,20 +26,6 @@ include = ["daily3albums*"]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
-# -----------------------
-# 工具配置
-# -----------------------
-
-# Ruff：最低限度的代码健康检查（你可以后续再收紧规则）
-[tool.ruff]
-target-version = "py311"
-line-length = 100
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
-ignore = []
-
-# pytest：默认从 tests/ 找测试
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
