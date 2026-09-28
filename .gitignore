@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # build / state
 _build/
@@ -27,3 +28,7 @@ run_ambient_debug.txt
 
 # Machine-local Codex/toolchain instructions
 AGENTS.local.md
+
+# local recovery and Codex workspace material
+_local_backups/
+.codex/
