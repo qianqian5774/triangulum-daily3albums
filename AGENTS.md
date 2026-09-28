@@ -1,46 +1,22 @@
 # Triangulum Daily: project guidance
 
-These rules apply to repository work unless a task gives narrower instructions.
+These rules apply to repository work unless the task gives a narrower scope. Check the current source, tests, workflows, and production artifacts before relying on older notes.
 
-## Local instructions
+## Local environment
 
-- If `AGENTS.local.md` exists at the repository root, read it before running local commands.
-- `AGENTS.local.md` is machine-local and ignored by Git. It may define absolute paths, local runtimes, sandbox behavior, and environment-specific commands.
-- Local instructions must not override the static architecture boundary, security constraints, Git hygiene, generated-artifact rules, or foundation policy in this file.
+- Read `AGENTS.local.md` before local commands when it exists. It is Git-ignored machine guidance for executable paths and browser setup, not repository authority.
+- Use the existing project runtimes and tools. Run only the validation relevant to the change.
 
-## Architecture boundary
+## Product and architecture
 
-Triangulum Daily is a build-time generated static GitHub Pages site.
+- Triangulum Daily publishes nine albums per BJT day in three windows, with three albums unlocked in each window. The schedule and public contract are checked in `tests/fixtures/`.
+- The production entry is the Record Shop at `#/`: an Entry Diorama leads into the shop, where Today and History use published static data. `#/today` and `#/archive` are supporting surfaces. Treatment Viewer is an overlay, not a detail route.
+- The Python generator may use external music services before deployment. GitHub Pages serves static JSON and assets; visitor browsers must not use those services as application data APIs. Do not add a backend, database, login, visitor writes, or player service without an explicit architecture decision.
+- Remote images and fonts are resource dependencies, not application data APIs. Evaluate their availability, privacy, CORS, and performance when changing them. Build-time provider probes must follow the project's rate limits and retry policy.
 
-- The Python generator may call external music/data services before deployment.
-- The deployed site serves static JSON and static assets. Visitor browsers must not call Last.fm, MusicBrainz, Discogs, ListenBrainz, Wikipedia, Wikimedia, or similar external music/data APIs as runtime application data sources.
-- Remote covers, images, or fonts referenced by generated JSON or static assets are resource dependencies, not automatically runtime API violations. Record and evaluate their availability, privacy, CORS, and performance risks.
-- Do not introduce a backend, database, login, comments, player service, visitor-side writes, or runtime external music API calls without explicit architecture discussion and approval.
-- External probes and build-time API use must respect provider rate limits, retry/backoff policy, and sequential minimal-probe behavior where applicable.
+## Validation
 
-## Product and UI terminology
-
-- Product name: `Triangulum Daily`.
-- The product publishes nine albums per natural day, split across three unlock windows with three albums each.
-- `Today Page` is the current-day surface.
-- `Archive Page` is the retained static-history surface.
-- `Treatment Viewer` is the overlay opened from an Album Card; it is not a standalone detail route.
-- `Ambient Overlay` and `Share Card` are overlays, not independent routes.
-- Preserve the canonical schedule and terminology already defined in source, tests, README, and `docs/foundation/`; do not reintroduce historical `Daily 3 Albums` product copy or old unlock times.
-
-## Validation model
-
-Use the smallest set that fully matches the change. The active validation layers are:
-
-1. Python unit/integration tests.
-2. UI unit tests.
-3. Production UI build.
-4. Static-site generation followed by `scripts/self_check.py`.
-5. GitHub Actions for CI and daily production build/deploy evidence.
-6. Independent real Playwright browser smoke and performance audits.
-7. Build Metrics and Recommendation Observability for production-generation diagnostics.
-
-Portable command forms, assuming the repository's configured runtimes are active:
+Choose the smallest applicable layer. Portable commands, with the configured runtimes active:
 
 ```text
 python -m pytest
@@ -49,52 +25,20 @@ npm --prefix ui run build
 daily3albums build --verbose --out _build/public
 python scripts/self_check.py --path _build/public
 npm --prefix ui run browser:smoke
+npm --prefix ui run browser:record-shop
 npm --prefix ui run performance:audit
 ```
 
-- Read `AGENTS.local.md` for machine-specific executable paths and environment setup.
-- Run only the subset appropriate to the task. Markdown-only changes do not require a full build unless they modify executable examples or operational commands that need verification.
-- Browser smoke tests require an existing `_build/public`. Performance audits are independent production probes and write ignored local evidence.
-- `scripts/build_metrics.py` and `scripts/recommendation_observability_summary.py` remain active and independent of browser tests.
-- Doctor is retired. Do not run, restore, or treat `daily3albums doctor`, `doctor/REPORT*`, or `doctor/runs/` as a health signal. Historical context is in `docs/legacy/doctor.md`.
+Browser smoke needs an existing `_build/public`; performance audits are separate production probes. See `docs/runbook.md` for release checks. Doctor is retired and is not a health or release command.
 
-## Git hygiene and generated artifacts
+## Git and artifacts
 
-- Do not use `git add .` or broad staging in a mixed worktree.
-- Before committing, run `git status -sb`, `git diff --stat`, and an appropriate content diff.
-- Stage only explicit files belonging to the requested change. Preserve unrelated user edits.
-- Do not commit generated outputs, environment files, caches, logs, credentials, API keys, or tokens, including:
-  - `_build/`
-  - `ui/dist/`
-  - `ui/artifacts/`
-  - `.state/`
-  - `.venv/`
-  - `.codex/`
-  - cache directories and logs
-- Build Metrics and Recommendation Observability source code are tracked; their transient local/runtime outputs follow the generated-artifact boundary.
+- Preserve unrelated changes. Before committing, inspect `git status -sb`, `git diff --stat`, and the content diff; stage only explicit task files. Do not use `git add .` in a mixed worktree.
+- Do not commit generated outputs, credentials, environment files, caches, logs, or local evidence, including `_build/`, `ui/dist/`, `ui/artifacts/`, `.playwright-cli/`, `.state/`, `.venv/`, and `.codex/`.
+- Build Metrics and Recommendation Observability source code are tracked; their runtime outputs are generated artifacts.
 
-## Foundation docs memory layer
+## Documentation
 
-- `docs/foundation/` is the ignored local, long-term project memory layer and the canonical current-state explanation for architecture, data/API boundaries, recommendation behavior, release flow, and UI terminology.
-- `docs/revive/` and `docs/legacy/` are historical context, not the current authority.
-- At the start of substantial work, inspect relevant foundation files when available.
-- At the end of major work, explicitly decide whether foundation needs updating. Major work includes durable changes to:
-  - archive/data writes
-  - build, release, GitHub Actions, Pages, custom domain, or deployment behavior
-  - public JSON/schema boundaries
-  - recommendation generation, filtering, scoring, sampling, observability, or metadata enrichment
-  - external data/API boundaries
-  - UI structure, routing, layout, mobile behavior, terminology, or debug behavior
-  - validated operational baselines
-- Before editing foundation, create a local snapshot under `docs/foundation/_snapshots/`.
-- Write verified durable facts only. Do not write wishes, temporary debugging notes, PR chronology, or unverified assumptions as implemented behavior.
-- Do not commit, open PRs for, or force-add `docs/foundation/` unless the user explicitly asks.
-- Foundation changes are not source-code dirt. Stash them only when technically necessary for an operation and explicitly authorized.
-
-## Scope discipline
-
-- Keep behavior changes, documentation changes, performance audits, and refactors within the task's stated boundary.
-- Do not change recommendation logic during observability-only work.
-- Do not rewrite UI during audit-only performance work.
-- Prefer small, reviewable changes backed by tests or recorded evidence.
-- When facts differ between documentation and current source/config/workflows, verify the implementation first, then update the appropriate canonical documentation.
+- `docs/foundation/` contains tracked current-state architecture, data, recommendation, release, and UI explanations. `docs/design/` holds the formal visual and interaction authority; `docs/runbook.md` holds operational entry points; `PERFORMANCE.md` holds stable performance guidance. `docs/archive/`, `docs/revive/`, and `docs/legacy/` are historical.
+- For durable changes to product behavior, data/API boundaries, UI structure, generation, or deployment, update the relevant current document within the task scope. Before editing Foundation, save a local snapshot under `docs/foundation/_snapshots/`; snapshots and temporary measurements are not committed.
+- Source, tests, workflows, and verified production behavior take precedence when documentation differs. Keep changes focused and reviewable; do not use a documentation task to change recommendation logic or UI behavior.
