@@ -38,6 +38,8 @@ External providers remain build-time inputs only:
 
 The deployed application must not request Last.fm, MusicBrainz, Discogs, ListenBrainz, Wikipedia, Wikimedia, or comparable music/data APIs for application data. Provider calls use the build-time request broker, its endpoint policy, rate limit, cache, retry/backoff, and redacted diagnostics.
 
+The broker keeps successful responses and configured non-transient negative responses in its persistent cache. HTTP 429 and 5xx responses still fail after bounded retries, but are not cached; a later build can request them again after the provider recovers. Previously cached 429/5xx entries are discarded when read.
+
 ## Same-origin cover materialization
 
 Published pick JSON preserves its cover metadata, including a normalized remote source URL. During a production build, `materialize_static_cover_assets()` scans the generated public JSON, retrieves usable raster covers once, and writes:
