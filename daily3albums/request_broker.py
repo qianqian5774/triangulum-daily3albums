@@ -126,6 +126,10 @@ class RequestFailed(RuntimeError):
         )
 
 
+def _is_transient_http_status(status: int) -> bool:
+    return status == 429 or 500 <= status <= 599
+
+
 class BrokerResponseError(RuntimeError):
     def __init__(self, adapter_name: str | None, url: str, *, cause_type: str) -> None:
         self.adapter_name = adapter_name or "unknown"
@@ -427,7 +431,7 @@ class RequestBroker:
             return None
 
         url, status, headers_json, body, created_at, expires_at = row
-        if _now_epoch() >= int(expires_at):
+        if _now_epoch() >= int(expires_at) or _is_transient_http_status(int(status)):
             self.conn.execute("DELETE FROM http_cache WHERE key=?", (key,))
             self.conn.commit()
             return None
@@ -492,7 +496,11 @@ class RequestBroker:
                 )
                 return cached["body"]
 
-            non_fatal_4xx = (400 <= status <= 499 and not adapter_policy.fatal_4xx)
+            non_fatal_4xx = (
+                400 <= status <= 499
+                and not _is_transient_http_status(status)
+                and not adapter_policy.fatal_4xx
+            )
             if status == 404 and adapter_policy.treat_404_as_empty:
                 non_fatal_4xx = True
             self._log(f"CACHE HIT NEG status={status} url={_redact_url(url)}")
@@ -547,7 +555,7 @@ class RequestBroker:
                 resp = self.client.get(url, headers=headers, timeout=adapter_policy.timeout)
                 status = int(resp.status_code)
 
-                if status == 429 or 500 <= status <= 599:
+                if _is_transient_http_status(status):
                     if attempt < adapter_policy.retry.max_attempts:
                         delay = min(adapter_policy.retry.max_delay_ms, adapter_policy.retry.base_delay_ms * (2 ** (attempt - 1)))
                         if adapter_policy.retry.jitter:
@@ -579,16 +587,21 @@ class RequestBroker:
                     return body
 
                 neg_ttl_s = adapter_policy.negative_cache_ttl_s if adapter_policy.negative_cache_ttl_s is not None else pol.negative_cache_ttl_s
-                self._cache_put(key, url, status, hdrs, body, neg_ttl_s)
+                if not _is_transient_http_status(status):
+                    self._cache_put(key, url, status, hdrs, body, neg_ttl_s)
                 self._log_adapter_activity(
                     adapter_name=adapter_name,
                     action="GET",
                     url=url,
                     status=str(status),
-                    cache="write-negative",
+                    cache="skip-transient" if _is_transient_http_status(status) else "write-negative",
                     error=f"HTTP_{status}",
                 )
-                non_fatal_4xx = (400 <= status <= 499 and not adapter_policy.fatal_4xx)
+                non_fatal_4xx = (
+                    400 <= status <= 499
+                    and not _is_transient_http_status(status)
+                    and not adapter_policy.fatal_4xx
+                )
                 if status == 404 and adapter_policy.treat_404_as_empty:
                     non_fatal_4xx = True
                 self._record_failure(adapter_name, status, cached=False, non_fatal=non_fatal_4xx)

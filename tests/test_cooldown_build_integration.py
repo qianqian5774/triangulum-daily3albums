@@ -368,6 +368,16 @@ def test_clean_runner_loads_external_seed_before_selection_and_uses_full_history
     _broker, calls = _configure_build(monkeypatch, repo_root, seed_dir, tags, factory)
     out_one = tmp_path / "public-one"
 
+    build_second = {"value": 5}
+
+    class BuildClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            moment = cls.fromisoformat(f"2026-07-12T06:11:{build_second['value']:02d}+08:00")
+            return moment if tz is None else moment.astimezone(tz)
+
+    monkeypatch.setattr(cli, "datetime", BuildClock)
+
     assert _run_build(repo_root, out_one) == 0
     monkeypatch.setattr(self_check, "_current_bjt_date_key", lambda: "2026-07-12")
     monkeypatch.setattr(sys, "argv", ["self_check.py", "--path", str(out_one)])
@@ -390,6 +400,7 @@ def test_clean_runner_loads_external_seed_before_selection_and_uses_full_history
 
     calls.clear()
     out_two = tmp_path / "public-two"
+    build_second["value"] = 6
     assert _run_build(repo_root, out_two) == 0
     today_one = json.loads((out_one / "data" / "today.json").read_text(encoding="utf-8"))
     today_two = json.loads((out_two / "data" / "today.json").read_text(encoding="utf-8"))
