@@ -30,7 +30,7 @@
 执行的验证：
 
 - `\.venv\Scripts\python.exe -m pytest -p no:cacheprovider`：61 passed；
-- `C:\Users\11836\AppData\Local\nvm\v22.13.0\npm.cmd --prefix ui test`：11 files、40 tests passed；
+- `npm --prefix ui test`：11 files、40 tests passed；
 - 静态追踪 config keys、imports、CLI entrypoints、workflow steps、package scripts、public schema 和 UI component references。
 
 未运行 production build、Pages deployment、Playwright、performance audit 或外部网络探测；这些检查不属于本次 Markdown-only 审计的必要证据。
