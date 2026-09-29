@@ -9,7 +9,7 @@ This is the P1.4 audit baseline for the production static site. It records evide
 From the repository root on the configured Windows machine:
 
 ```powershell
-C:\Users\11836\AppData\Local\nvm\v22.13.0\npm.cmd --prefix ui run performance:audit
+npm --prefix ui run performance:audit
 ```
 
 The command writes timestamped and `latest.json` evidence under the ignored local directory `ui/artifacts/performance/`. The harness uses the installed Chrome channel, production `https://triangulumdaily.space`, 4x CPU throttling, a 1.8 second settle period, and a 2.4 second animation sample. Environment variables can override `PERF_BASE_URL`, `PERF_DATE`, `PERF_CPU_RATE`, `PERF_SETTLE_MS`, `PERF_FPS_SAMPLE_MS`, and `PERF_BROWSER_CHANNEL`. `PERF_SCENARIOS=viewer-desktop` limits a follow-up run to the named scenario without changing the full-audit default.
